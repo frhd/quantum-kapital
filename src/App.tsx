@@ -95,9 +95,11 @@ export default function App() {
           const summary = await invoke<AccountSummary[]>("ibkr_get_account_summary", {
             account: accountList[0],
           })
+          console.log("Account summary received:", summary)
           setAccountSummary(summary)
           
           const pos = await invoke<Position[]>("ibkr_get_positions")
+          console.log("Positions received:", pos)
           setPositions(pos)
         }
       }

@@ -103,7 +103,10 @@ impl IbkrClient {
         }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
         
         match accounts {
-            Ok(accounts) => Ok(accounts),
+            Ok(accounts) => {
+                tracing::info!("Retrieved accounts: {:?}", accounts);
+                Ok(accounts)
+            }
             Err(e) => Err(IbkrError::from(e))
         }
     }
@@ -129,6 +132,8 @@ impl IbkrClient {
                     for item in stream {
                         match item {
                             ibapi::accounts::AccountSummaries::Summary(summary) => {
+                                tracing::info!("Account summary item: account={}, tag={}, value={}, currency={}", 
+                                    summary.account, summary.tag, summary.value, summary.currency);
                                 summaries.push(AccountSummary {
                                     account: summary.account,
                                     tag: summary.tag,
@@ -136,7 +141,10 @@ impl IbkrClient {
                                     currency: summary.currency,
                                 });
                             }
-                            ibapi::accounts::AccountSummaries::End => break,
+                            ibapi::accounts::AccountSummaries::End => {
+                                tracing::info!("Account summary end reached");
+                                break;
+                            }
                         }
                     }
                     Ok(summaries)
@@ -158,18 +166,28 @@ impl IbkrClient {
             match client_clone.positions() {
                 Ok(stream) => {
                     for pos_update in stream {
-                        // TODO: Extract actual position data from PositionUpdate
-                        // For now, create a placeholder position
-                        positions.push(Position {
-                            account: "".to_string(),
-                            symbol: "".to_string(),
-                            position: 0.0,
-                            average_cost: 0.0,
-                            market_price: 0.0,
-                            market_value: 0.0,
-                            unrealized_pnl: 0.0,
-                            realized_pnl: 0.0,
-                        });
+                        match pos_update {
+                            ibapi::accounts::PositionUpdate::Position(pos) => {
+                                tracing::info!("Position: account={}, symbol={}, position={}, avg_cost={}", 
+                                    pos.account, pos.contract.symbol, pos.position, pos.average_cost);
+                                
+                                positions.push(Position {
+                                    account: pos.account,
+                                    symbol: pos.contract.symbol,
+                                    position: pos.position,
+                                    average_cost: pos.average_cost,
+                                    // These fields need to be calculated or fetched separately
+                                    market_price: 0.0,
+                                    market_value: 0.0,
+                                    unrealized_pnl: 0.0,
+                                    realized_pnl: 0.0,
+                                });
+                            }
+                            ibapi::accounts::PositionUpdate::PositionEnd => {
+                                tracing::info!("All positions received");
+                                break;
+                            }
+                        }
                     }
                     Ok(positions)
                 }
