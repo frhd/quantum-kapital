@@ -1,12 +1,12 @@
-use ibapi::Client;
 use ibapi::contracts::Contract;
 use ibapi::orders::Order;
+use ibapi::Client;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{info, error};
+use tracing::{error, info};
 
-use crate::ibkr::types::*;
 use crate::ibkr::error::{IbkrError, Result};
+use crate::ibkr::types::*;
 
 pub struct IbkrClient {
     client: Arc<RwLock<Option<Arc<Client>>>>,
@@ -30,9 +30,10 @@ impl IbkrClient {
         info!("Connecting to IBKR API Gateway at {}", connection_url);
 
         // Run the synchronous connect in a blocking task
-        let connect_result = tokio::task::spawn_blocking(move || {
-            Client::connect(&connection_url, client_id)
-        }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
+        let connect_result =
+            tokio::task::spawn_blocking(move || Client::connect(&connection_url, client_id))
+                .await
+                .map_err(|e| IbkrError::Unknown(e.to_string()))?;
 
         match connect_result {
             Ok(client) => {
@@ -57,6 +58,7 @@ impl IbkrClient {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn is_connected(&self) -> bool {
         let client = self.client.read().await;
         client.is_some()
@@ -65,12 +67,12 @@ impl IbkrClient {
     pub async fn get_connection_status(&self) -> Result<ConnectionStatus> {
         let client = self.client.read().await;
         let config = self.config.lock().await;
-        
+
         if let Some(ref client) = *client {
             let client_clone = Arc::clone(client);
-            let time_result = tokio::task::spawn_blocking(move || {
-                client_clone.server_time()
-            }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
+            let time_result = tokio::task::spawn_blocking(move || client_clone.server_time())
+                .await
+                .map_err(|e| IbkrError::Unknown(e.to_string()))?;
 
             match time_result {
                 Ok(time) => Ok(ConnectionStatus {
@@ -82,7 +84,7 @@ impl IbkrClient {
                     connected: false,
                     server_time: None,
                     client_id: config.client_id,
-                })
+                }),
             }
         } else {
             Ok(ConnectionStatus {
@@ -97,17 +99,17 @@ impl IbkrClient {
         let client = self.client.read().await;
         let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
         let client_clone = Arc::clone(client);
-        
-        let accounts = tokio::task::spawn_blocking(move || {
-            client_clone.managed_accounts()
-        }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
-        
+
+        let accounts = tokio::task::spawn_blocking(move || client_clone.managed_accounts())
+            .await
+            .map_err(|e| IbkrError::Unknown(e.to_string()))?;
+
         match accounts {
             Ok(accounts) => {
                 tracing::info!("Retrieved accounts: {:?}", accounts);
                 Ok(accounts)
             }
-            Err(e) => Err(IbkrError::from(e))
+            Err(e) => Err(IbkrError::from(e)),
         }
     }
 
@@ -116,18 +118,22 @@ impl IbkrClient {
         let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
         let client_clone = Arc::clone(client);
         let account = account.to_string();
-        
+
         let summaries = tokio::task::spawn_blocking(move || {
             let mut summaries = Vec::new();
-            
+
             // Use account_updates to get all account values
             match client_clone.account_updates(&account) {
                 Ok(stream) => {
                     for update in stream {
                         match update {
                             ibapi::accounts::AccountUpdate::AccountValue(value) => {
-                                tracing::info!("Account value: key={}, value={}, currency={}", 
-                                    value.key, value.value, value.currency);
+                                tracing::info!(
+                                    "Account value: key={}, value={}, currency={}",
+                                    value.key,
+                                    value.value,
+                                    value.currency
+                                );
                                 summaries.push(AccountSummary {
                                     account: account.clone(),
                                     tag: value.key,
@@ -144,10 +150,12 @@ impl IbkrClient {
                     }
                     Ok(summaries)
                 }
-                Err(e) => Err(IbkrError::from(e))
+                Err(e) => Err(IbkrError::from(e)),
             }
-        }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
-        
+        })
+        .await
+        .map_err(|e| IbkrError::Unknown(e.to_string()))?;
+
         summaries
     }
 
@@ -155,18 +163,17 @@ impl IbkrClient {
         let client = self.client.read().await;
         let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
         let client_clone = Arc::clone(client);
-        
+
         // First get the accounts
         let accounts = self.get_accounts().await?;
         if accounts.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         let account = accounts[0].clone(); // Use first account
-        
+
         let positions = tokio::task::spawn_blocking(move || {
             let mut positions = Vec::new();
-            
             // Use account_updates to get portfolio values with market data
             match client_clone.account_updates(&account) {
                 Ok(stream) => {
@@ -174,9 +181,8 @@ impl IbkrClient {
                         match update {
                             ibapi::accounts::AccountUpdate::PortfolioValue(portfolio) => {
                                 tracing::info!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}", 
-                                    portfolio.contract.symbol, portfolio.position, portfolio.market_price, 
+                                    portfolio.contract.symbol, portfolio.position, portfolio.market_price,
                                     portfolio.market_value, portfolio.unrealized_pnl);
-                                
                                 positions.push(Position {
                                     account: portfolio.account.unwrap_or_else(|| account.clone()),
                                     symbol: portfolio.contract.symbol.clone(),
@@ -204,7 +210,7 @@ impl IbkrClient {
                 Err(e) => Err(IbkrError::from(e))
             }
         }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
-        
+
         positions
     }
 
@@ -213,7 +219,7 @@ impl IbkrClient {
         let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
         let client_clone = Arc::clone(client);
         let symbol = symbol.to_string();
-        
+
         tokio::task::spawn_blocking(move || {
             let contract = Contract::stock(&symbol);
             // For now, we'll request basic tick types
@@ -223,32 +229,34 @@ impl IbkrClient {
                     // TODO: Store subscription and handle market data updates
                     Ok(())
                 }
-                Err(e) => Err(IbkrError::from(e))
+                Err(e) => Err(IbkrError::from(e)),
             }
-        }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?
+        })
+        .await
+        .map_err(|e| IbkrError::Unknown(e.to_string()))?
     }
 
     pub async fn place_order(&self, order_request: OrderRequest) -> Result<i32> {
         let client = self.client.read().await;
         let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
         let client_clone = Arc::clone(client);
-        
+
         let order_id = tokio::task::spawn_blocking(move || {
             let contract = Contract::stock(&order_request.symbol);
             let order_id = client_clone.next_order_id();
-            
+
             let mut order = Order::default();
-            
+
             // Set action and order type using the ibapi types
             use ibapi::orders::Action;
-            
+
             order.action = match order_request.action {
                 OrderAction::Buy => Action::Buy,
                 OrderAction::Sell => Action::Sell,
             };
-            
+
             order.total_quantity = order_request.quantity;
-            
+
             // Set order type - Type is likely a string in ibapi
             match order_request.order_type {
                 OrderType::Market => {
@@ -258,18 +266,24 @@ impl IbkrClient {
                     order.order_type = "LMT".to_string();
                     order.limit_price = order_request.price;
                 }
-                _ => return Err(IbkrError::RequestFailed("Order type not implemented".to_string())),
+                _ => {
+                    return Err(IbkrError::RequestFailed(
+                        "Order type not implemented".to_string(),
+                    ))
+                }
             };
-            
+
             match client_clone.place_order(order_id, &contract, &order) {
                 Ok(_subscription) => {
                     // TODO: Handle order status updates
                     Ok(order_id)
                 }
-                Err(e) => Err(IbkrError::from(e))
+                Err(e) => Err(IbkrError::from(e)),
             }
-        }).await.map_err(|e| IbkrError::Unknown(e.to_string()))?;
-        
+        })
+        .await
+        .map_err(|e| IbkrError::Unknown(e.to_string()))?;
+
         order_id
     }
 }

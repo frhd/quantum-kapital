@@ -1,8 +1,8 @@
+use crate::ibkr::error::{IbkrError, Result};
+use crate::ibkr::types::*;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::ibkr::types::*;
-use crate::ibkr::error::{IbkrError, Result};
 
 #[async_trait]
 pub trait IbkrClientTrait: Send + Sync {
@@ -14,10 +14,13 @@ pub trait IbkrClientTrait: Send + Sync {
     async fn get_positions(&self, account: &str) -> Result<Vec<Position>>;
     async fn subscribe_market_data(&self, contract_id: i32, symbol: &str) -> Result<()>;
     async fn place_order(&self, order: OrderRequest) -> Result<OrderStatus>;
-    
+
     // New interface methods
     async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot>;
-    async fn get_historical_data(&self, request: HistoricalDataRequest) -> Result<Vec<HistoricalBar>>;
+    async fn get_historical_data(
+        &self,
+        request: HistoricalDataRequest,
+    ) -> Result<Vec<HistoricalBar>>;
     async fn get_contract_details(&self, symbol: &str) -> Result<ContractDetails>;
     async fn get_executions(&self, filter: Option<String>) -> Result<Vec<Execution>>;
     async fn get_account_values(&self, account: &str) -> Result<Vec<AccountValue>>;
@@ -109,7 +112,7 @@ impl IbkrClientTrait for MockIbkrClient {
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         Ok(self.account_summary.read().await.clone())
     }
 
@@ -134,7 +137,7 @@ impl IbkrClientTrait for MockIbkrClient {
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         Ok(OrderStatus {
             order_id: 12345,
             status: "Submitted".to_string(),
@@ -143,13 +146,13 @@ impl IbkrClientTrait for MockIbkrClient {
             average_fill_price: None,
         })
     }
-    
+
     async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         Ok(MarketDataSnapshot {
             symbol: symbol.to_string(),
             bid_price: Some(150.25),
@@ -166,13 +169,16 @@ impl IbkrClientTrait for MockIbkrClient {
             timestamp: chrono::Utc::now().timestamp(),
         })
     }
-    
-    async fn get_historical_data(&self, _request: HistoricalDataRequest) -> Result<Vec<HistoricalBar>> {
+
+    async fn get_historical_data(
+        &self,
+        _request: HistoricalDataRequest,
+    ) -> Result<Vec<HistoricalBar>> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         // Return mock historical data
         Ok(vec![
             HistoricalBar {
@@ -197,13 +203,13 @@ impl IbkrClientTrait for MockIbkrClient {
             },
         ])
     }
-    
+
     async fn get_contract_details(&self, symbol: &str) -> Result<ContractDetails> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         Ok(ContractDetails {
             symbol: symbol.to_string(),
             sec_type: SecurityType::Stock,
@@ -218,38 +224,36 @@ impl IbkrClientTrait for MockIbkrClient {
             price_magnifier: 1,
         })
     }
-    
+
     async fn get_executions(&self, _filter: Option<String>) -> Result<Vec<Execution>> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
-        Ok(vec![
-            Execution {
-                exec_id: "0001".to_string(),
-                time: "20240115 10:30:00".to_string(),
-                account: "DU123456".to_string(),
-                exchange: "NASDAQ".to_string(),
-                side: "BOT".to_string(),
-                shares: 100.0,
-                price: 150.25,
-                perm_id: 123456,
-                client_id: 100,
-                order_id: 12345,
-                liquidation: false,
-                cum_qty: 100.0,
-                avg_price: 150.25,
-            },
-        ])
+
+        Ok(vec![Execution {
+            exec_id: "0001".to_string(),
+            time: "20240115 10:30:00".to_string(),
+            account: "DU123456".to_string(),
+            exchange: "NASDAQ".to_string(),
+            side: "BOT".to_string(),
+            shares: 100.0,
+            price: 150.25,
+            perm_id: 123456,
+            client_id: 100,
+            order_id: 12345,
+            liquidation: false,
+            cum_qty: 100.0,
+            avg_price: 150.25,
+        }])
     }
-    
+
     async fn get_account_values(&self, account: &str) -> Result<Vec<AccountValue>> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         Ok(vec![
             AccountValue {
                 key: "NetLiquidation".to_string(),
@@ -271,41 +275,39 @@ impl IbkrClientTrait for MockIbkrClient {
             },
         ])
     }
-    
+
     async fn scan_market(&self, _subscription: ScannerSubscription) -> Result<Vec<ScannerData>> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
-        Ok(vec![
-            ScannerData {
-                rank: 1,
-                contract: ContractDetails {
-                    symbol: "AAPL".to_string(),
-                    sec_type: SecurityType::Stock,
-                    exchange: "SMART".to_string(),
-                    primary_exchange: "NASDAQ".to_string(),
-                    currency: "USD".to_string(),
-                    local_symbol: "AAPL".to_string(),
-                    trading_class: "AAPL".to_string(),
-                    contract_id: 265598,
-                    min_tick: 0.01,
-                    multiplier: "".to_string(),
-                    price_magnifier: 1,
-                },
-                distance: "".to_string(),
-                benchmark: "".to_string(),
-                projection: "".to_string(),
-                legs: "".to_string(),
+
+        Ok(vec![ScannerData {
+            rank: 1,
+            contract: ContractDetails {
+                symbol: "AAPL".to_string(),
+                sec_type: SecurityType::Stock,
+                exchange: "SMART".to_string(),
+                primary_exchange: "NASDAQ".to_string(),
+                currency: "USD".to_string(),
+                local_symbol: "AAPL".to_string(),
+                trading_class: "AAPL".to_string(),
+                contract_id: 265598,
+                min_tick: 0.01,
+                multiplier: "".to_string(),
+                price_magnifier: 1,
             },
-        ])
+            distance: "".to_string(),
+            benchmark: "".to_string(),
+            projection: "".to_string(),
+            legs: "".to_string(),
+        }])
     }
 }
 
 pub mod test_fixtures {
     use super::*;
-    
+
     pub fn sample_position() -> Position {
         Position {
             symbol: "AAPL".to_string(),
@@ -322,7 +324,7 @@ pub mod test_fixtures {
             local_symbol: "AAPL".to_string(),
         }
     }
-    
+
     pub fn sample_account_summary() -> Vec<AccountSummary> {
         vec![
             AccountSummary {
@@ -345,7 +347,7 @@ pub mod test_fixtures {
             },
         ]
     }
-    
+
     pub fn sample_order_request() -> OrderRequest {
         OrderRequest {
             symbol: "AAPL".to_string(),
@@ -355,7 +357,7 @@ pub mod test_fixtures {
             price: Some(150.0),
         }
     }
-    
+
     pub fn sample_market_data_snapshot() -> MarketDataSnapshot {
         MarketDataSnapshot {
             symbol: "AAPL".to_string(),
@@ -373,7 +375,7 @@ pub mod test_fixtures {
             timestamp: 1704825600, // Fixed timestamp for testing
         }
     }
-    
+
     pub fn sample_historical_data_request() -> HistoricalDataRequest {
         HistoricalDataRequest {
             symbol: "AAPL".to_string(),
@@ -384,7 +386,7 @@ pub mod test_fixtures {
             use_rth: true,
         }
     }
-    
+
     pub fn sample_contract_details() -> ContractDetails {
         ContractDetails {
             symbol: "AAPL".to_string(),
@@ -400,7 +402,7 @@ pub mod test_fixtures {
             price_magnifier: 1,
         }
     }
-    
+
     pub fn sample_scanner_subscription() -> ScannerSubscription {
         ScannerSubscription {
             number_of_rows: 50,

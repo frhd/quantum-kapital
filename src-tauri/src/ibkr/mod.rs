@@ -1,8 +1,8 @@
 pub mod client;
-pub mod state;
 pub mod commands;
-pub mod types;
 pub mod error;
+pub mod state;
+pub mod types;
 
 #[cfg(test)]
 pub mod mocks;

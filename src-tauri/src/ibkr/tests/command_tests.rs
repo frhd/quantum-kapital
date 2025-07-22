@@ -1,6 +1,6 @@
-use crate::ibkr::mocks::{MockIbkrClient, IbkrClientTrait, test_fixtures};
-use crate::ibkr::types::*;
 use crate::ibkr::error::IbkrError;
+use crate::ibkr::mocks::{test_fixtures, IbkrClientTrait, MockIbkrClient};
+use crate::ibkr::types::*;
 
 // Note: These tests demonstrate how to test Tauri commands.
 // In a real implementation, you would need to refactor the commands
@@ -10,13 +10,13 @@ use crate::ibkr::error::IbkrError;
 async fn test_command_connect_flow() {
     // This test demonstrates the expected flow for the connect command
     let client = MockIbkrClient::new();
-    
+
     // Simulate the connect command flow
     let config = ConnectionConfig::default();
     assert_eq!(config.host, "127.0.0.1");
     assert_eq!(config.port, 4002);
     assert_eq!(config.client_id, 100);
-    
+
     // Connect should succeed with default config
     let result = client.connect().await;
     assert!(result.is_ok());
@@ -27,7 +27,7 @@ async fn test_command_get_positions_flow() {
     // This test demonstrates the expected flow for get_positions command
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();
-    
+
     // Set up test data
     let positions = vec![
         test_fixtures::sample_position(),
@@ -47,11 +47,11 @@ async fn test_command_get_positions_flow() {
         },
     ];
     client.set_positions(positions).await;
-    
+
     // Get positions
     let result = client.get_positions("DU123456").await.unwrap();
     assert_eq!(result.len(), 2);
-    
+
     // Verify position details
     let aapl = result.iter().find(|p| p.symbol == "AAPL").unwrap();
     assert_eq!(aapl.position, 100.0);
@@ -63,7 +63,7 @@ async fn test_command_account_summary_parsing() {
     // This test demonstrates how account summary data should be parsed
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();
-    
+
     let summary_items = vec![
         AccountSummary {
             account: "DU123456".to_string(),
@@ -85,12 +85,13 @@ async fn test_command_account_summary_parsing() {
         },
     ];
     client.set_account_summary(summary_items).await;
-    
+
     let result = client.get_account_summary("DU123456").await.unwrap();
     assert_eq!(result.len(), 3);
-    
+
     // In a real command, you would parse these into a structured format
-    let net_liq_value = result.iter()
+    let net_liq_value = result
+        .iter()
         .find(|s| s.tag == "NetLiquidation")
         .map(|s| s.value.parse::<f64>().unwrap())
         .unwrap();
@@ -102,7 +103,7 @@ async fn test_command_order_validation() {
     // This test demonstrates order validation logic
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();
-    
+
     // Test valid order
     let valid_order = OrderRequest {
         symbol: "AAPL".to_string(),
@@ -111,10 +112,10 @@ async fn test_command_order_validation() {
         order_type: OrderType::Limit,
         price: Some(150.0),
     };
-    
+
     let result = client.place_order(valid_order).await;
     assert!(result.is_ok());
-    
+
     // Test market order (no price needed)
     let market_order = OrderRequest {
         symbol: "AAPL".to_string(),
@@ -123,7 +124,7 @@ async fn test_command_order_validation() {
         order_type: OrderType::Market,
         price: None,
     };
-    
+
     let result = client.place_order(market_order).await;
     assert!(result.is_ok());
 }
@@ -132,15 +133,15 @@ async fn test_command_order_validation() {
 async fn test_command_error_handling() {
     // This test demonstrates proper error handling in commands
     let client = MockIbkrClient::new();
-    
+
     // Test operation when not connected
     let result = client.get_positions("DU123456").await;
     assert!(matches!(result, Err(IbkrError::NotConnected)));
-    
+
     // Test with connection error
-    let error_client = MockIbkrClient::with_error(
-        IbkrError::ConnectionFailed("Gateway not running".to_string())
-    );
+    let error_client = MockIbkrClient::with_error(IbkrError::ConnectionFailed(
+        "Gateway not running".to_string(),
+    ));
     let result = error_client.connect().await;
     assert!(matches!(result, Err(IbkrError::ConnectionFailed(_))));
 }
@@ -150,23 +151,27 @@ async fn test_command_concurrent_operations() {
     // This test demonstrates handling concurrent operations
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();
-    
+
     // Set up test data
-    client.set_positions(vec![test_fixtures::sample_position()]).await;
-    client.set_account_summary(test_fixtures::sample_account_summary()).await;
-    
+    client
+        .set_positions(vec![test_fixtures::sample_position()])
+        .await;
+    client
+        .set_account_summary(test_fixtures::sample_account_summary())
+        .await;
+
     // Simulate concurrent requests
     let positions_future = client.get_positions("DU123456");
     let summary_future = client.get_account_summary("DU123456");
     let accounts_future = client.get_accounts();
-    
-    let (positions, summary, accounts) = 
+
+    let (positions, summary, accounts) =
         tokio::join!(positions_future, summary_future, accounts_future);
-    
+
     assert!(positions.is_ok());
     assert!(summary.is_ok());
     assert!(accounts.is_ok());
-    
+
     assert_eq!(positions.unwrap().len(), 1);
     assert!(!summary.unwrap().is_empty());
     assert_eq!(accounts.unwrap().len(), 1);

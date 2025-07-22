@@ -1,12 +1,12 @@
 mod ibkr;
 
+use ibkr::{types::ConnectionConfig, IbkrState};
 use tauri::Manager;
-use ibkr::{IbkrState, types::ConnectionConfig};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+    format!("Hello, {name}! You've been greeted from Rust!")
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

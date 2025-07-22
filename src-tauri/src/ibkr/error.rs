@@ -5,19 +5,19 @@ use thiserror::Error;
 pub enum IbkrError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
-    
+
     #[error("API error: {0}")]
     ApiError(String),
-    
+
     #[error("Not connected")]
     NotConnected,
-    
+
     #[error("Request failed: {0}")]
     RequestFailed(String),
-    
+
     #[error("Serialization error: {0}")]
     SerializationError(String),
-    
+
     #[error("Unknown error: {0}")]
     Unknown(String),
 }

@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use crate::ibkr::client::IbkrClient;
 use crate::ibkr::types::ConnectionConfig;
+use std::sync::Arc;
 
 pub struct IbkrState {
     pub client: Arc<IbkrClient>,
