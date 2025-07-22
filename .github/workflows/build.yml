@@ -99,6 +99,29 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Ad-hoc sign macOS app
+        if: matrix.platform == 'macos-latest'
+        run: |
+          # Find the .app bundle
+          APP_PATH=$(find src-tauri/target -name "*.app" -type d | head -n 1)
+          if [ -n "$APP_PATH" ]; then
+            echo "Signing app at: $APP_PATH"
+            # Ad-hoc sign the app (no certificate required)
+            codesign --force --deep --sign - "$APP_PATH"
+            # Verify the signature
+            codesign --verify --verbose "$APP_PATH"
+          else
+            echo "No .app bundle found to sign"
+          fi
+          
+          # Also sign the DMG if it exists
+          DMG_PATH=$(find src-tauri/target -name "*.dmg" -type f | head -n 1)
+          if [ -n "$DMG_PATH" ]; then
+            echo "Signing DMG at: $DMG_PATH"
+            codesign --force --sign - "$DMG_PATH"
+            codesign --verify --verbose "$DMG_PATH"
+          fi
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
