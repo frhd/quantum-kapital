@@ -33,6 +33,10 @@ async fn test_full_trading_session_flow() {
             unrealized_pnl: 500.0,
             realized_pnl: 0.0,
             account: account.clone(),
+            contract_type: "STK".to_string(),
+            currency: "USD".to_string(),
+            exchange: "NASDAQ".to_string(),
+            local_symbol: "MSFT".to_string(),
         },
     ];
     client.set_positions(positions.clone()).await;
@@ -107,6 +111,10 @@ async fn test_portfolio_value_calculation() {
             unrealized_pnl: 500.0,
             realized_pnl: 100.0,
             account: "DU123456".to_string(),
+            contract_type: "STK".to_string(),
+            currency: "USD".to_string(),
+            exchange: "NASDAQ".to_string(),
+            local_symbol: "AAPL".to_string(),
         },
         Position {
             symbol: "GOOGL".to_string(),
@@ -117,6 +125,10 @@ async fn test_portfolio_value_calculation() {
             unrealized_pnl: 2000.0,
             realized_pnl: 0.0,
             account: "DU123456".to_string(),
+            contract_type: "STK".to_string(),
+            currency: "USD".to_string(),
+            exchange: "NASDAQ".to_string(),
+            local_symbol: "GOOGL".to_string(),
         },
         Position {
             symbol: "MSFT".to_string(),
@@ -127,6 +139,10 @@ async fn test_portfolio_value_calculation() {
             unrealized_pnl: -500.0,
             realized_pnl: 200.0,
             account: "DU123456".to_string(),
+            contract_type: "STK".to_string(),
+            currency: "USD".to_string(),
+            exchange: "NASDAQ".to_string(),
+            local_symbol: "MSFT".to_string(),
         },
     ];
     

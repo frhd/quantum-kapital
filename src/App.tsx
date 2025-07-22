@@ -6,6 +6,7 @@ import { Input } from "./components/ui/input"
 import { Label } from "./components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs"
 import { Badge } from "./components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table"
 import {
   Activity,
   AlertCircle,
@@ -22,17 +23,17 @@ import {
   Clock,
 } from "lucide-react"
 
-// Types for IBKR data
+// Types for IBKR data - These match the Rust types in src-tauri/src/ibkr/types.rs
 interface ConnectionConfig {
   host: string
-  port: number
-  client_id: number
+  port: number // u16 in Rust
+  client_id: number // i32 in Rust
 }
 
 interface ConnectionStatus {
   connected: boolean
   server_time: string | null
-  client_id: number
+  client_id: number // i32 in Rust
 }
 
 interface AccountSummary {
@@ -45,20 +46,24 @@ interface AccountSummary {
 interface Position {
   account: string
   symbol: string
-  position: number
-  average_cost: number
-  market_price: number
-  market_value: number
-  unrealized_pnl: number
-  realized_pnl: number
+  position: number // f64 in Rust
+  average_cost: number // f64 in Rust
+  market_price: number // f64 in Rust
+  market_value: number // f64 in Rust
+  unrealized_pnl: number // f64 in Rust
+  realized_pnl: number // f64 in Rust
+  contract_type: string // "STK" for stocks, "OPT" for options
+  currency: string
+  exchange: string
+  local_symbol: string
 }
 
 interface OrderRequest {
   symbol: string
-  action: "Buy" | "Sell"
-  quantity: number
-  order_type: "Market" | "Limit" | "Stop" | "StopLimit"
-  price?: number
+  action: "Buy" | "Sell" // OrderAction enum in Rust
+  quantity: number // f64 in Rust
+  order_type: "Market" | "Limit" | "Stop" | "StopLimit" // OrderType enum in Rust
+  price?: number // Option<f64> in Rust
 }
 
 export default function App() {
@@ -82,7 +87,10 @@ export default function App() {
     setLoading(true)
     setError(null)
     try {
+      // Connect with the provided configuration
       await invoke("ibkr_connect", { config: connectionSettings })
+      
+      // Get connection status
       const status = await invoke<ConnectionStatus>("ibkr_get_connection_status")
       setConnectionStatus(status)
       
@@ -92,20 +100,33 @@ export default function App() {
         setAccounts(accountList)
         
         if (accountList.length > 0) {
+          // Get account summary for the first account
           const summary = await invoke<AccountSummary[]>("ibkr_get_account_summary", {
             account: accountList[0],
           })
           console.log("Account summary received:", summary)
+          // Log specific tags we're looking for
+          console.log("NetLiquidation:", summary.find(s => s.tag === "NetLiquidation"))
+          console.log("AvailableFunds:", summary.find(s => s.tag === "AvailableFunds"))
+          console.log("BuyingPower:", summary.find(s => s.tag === "BuyingPower"))
           setAccountSummary(summary)
           
+          // Get all positions
           const pos = await invoke<Position[]>("ibkr_get_positions")
           console.log("Positions received:", pos)
           setPositions(pos)
+          
+          // Subscribe to market data for each position
+          for (const position of pos) {
+            await subscribeToMarketData(position.symbol)
+          }
+        } else {
+          console.warn("No accounts found")
         }
       }
     } catch (err) {
       console.error("Failed to connect to IBKR:", err)
-      setError(err as string)
+      setError(typeof err === 'string' ? err : 'Failed to connect to IBKR. Please ensure TWS/Gateway is running.')
     } finally {
       setLoading(false)
     }
@@ -122,9 +143,10 @@ export default function App() {
       setAccounts([])
       setAccountSummary([])
       setPositions([])
+      setError(null)
     } catch (err) {
       console.error("Failed to disconnect:", err)
-      setError(err as string)
+      setError(typeof err === 'string' ? err : 'Failed to disconnect from IBKR')
     }
   }
 
@@ -139,6 +161,15 @@ export default function App() {
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
   }
 
+  const subscribeToMarketData = async (symbol: string) => {
+    try {
+      await invoke("ibkr_subscribe_market_data", { symbol })
+      console.log(`Subscribed to market data for ${symbol}`)
+    } catch (err) {
+      console.error(`Failed to subscribe to market data for ${symbol}:`, err)
+    }
+  }
+
   // Calculate account values from summary
   const getAccountValue = (tag: string): number => {
     const item = accountSummary.find((s) => s.tag === tag)
@@ -148,9 +179,13 @@ export default function App() {
   const totalEquity = getAccountValue("NetLiquidation")
   const availableFunds = getAccountValue("AvailableFunds")
   const buyingPower = getAccountValue("BuyingPower")
-  const dayPnL = positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
   const unrealizedPnL = positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
   const realizedPnL = positions.reduce((sum, pos) => sum + pos.realized_pnl, 0)
+  const totalPnL = unrealizedPnL + realizedPnL
+  
+  // Separate stocks and options
+  const stockPositions = positions.filter(pos => pos.contract_type === "STK")
+  const optionPositions = positions.filter(pos => pos.contract_type === "OPT")
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 space-y-6">
@@ -297,9 +332,9 @@ export default function App() {
 
             <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700 backdrop-blur-sm hover:from-slate-800/90 hover:to-slate-900/90 transition-all duration-300">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-300">Day P&L</CardTitle>
-                <div className={`p-2 rounded-lg ${dayPnL >= 0 ? "bg-green-500/20" : "bg-red-500/20"}`}>
-                  {dayPnL >= 0 ? (
+                <CardTitle className="text-sm font-medium text-slate-300">Total P&L</CardTitle>
+                <div className={`p-2 rounded-lg ${totalPnL >= 0 ? "bg-green-500/20" : "bg-red-500/20"}`}>
+                  {totalPnL >= 0 ? (
                     <TrendingUp className="h-4 w-4 text-green-400" />
                   ) : (
                     <TrendingDown className="h-4 w-4 text-red-400" />
@@ -307,10 +342,10 @@ export default function App() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${dayPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {formatCurrency(dayPnL)}
+                <div className={`text-2xl font-bold ${totalPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {formatCurrency(totalPnL)}
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Today's performance</p>
+                <p className="text-xs text-slate-400 mt-1">Unrealized + Realized</p>
               </CardContent>
             </Card>
 
@@ -349,56 +384,119 @@ export default function App() {
             </TabsList>
 
             <TabsContent value="positions" className="space-y-4">
-              <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-blue-400" />
-                    Portfolio Positions
-                  </CardTitle>
-                  <CardDescription className="text-slate-400">Current holdings and performance</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {positions.length === 0 ? (
-                    <p className="text-slate-400 text-center py-8">No positions found</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {positions.map((position, index) => (
-                        <div
-                          key={`${position.symbol}-${index}`}
-                          className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg border border-slate-700 hover:bg-slate-900/70 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-                              <span className="text-white font-bold text-sm">
-                                {position.symbol.slice(0, 2).toUpperCase()}
-                              </span>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-white">{position.symbol}</h3>
-                              <p className="text-sm text-slate-400">
-                                {position.position > 0 ? "LONG" : "SHORT"} {Math.abs(position.position)} shares
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-semibold text-white">{formatCurrency(position.market_value)}</div>
-                            <div
-                              className={`text-sm flex items-center gap-1 justify-end ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}
-                            >
-                              {position.unrealized_pnl >= 0 ? (
-                                <TrendingUp className="h-3 w-3" />
-                              ) : (
-                                <TrendingDown className="h-3 w-3" />
-                              )}
-                              {formatCurrency(position.unrealized_pnl)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Stock Positions */}
+              {stockPositions.length > 0 && (
+                <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-blue-400" />
+                      Stock Positions
+                    </CardTitle>
+                    <CardDescription className="text-slate-400">Current stock holdings</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-slate-700">
+                          <TableHead className="text-slate-300">Symbol</TableHead>
+                          <TableHead className="text-slate-300 text-right">Shares</TableHead>
+                          <TableHead className="text-slate-300 text-right">Avg Cost</TableHead>
+                          <TableHead className="text-slate-300 text-right">Price</TableHead>
+                          <TableHead className="text-slate-300 text-right">Market Value</TableHead>
+                          <TableHead className="text-slate-300 text-right">Unrealized P&L</TableHead>
+                          <TableHead className="text-slate-300 text-right">% Change</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {stockPositions.map((position, index) => {
+                          const percentChange = ((position.market_price - position.average_cost) / position.average_cost) * 100
+                          return (
+                            <TableRow key={`${position.symbol}-${index}`} className="border-slate-700">
+                              <TableCell className="font-medium text-white">
+                                <div>
+                                  <div>{position.symbol}</div>
+                                  <div className="text-xs text-slate-400">{position.exchange}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-white">{position.position.toFixed(0)}</TableCell>
+                              <TableCell className="text-right text-white">{formatCurrency(position.average_cost)}</TableCell>
+                              <TableCell className="text-right text-white">{formatCurrency(position.market_price)}</TableCell>
+                              <TableCell className="text-right text-white">{formatCurrency(position.market_value)}</TableCell>
+                              <TableCell className={`text-right font-medium ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {formatCurrency(position.unrealized_pnl)}
+                              </TableCell>
+                              <TableCell className={`text-right font-medium ${percentChange >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {formatPercent(percentChange)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Option Positions */}
+              {optionPositions.length > 0 && (
+                <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <Target className="h-5 w-5 text-orange-400" />
+                      Option Positions
+                    </CardTitle>
+                    <CardDescription className="text-slate-400">Current option holdings</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-slate-700">
+                          <TableHead className="text-slate-300">Contract</TableHead>
+                          <TableHead className="text-slate-300 text-right">Contracts</TableHead>
+                          <TableHead className="text-slate-300 text-right">Avg Cost</TableHead>
+                          <TableHead className="text-slate-300 text-right">Price</TableHead>
+                          <TableHead className="text-slate-300 text-right">Market Value</TableHead>
+                          <TableHead className="text-slate-300 text-right">Unrealized P&L</TableHead>
+                          <TableHead className="text-slate-300 text-right">% Change</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {optionPositions.map((position, index) => {
+                          const percentChange = ((position.market_price - position.average_cost) / position.average_cost) * 100
+                          return (
+                            <TableRow key={`${position.local_symbol}-${index}`} className="border-slate-700">
+                              <TableCell className="font-medium text-white">
+                                <div>
+                                  <div>{position.local_symbol}</div>
+                                  <div className="text-xs text-slate-400">{position.symbol}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-white">{position.position.toFixed(0)}</TableCell>
+                              <TableCell className="text-right text-white">{formatCurrency(position.average_cost)}</TableCell>
+                              <TableCell className="text-right text-white">{formatCurrency(position.market_price)}</TableCell>
+                              <TableCell className="text-right text-white">{formatCurrency(position.market_value)}</TableCell>
+                              <TableCell className={`text-right font-medium ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {formatCurrency(position.unrealized_pnl)}
+                              </TableCell>
+                              <TableCell className={`text-right font-medium ${percentChange >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                {formatPercent(percentChange)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {positions.length === 0 && (
+                <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+                  <CardContent className="text-center py-8">
+                    <p className="text-slate-400">No positions found</p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="account" className="space-y-4">

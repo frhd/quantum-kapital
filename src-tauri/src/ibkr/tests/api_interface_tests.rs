@@ -209,8 +209,11 @@ async fn test_portfolio_analysis() {
 
 #[tokio::test]
 async fn test_error_handling_for_new_interfaces() {
-    let client = MockIbkrClient::with_error(IbkrError::ApiError("Market data farm disconnected".to_string()));
-    client.connect().await.unwrap(); // Connect succeeds, but other operations fail
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap(); // Connect succeeds first
+    
+    // Now set error mode for subsequent operations
+    client.set_error(Some(IbkrError::ApiError("Market data farm disconnected".to_string()))).await;
     
     // Test all new interfaces handle errors properly
     assert!(client.get_market_data_snapshot("AAPL").await.is_err());

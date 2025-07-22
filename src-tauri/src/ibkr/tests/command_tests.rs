@@ -40,6 +40,10 @@ async fn test_command_get_positions_flow() {
             unrealized_pnl: 500.0,
             realized_pnl: 0.0,
             account: "DU123456".to_string(),
+            contract_type: "STK".to_string(),
+            currency: "USD".to_string(),
+            exchange: "NASDAQ".to_string(),
+            local_symbol: "MSFT".to_string(),
         },
     ];
     client.set_positions(positions).await;

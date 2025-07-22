@@ -161,32 +161,47 @@ impl IbkrClient {
         let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
         let client_clone = Arc::clone(client);
         
+        // First get the accounts
+        let accounts = self.get_accounts().await?;
+        if accounts.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        let account = accounts[0].clone(); // Use first account
+        
         let positions = tokio::task::spawn_blocking(move || {
             let mut positions = Vec::new();
-            match client_clone.positions() {
+            
+            // Use account_updates to get portfolio values with market data
+            match client_clone.account_updates(&account) {
                 Ok(stream) => {
-                    for pos_update in stream {
-                        match pos_update {
-                            ibapi::accounts::PositionUpdate::Position(pos) => {
-                                tracing::info!("Position: account={}, symbol={}, position={}, avg_cost={}", 
-                                    pos.account, pos.contract.symbol, pos.position, pos.average_cost);
+                    for update in stream {
+                        match update {
+                            ibapi::accounts::AccountUpdate::PortfolioValue(portfolio) => {
+                                tracing::info!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}", 
+                                    portfolio.contract.symbol, portfolio.position, portfolio.market_price, 
+                                    portfolio.market_value, portfolio.unrealized_pnl);
                                 
                                 positions.push(Position {
-                                    account: pos.account,
-                                    symbol: pos.contract.symbol,
-                                    position: pos.position,
-                                    average_cost: pos.average_cost,
-                                    // These fields need to be calculated or fetched separately
-                                    market_price: 0.0,
-                                    market_value: 0.0,
-                                    unrealized_pnl: 0.0,
-                                    realized_pnl: 0.0,
+                                    account: portfolio.account.unwrap_or_else(|| account.clone()),
+                                    symbol: portfolio.contract.symbol.clone(),
+                                    position: portfolio.position,
+                                    average_cost: portfolio.average_cost,
+                                    market_price: portfolio.market_price,
+                                    market_value: portfolio.market_value,
+                                    unrealized_pnl: portfolio.unrealized_pnl,
+                                    realized_pnl: portfolio.realized_pnl,
+                                    contract_type: portfolio.contract.security_type.clone().to_string(),
+                                    currency: portfolio.contract.currency.clone(),
+                                    exchange: portfolio.contract.exchange.clone(),
+                                    local_symbol: portfolio.contract.local_symbol.clone(),
                                 });
                             }
-                            ibapi::accounts::PositionUpdate::PositionEnd => {
-                                tracing::info!("All positions received");
+                            ibapi::accounts::AccountUpdate::End => {
+                                tracing::info!("All portfolio positions received");
                                 break;
                             }
+                            _ => {} // Ignore other update types
                         }
                     }
                     Ok(positions)

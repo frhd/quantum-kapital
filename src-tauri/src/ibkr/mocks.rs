@@ -316,6 +316,10 @@ pub mod test_fixtures {
             unrealized_pnl: 500.0,
             realized_pnl: 0.0,
             account: "DU123456".to_string(),
+            contract_type: "STK".to_string(),
+            currency: "USD".to_string(),
+            exchange: "NASDAQ".to_string(),
+            local_symbol: "AAPL".to_string(),
         }
     }
     

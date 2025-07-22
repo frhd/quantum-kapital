@@ -42,6 +42,10 @@ pub struct Position {
     pub market_value: f64,
     pub unrealized_pnl: f64,
     pub realized_pnl: f64,
+    pub contract_type: String, // "STK" for stocks, "OPT" for options, etc.
+    pub currency: String,
+    pub exchange: String,
+    pub local_symbol: String, // For options, this includes strike and expiry
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
