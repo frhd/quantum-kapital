@@ -151,9 +151,15 @@ export default function App() {
   }
 
   const formatCurrency = (value: number) => {
+    // For values over 10k, show as "10.5k", etc
+    if (Math.abs(value) >= 10000) {
+      return `$${(value / 1000).toFixed(1)}k`
+    }
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(value)
   }
 
@@ -170,18 +176,30 @@ export default function App() {
     }
   }
 
-  // Calculate account values from summary
-  const getAccountValue = (tag: string): number => {
-    const item = accountSummary.find((s) => s.tag === tag)
-    return item ? parseFloat(item.value) : 0
+  // Calculate account values from summary - check multiple possible tag names
+  const getAccountValue = (tags: string[]): number => {
+    for (const tag of tags) {
+      const item = accountSummary.find((s) => s.tag === tag)
+      if (item) {
+        const value = parseFloat(item.value)
+        console.log(`Found ${tag}: ${value}`)
+        return value
+      }
+    }
+    return 0
   }
 
-  const totalEquity = getAccountValue("NetLiquidation")
-  const availableFunds = getAccountValue("AvailableFunds")
-  const buyingPower = getAccountValue("BuyingPower")
+  const totalEquity = getAccountValue(["NetLiquidation", "NetLiquidationByCurrency", "TotalNetLiquidation"])
+  const availableFunds = getAccountValue(["AvailableFunds", "AvailableFunds-S", "AvailableFunds-C"])
+  const buyingPower = getAccountValue(["BuyingPower", "BuyingPower-S"])
+  // Calculate P&L from positions
   const unrealizedPnL = positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
   const realizedPnL = positions.reduce((sum, pos) => sum + pos.realized_pnl, 0)
   const totalPnL = unrealizedPnL + realizedPnL
+  
+  // Also check account summary for P&L values
+  const dailyPnL = getAccountValue(["DailyPnL", "UnrealizedPnL", "UnrealizedPnL-S"])
+  const realizedPnLAccount = getAccountValue(["RealizedPnL", "RealizedPnL-S"])
   
   // Separate stocks and options
   const stockPositions = positions.filter(pos => pos.contract_type === "STK")
@@ -395,44 +413,44 @@ export default function App() {
                     <CardDescription className="text-slate-400">Current stock holdings</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-slate-700">
-                          <TableHead className="text-slate-300">Symbol</TableHead>
-                          <TableHead className="text-slate-300 text-right">Shares</TableHead>
-                          <TableHead className="text-slate-300 text-right">Avg Cost</TableHead>
-                          <TableHead className="text-slate-300 text-right">Price</TableHead>
-                          <TableHead className="text-slate-300 text-right">Market Value</TableHead>
-                          <TableHead className="text-slate-300 text-right">Unrealized P&L</TableHead>
-                          <TableHead className="text-slate-300 text-right">% Change</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {stockPositions.map((position, index) => {
-                          const percentChange = ((position.market_price - position.average_cost) / position.average_cost) * 100
-                          return (
-                            <TableRow key={`${position.symbol}-${index}`} className="border-slate-700">
-                              <TableCell className="font-medium text-white">
-                                <div>
-                                  <div>{position.symbol}</div>
-                                  <div className="text-xs text-slate-400">{position.exchange}</div>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right text-white">{position.position.toFixed(0)}</TableCell>
-                              <TableCell className="text-right text-white">{formatCurrency(position.average_cost)}</TableCell>
-                              <TableCell className="text-right text-white">{formatCurrency(position.market_price)}</TableCell>
-                              <TableCell className="text-right text-white">{formatCurrency(position.market_value)}</TableCell>
-                              <TableCell className={`text-right font-medium ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {formatCurrency(position.unrealized_pnl)}
-                              </TableCell>
-                              <TableCell className={`text-right font-medium ${percentChange >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {formatPercent(percentChange)}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-slate-700 h-8">
+                            <TableHead className="text-slate-300 text-xs py-2">Symbol</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Qty</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Avg Cost</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Price</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Value</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">P&L</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">%</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {stockPositions.map((position, index) => {
+                            const percentChange = ((position.market_price - position.average_cost) / position.average_cost) * 100
+                            return (
+                              <TableRow key={`${position.symbol}-${index}`} className="border-slate-700 h-10">
+                                <TableCell className="font-medium text-white py-2">
+                                  <div className="text-sm">{position.symbol}</div>
+                                  <div className="text-xs text-slate-500">{position.exchange}</div>
+                                </TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">{position.position.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">${position.average_cost.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">${position.market_price.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">{formatCurrency(position.market_value)}</TableCell>
+                                <TableCell className={`text-right text-sm font-medium py-2 ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                  {position.unrealized_pnl >= 0 ? "+" : ""}{formatCurrency(Math.abs(position.unrealized_pnl))}
+                                </TableCell>
+                                <TableCell className={`text-right text-sm font-medium py-2 ${percentChange >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                  {percentChange >= 0 ? "+" : ""}{percentChange.toFixed(1)}%
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -448,44 +466,44 @@ export default function App() {
                     <CardDescription className="text-slate-400">Current option holdings</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-slate-700">
-                          <TableHead className="text-slate-300">Contract</TableHead>
-                          <TableHead className="text-slate-300 text-right">Contracts</TableHead>
-                          <TableHead className="text-slate-300 text-right">Avg Cost</TableHead>
-                          <TableHead className="text-slate-300 text-right">Price</TableHead>
-                          <TableHead className="text-slate-300 text-right">Market Value</TableHead>
-                          <TableHead className="text-slate-300 text-right">Unrealized P&L</TableHead>
-                          <TableHead className="text-slate-300 text-right">% Change</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {optionPositions.map((position, index) => {
-                          const percentChange = ((position.market_price - position.average_cost) / position.average_cost) * 100
-                          return (
-                            <TableRow key={`${position.local_symbol}-${index}`} className="border-slate-700">
-                              <TableCell className="font-medium text-white">
-                                <div>
-                                  <div>{position.local_symbol}</div>
-                                  <div className="text-xs text-slate-400">{position.symbol}</div>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right text-white">{position.position.toFixed(0)}</TableCell>
-                              <TableCell className="text-right text-white">{formatCurrency(position.average_cost)}</TableCell>
-                              <TableCell className="text-right text-white">{formatCurrency(position.market_price)}</TableCell>
-                              <TableCell className="text-right text-white">{formatCurrency(position.market_value)}</TableCell>
-                              <TableCell className={`text-right font-medium ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {formatCurrency(position.unrealized_pnl)}
-                              </TableCell>
-                              <TableCell className={`text-right font-medium ${percentChange >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {formatPercent(percentChange)}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-slate-700 h-8">
+                            <TableHead className="text-slate-300 text-xs py-2">Contract</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Qty</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Avg Cost</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Price</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">Value</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">P&L</TableHead>
+                            <TableHead className="text-slate-300 text-right text-xs py-2">%</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {optionPositions.map((position, index) => {
+                            const percentChange = ((position.market_price - position.average_cost) / position.average_cost) * 100
+                            return (
+                              <TableRow key={`${position.local_symbol}-${index}`} className="border-slate-700 h-10">
+                                <TableCell className="font-medium text-white py-2">
+                                  <div className="text-sm">{position.local_symbol}</div>
+                                  <div className="text-xs text-slate-500">{position.symbol}</div>
+                                </TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">{position.position.toFixed(0)}</TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">${position.average_cost.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">${position.market_price.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-white text-sm py-2">{formatCurrency(position.market_value)}</TableCell>
+                                <TableCell className={`text-right text-sm font-medium py-2 ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                  {position.unrealized_pnl >= 0 ? "+" : ""}{formatCurrency(Math.abs(position.unrealized_pnl))}
+                                </TableCell>
+                                <TableCell className={`text-right text-sm font-medium py-2 ${percentChange >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                  {percentChange >= 0 ? "+" : ""}{percentChange.toFixed(1)}%
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -509,30 +527,73 @@ export default function App() {
                   <CardDescription className="text-slate-400">Detailed account information</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                        <h4 className="text-sm font-medium text-slate-300 mb-2">Total Cash Value</h4>
-                        <p className="text-2xl font-bold text-white">
-                          {formatCurrency(getAccountValue("TotalCashValue"))}
-                        </p>
-                      </div>
-                      <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                        <h4 className="text-sm font-medium text-slate-300 mb-2">Realized P&L</h4>
-                        <p
-                          className={`text-2xl font-bold ${realizedPnL >= 0 ? "text-green-400" : "text-red-400"}`}
-                        >
-                          {formatCurrency(realizedPnL)}
-                        </p>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Key Account Metrics */}
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Net Liquidation</h4>
+                      <p className="text-2xl font-bold text-white">
+                        {formatCurrency(totalEquity)}
+                      </p>
                     </div>
-                    <div className="space-y-4">
-                      <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                        <h4 className="text-sm font-medium text-slate-300 mb-2">Account ID</h4>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Available Funds</h4>
+                      <p className="text-2xl font-bold text-white">
+                        {formatCurrency(availableFunds)}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Buying Power</h4>
+                      <p className="text-2xl font-bold text-white">
+                        {formatCurrency(buyingPower)}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Total Cash</h4>
+                      <p className="text-xl font-bold text-white">
+                        {formatCurrency(getAccountValue(["TotalCashValue", "TotalCashBalance", "CashBalance"]))}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Gross Position Value</h4>
+                      <p className="text-xl font-bold text-white">
+                        {formatCurrency(getAccountValue(["GrossPositionValue"]))}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Excess Liquidity</h4>
+                      <p className="text-xl font-bold text-white">
+                        {formatCurrency(getAccountValue(["ExcessLiquidity", "ExcessLiquidity-S"]))}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Initial Margin</h4>
+                      <p className="text-xl font-bold text-white">
+                        {formatCurrency(getAccountValue(["InitMarginReq", "InitMarginReq-S"]))}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Maintenance Margin</h4>
+                      <p className="text-xl font-bold text-white">
+                        {formatCurrency(getAccountValue(["MaintMarginReq", "MaintMarginReq-S"]))}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                      <h4 className="text-sm font-medium text-slate-300 mb-2">Account Type</h4>
+                      <p className="text-lg text-white">
+                        {accountSummary.find(s => s.tag === "AccountType")?.value || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Account Info */}
+                  <div className="mt-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-sm font-medium text-slate-300">Account ID</h4>
                         <p className="text-lg font-mono text-white">{accounts[0] || "N/A"}</p>
                       </div>
-                      <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                        <h4 className="text-sm font-medium text-slate-300 mb-2">Server Time</h4>
+                      <div className="text-right">
+                        <h4 className="text-sm font-medium text-slate-300">Server Time</h4>
                         <p className="text-sm text-slate-400 flex items-center gap-2">
                           <Clock className="h-4 w-4" />
                           {connectionStatus.server_time || "N/A"}

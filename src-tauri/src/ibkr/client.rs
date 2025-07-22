@@ -119,32 +119,27 @@ impl IbkrClient {
         
         let summaries = tokio::task::spawn_blocking(move || {
             let mut summaries = Vec::new();
-            // Request all tags for the account summary
-            let tags = &["AccountType", "NetLiquidation", "TotalCashValue", "SettledCash", 
-                        "AccruedCash", "BuyingPower", "EquityWithLoanValue", "PreviousEquityWithLoanValue",
-                        "GrossPositionValue", "RegTEquity", "RegTMargin", "SMA", "InitMarginReq", 
-                        "MaintMarginReq", "AvailableFunds", "ExcessLiquidity", "Cushion", "FullInitMarginReq",
-                        "FullMaintMarginReq", "FullAvailableFunds", "FullExcessLiquidity", "LookAheadNextChange",
-                        "LookAheadInitMarginReq", "LookAheadMaintMarginReq", "LookAheadAvailableFunds",
-                        "LookAheadExcessLiquidity", "HighestSeverity", "DayTradesRemaining", "Leverage"];
-            match client_clone.account_summary(&account, tags) {
+            
+            // Use account_updates to get all account values
+            match client_clone.account_updates(&account) {
                 Ok(stream) => {
-                    for item in stream {
-                        match item {
-                            ibapi::accounts::AccountSummaries::Summary(summary) => {
-                                tracing::info!("Account summary item: account={}, tag={}, value={}, currency={}", 
-                                    summary.account, summary.tag, summary.value, summary.currency);
+                    for update in stream {
+                        match update {
+                            ibapi::accounts::AccountUpdate::AccountValue(value) => {
+                                tracing::info!("Account value: key={}, value={}, currency={}", 
+                                    value.key, value.value, value.currency);
                                 summaries.push(AccountSummary {
-                                    account: summary.account,
-                                    tag: summary.tag,
-                                    value: summary.value,
-                                    currency: summary.currency,
+                                    account: account.clone(),
+                                    tag: value.key,
+                                    value: value.value,
+                                    currency: value.currency,
                                 });
                             }
-                            ibapi::accounts::AccountSummaries::End => {
-                                tracing::info!("Account summary end reached");
+                            ibapi::accounts::AccountUpdate::End => {
+                                tracing::info!("Account updates end reached");
                                 break;
                             }
+                            _ => {} // Ignore other update types (PortfolioValue, UpdateTime)
                         }
                     }
                     Ok(summaries)
