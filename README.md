@@ -1,11 +1,186 @@
-# Tauri + React
+# Quantum Kapital
 
-This template should help get you started developing with Tauri and React in Vite.
+A professional cross-platform algorithmic trading application built with Tauri and React, providing seamless integration with Interactive Brokers (IBKR) API for real-time portfolio management and automated trading.
 
-## Recommended IDE Setup
+## 🚀 Features
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- **Real-time Portfolio Dashboard**: Monitor your IBKR account with live updates
+- **Position Management**: Track all your positions with real-time P&L calculations
+- **Account Summary**: Comprehensive view of account metrics including equity, buying power, and available funds
+- **Market Data Streaming**: Subscribe to real-time market data for your holdings
+- **Order Execution**: Place market and limit orders directly from the application
+- **Cross-Platform**: Runs natively on Windows, macOS, and Linux
+- **Secure**: All sensitive data is handled securely through Tauri's IPC bridge
 
-# Libraries
+## 🏗️ Architecture
 
-IBKR API with Rust: https://github.com/wboayue/rust-ibapi
+### Frontend (React + TypeScript)
+- **UI Framework**: React 18 with TypeScript
+- **Component Library**: Custom shadcn/ui components with Tailwind CSS
+- **State Management**: React hooks with async Tauri command invocation
+- **Icons**: Lucide React for consistent iconography
+- **Styling**: Tailwind CSS with custom gradient themes
+
+### Backend (Tauri + Rust)
+- **Framework**: Tauri v2 for secure desktop application development
+- **IBKR Integration**: Using `ibapi` Rust crate for TWS/Gateway communication
+- **Async Runtime**: Tokio for handling concurrent operations
+- **Error Handling**: Custom error types with thiserror
+- **Logging**: Structured logging with tracing
+
+## 📁 Project Structure
+
+```
+quantum-kapital/
+├── src/                    # React frontend
+│   ├── App.tsx            # Main application component with IBKR integration
+│   ├── components/        # Reusable UI components
+│   │   ├── ui/           # shadcn/ui component library
+│   │   └── theme-provider.tsx
+│   ├── lib/              # Utility functions
+│   └── main.tsx          # Application entry point
+├── src-tauri/            # Rust backend
+│   ├── src/
+│   │   ├── ibkr/        # IBKR API integration modules
+│   │   │   ├── client.rs     # IBKR client implementation
+│   │   │   ├── commands.rs   # Tauri command handlers
+│   │   │   ├── types.rs      # Shared type definitions
+│   │   │   ├── state.rs      # Application state management
+│   │   │   └── error.rs      # Error handling
+│   │   ├── lib.rs       # Library configuration
+│   │   └── main.rs      # Application entry point
+│   └── Cargo.toml       # Rust dependencies
+└── package.json         # Node.js dependencies
+```
+
+## 🔧 Prerequisites
+
+- **Node.js** (v18 or higher)
+- **Rust** (latest stable)
+- **pnpm** (recommended) or npm
+- **Interactive Brokers TWS** or **IB Gateway** running locally
+- IBKR account with API access enabled
+
+## 📦 Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/quantum-kapital.git
+cd quantum-kapital
+```
+
+2. Install dependencies:
+```bash
+pnpm install
+```
+
+3. Configure IBKR connection:
+   - Ensure TWS or IB Gateway is running
+   - Default connection settings: `127.0.0.1:4002`
+   - Client ID: 100 (configurable in the app)
+
+## 🚀 Development
+
+Run the application in development mode:
+
+```bash
+pnpm tauri dev
+```
+
+This will:
+- Start the Vite dev server for the React frontend
+- Build and run the Tauri application
+- Enable hot module replacement for the frontend
+- Watch for changes in the Rust code
+
+## 📱 Building for Production
+
+Create a production build:
+
+```bash
+pnpm tauri build
+```
+
+This will create optimized binaries for your platform in `src-tauri/target/release/`.
+
+## 🔌 IBKR API Configuration
+
+### TWS Configuration
+1. Enable API connections in TWS:
+   - File → Global Configuration → API → Settings
+   - Enable "Enable ActiveX and Socket Clients"
+   - Configure "Socket port" (default: 4002)
+   - Add "127.0.0.1" to "Trusted IPs"
+
+### IB Gateway Configuration
+1. Similar settings available in IB Gateway
+2. Recommended for production use (more stable for long-running connections)
+
+## 📊 Available Commands
+
+The application exposes the following Tauri commands:
+
+- `ibkr_connect`: Establish connection to IBKR
+- `ibkr_disconnect`: Close the connection
+- `ibkr_get_connection_status`: Check connection status
+- `ibkr_get_accounts`: Retrieve account list
+- `ibkr_get_account_summary`: Get detailed account metrics
+- `ibkr_get_positions`: Fetch current positions
+- `ibkr_subscribe_market_data`: Subscribe to real-time quotes
+- `ibkr_place_order`: Submit orders to IBKR
+
+## 🎨 UI Components
+
+The application uses a comprehensive component library:
+
+- **Cards**: Display account metrics and positions
+- **Tabs**: Navigate between positions and account details
+- **Buttons**: Connect/disconnect and action buttons
+- **Input fields**: Configure connection settings
+- **Badges**: Status indicators
+- **Tables**: Position listings (extensible)
+
+## 🔒 Security Considerations
+
+- All IBKR API communications happen through the Rust backend
+- No sensitive data is exposed to the web context
+- Connection settings are managed securely through Tauri's state management
+- Consider using environment variables for production deployments
+
+## 🛠️ Technologies Used
+
+### Frontend
+- React 18.3
+- TypeScript 5
+- Tailwind CSS 3.4
+- Vite 6
+- shadcn/ui components
+- Lucide React icons
+
+### Backend
+- Tauri 2.0
+- Rust (stable)
+- ibapi 1.2
+- Tokio (async runtime)
+- Serde (serialization)
+- Tracing (logging)
+
+## 📚 Resources
+
+- [Tauri Documentation](https://tauri.app)
+- [IBKR API Documentation](https://interactivebrokers.github.io)
+- [Rust IBAPI Crate](https://github.com/wboayue/rust-ibapi)
+- [React Documentation](https://react.dev)
+- [shadcn/ui](https://ui.shadcn.com)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## ⚠️ Disclaimer
+
+This software is for educational and informational purposes only. Trading financial instruments carries risk. Always perform your own research and consider consulting with a qualified financial advisor before making investment decisions.
