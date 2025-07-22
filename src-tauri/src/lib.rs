@@ -1,13 +1,13 @@
+mod config;
+mod events;
 mod ibkr;
+mod middleware;
+mod services;
+mod utils;
 
-use ibkr::{types::ConnectionConfig, IbkrState};
+use config::AppConfig;
+use ibkr::IbkrState;
 use tauri::Manager;
-
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {name}! You've been greeted from Rust!")
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,13 +17,23 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Initialize IBKR state with default configuration
-            let ibkr_state = IbkrState::new(ConnectionConfig::default());
+            // Load configuration
+            let config = AppConfig::default(); // In production, would load from file
+            
+            // Initialize IBKR state with configuration
+            let ibkr_state = IbkrState::new(config.ibkr.clone().into());
+            
+            // Set app handle for event emitter
+            let app_handle = app.handle().clone();
+            let state_clone = ibkr_state.clone();
+            tauri::async_runtime::spawn(async move {
+                state_clone.event_emitter.set_app_handle(app_handle).await;
+            });
+            
             app.manage(ibkr_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
             ibkr::commands::ibkr_connect,
             ibkr::commands::ibkr_disconnect,
             ibkr::commands::ibkr_get_connection_status,

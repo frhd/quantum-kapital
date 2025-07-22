@@ -2992,6 +2992,7 @@ dependencies = [
  "futures",
  "ibapi",
  "mockall",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

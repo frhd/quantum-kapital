@@ -6,7 +6,10 @@ use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
 use crate::ibkr::error::{IbkrError, Result};
-use crate::ibkr::types::*;
+use crate::ibkr::types::{
+    AccountSummary, ConnectionConfig, ConnectionStatus, OrderAction, OrderRequest,
+    OrderType, Position,
+};
 
 pub struct IbkrClient {
     client: Arc<RwLock<Option<Arc<Client>>>>,
