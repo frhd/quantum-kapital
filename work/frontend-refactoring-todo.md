@@ -1,10 +1,15 @@
 # Frontend Refactoring TODO List
 
+## ⚠️ Important Note
+**Always verify the app still works after completing tasks by running `pnpm tauri dev` and testing affected functionality.**
+
 ## 🔥 High Priority
 
 ### 1. Clean Up Next.js Artifacts
-- [ ] Remove or refactor `src/app/providers.tsx` (contains unnecessary `'use client'` directive)
-- [ ] Verify no other Next.js specific code exists in the codebase
+- [x] Remove or refactor `src/app/providers.tsx` (contains unnecessary `'use client'` directive) ✅
+- [x] Verify no other Next.js specific code exists in the codebase ✅
+- [x] Remove 'use client' directives from 39 UI components ✅
+- [x] Verify no old JavaScript (.js) files exist in src/ ✅
 
 ### 2. Implement Core Missing Features
 - [ ] **Market Data Feature**
