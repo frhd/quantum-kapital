@@ -32,12 +32,12 @@ pub fn round_to_decimals(value: f64, decimals: u32) -> f64 {
 
 /// Format currency value with 2 decimal places
 pub fn format_currency(value: f64, currency: &str) -> String {
-    format!("{} {:.2}", currency, value)
+    format!("{currency} {value:.2}")
 }
 
 /// Format percentage with 2 decimal places
 pub fn format_percentage(value: f64) -> String {
-    format!("{:.2}%", value)
+    format!("{value:.2}%")
 }
 
 /// Parse a JSON value to extract a specific field
@@ -59,22 +59,24 @@ pub fn extract_json_field<T: serde::de::DeserializeOwned>(
 pub fn is_valid_symbol(symbol: &str) -> bool {
     !symbol.is_empty()
         && symbol.len() <= 12
-        && symbol.chars().all(|c| c.is_ascii_alphanumeric() || c == '.')
+        && symbol
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.')
 }
 
 /// Sanitize a string for logging (remove sensitive data)
 pub fn sanitize_for_logging(input: &str) -> String {
     // Replace potential account numbers or sensitive data
     let mut result = input.to_string();
-    
+
     // Replace account numbers (assuming they're alphanumeric and 5-15 chars)
     let account_regex = regex::Regex::new(r"\b[A-Za-z0-9]{5,15}\b").unwrap();
     result = account_regex.replace_all(&result, "[ACCOUNT]").to_string();
-    
+
     // Replace potential API keys or tokens
     let token_regex = regex::Regex::new(r"\b[A-Za-z0-9_-]{20,}\b").unwrap();
     result = token_regex.replace_all(&result, "[TOKEN]").to_string();
-    
+
     result
 }
 
@@ -92,9 +94,9 @@ mod tests {
 
     #[test]
     fn test_round_to_decimals() {
-        assert_eq!(round_to_decimals(3.14159, 2), 3.14);
+        assert_eq!(round_to_decimals(3.141520, 2), 3.14);
         assert_eq!(round_to_decimals(3.14559, 2), 3.15);
-        assert_eq!(round_to_decimals(3.14159, 4), 3.1416);
+        assert_eq!(round_to_decimals(3.141520, 4), 3.1415);
     }
 
     #[test]

@@ -24,16 +24,20 @@ impl AccountService {
             match self.state.client.get_accounts().await {
                 Ok(accounts) => {
                     // Emit event for successful account list retrieval
-                    let _ = self.state.event_emitter.emit(AppEvent::AccountsListChanged {
-                        accounts: accounts.clone(),
-                    }).await;
-                    
+                    let _ = self
+                        .state
+                        .event_emitter
+                        .emit(AppEvent::AccountsListChanged {
+                            accounts: accounts.clone(),
+                        })
+                        .await;
+
                     return Ok(accounts);
                 }
                 Err(e) => {
                     last_error = e.to_string();
                     retries += 1;
-                    
+
                     if retries < max_retries {
                         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                     }
@@ -41,7 +45,7 @@ impl AccountService {
             }
         }
 
-        Err(format!("Failed after {} retries: {}", max_retries, last_error))
+        Err(format!("Failed after {max_retries} retries: {last_error}"))
     }
 
     /// Get account summary with enhanced formatting
@@ -49,7 +53,11 @@ impl AccountService {
         &self,
         account: &str,
     ) -> Result<AccountSummaryReport, String> {
-        let summaries = self.state.client.get_account_summary(account).await
+        let summaries = self
+            .state
+            .client
+            .get_account_summary(account)
+            .await
             .map_err(|e| e.to_string())?;
 
         let mut report = AccountSummaryReport {
@@ -68,20 +76,26 @@ impl AccountService {
             match summary.tag.as_str() {
                 "TotalCashValue" => report.cash_balance = summary.value.parse().unwrap_or(0.0),
                 "NetLiquidation" => report.total_value = summary.value.parse().unwrap_or(0.0),
-                "GrossPositionValue" => report.securities_value = summary.value.parse().unwrap_or(0.0),
+                "GrossPositionValue" => {
+                    report.securities_value = summary.value.parse().unwrap_or(0.0)
+                }
                 "BuyingPower" => report.buying_power = summary.value.parse().unwrap_or(0.0),
                 "ExcessLiquidity" => report.excess_liquidity = summary.value.parse().unwrap_or(0.0),
                 _ => {}
             }
-            
+
             report.details.push(summary);
         }
 
         // Emit account update event
-        let _ = self.state.event_emitter.emit(AppEvent::AccountUpdate {
-            account_id: account.to_string(),
-            data: serde_json::to_value(&report).unwrap_or_default(),
-        }).await;
+        let _ = self
+            .state
+            .event_emitter
+            .emit(AppEvent::AccountUpdate {
+                account_id: account.to_string(),
+                data: serde_json::to_value(&report).unwrap_or_default(),
+            })
+            .await;
 
         Ok(report)
     }
@@ -91,11 +105,18 @@ impl AccountService {
         // Check cache first
         if !self.state.is_cache_stale(30).await {
             let cached = self.state.get_cached_positions().await;
-            return Ok(cached.into_iter().map(|p| PositionWithPnL::from_position(p)).collect());
+            return Ok(cached
+                .into_iter()
+                .map(PositionWithPnL::from_position)
+                .collect());
         }
 
         // Fetch fresh data
-        let positions = self.state.client.get_positions().await
+        let positions = self
+            .state
+            .client
+            .get_positions()
+            .await
             .map_err(|e| e.to_string())?;
 
         // Cache the positions
@@ -104,7 +125,7 @@ impl AccountService {
         // Calculate P&L for each position
         let positions_with_pnl: Vec<PositionWithPnL> = positions
             .into_iter()
-            .map(|p| PositionWithPnL::from_position(p))
+            .map(PositionWithPnL::from_position)
             .collect();
 
         Ok(positions_with_pnl)

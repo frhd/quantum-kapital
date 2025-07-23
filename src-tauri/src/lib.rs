@@ -19,17 +19,17 @@ pub fn run() {
         .setup(|app| {
             // Load configuration
             let config = AppConfig::default(); // In production, would load from file
-            
+
             // Initialize IBKR state with configuration
             let ibkr_state = IbkrState::new(config.ibkr.clone().into());
-            
+
             // Set app handle for event emitter
             let app_handle = app.handle().clone();
             let state_clone = ibkr_state.clone();
             tauri::async_runtime::spawn(async move {
                 state_clone.event_emitter.set_app_handle(app_handle).await;
             });
-            
+
             app.manage(ibkr_state);
             Ok(())
         })

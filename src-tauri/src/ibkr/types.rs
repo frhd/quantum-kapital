@@ -12,6 +12,10 @@ pub mod scanner;
 // Re-export all types at the root level for backward compatibility
 pub use account::*;
 pub use connection::*;
+#[allow(unused_imports)]
+pub use historical::*;
 pub use market_data::*;
 pub use orders::*;
 pub use positions::*;
+#[allow(unused_imports)]
+pub use scanner::*;

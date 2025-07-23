@@ -49,8 +49,7 @@ impl RateLimiter {
                 .saturating_sub(now.duration_since(limit.window_start))
                 .as_millis();
             return Err(format!(
-                "Rate limit exceeded for {}. Try again in {} ms",
-                endpoint, remaining_ms
+                "Rate limit exceeded for {endpoint}. Try again in {remaining_ms} ms"
             ));
         }
 

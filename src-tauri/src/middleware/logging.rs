@@ -7,11 +7,7 @@ pub struct CommandLogger;
 #[allow(dead_code)]
 impl CommandLogger {
     pub fn log_command_start(command_name: &str, args: &str) -> Instant {
-        info!(
-            command = command_name,
-            args = args,
-            "Command started"
-        );
+        info!(command = command_name, args = args, "Command started");
         Instant::now()
     }
 

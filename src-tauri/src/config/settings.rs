@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub ibkr: IbkrConfig,
     pub logging: LoggingConfig,
@@ -34,16 +34,6 @@ pub struct UiConfig {
     pub default_refresh_interval_ms: u64,
     pub show_notifications: bool,
     pub auto_save_layout: bool,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            ibkr: IbkrConfig::default(),
-            logging: LoggingConfig::default(),
-            ui: UiConfig::default(),
-        }
-    }
 }
 
 impl Default for IbkrConfig {

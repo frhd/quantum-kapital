@@ -358,6 +358,7 @@ pub mod test_fixtures {
         }
     }
 
+    #[allow(dead_code)]
     pub fn sample_market_data_snapshot() -> MarketDataSnapshot {
         MarketDataSnapshot {
             symbol: "AAPL".to_string(),
@@ -387,6 +388,7 @@ pub mod test_fixtures {
         }
     }
 
+    #[allow(dead_code)]
     pub fn sample_contract_details() -> ContractDetails {
         ContractDetails {
             symbol: "AAPL".to_string(),

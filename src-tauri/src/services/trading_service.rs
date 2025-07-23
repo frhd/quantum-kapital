@@ -40,7 +40,12 @@ impl TradingService {
         self.validate_order(&order)?;
 
         // Check rate limit
-        match self.state.rate_limiter.check_and_update("place_order").await {
+        match self
+            .state
+            .rate_limiter
+            .check_and_update("place_order")
+            .await
+        {
             Ok(_) => {}
             Err(e) => return Err(e),
         }
@@ -67,10 +72,14 @@ impl TradingService {
                 orders.insert(order_id, tracker);
 
                 // Emit order placed event
-                let _ = self.state.event_emitter.emit(AppEvent::OrderPlaced {
-                    order_id,
-                    symbol: order.symbol.clone(),
-                }).await;
+                let _ = self
+                    .state
+                    .event_emitter
+                    .emit(AppEvent::OrderPlaced {
+                        order_id,
+                        symbol: order.symbol.clone(),
+                    })
+                    .await;
 
                 Ok(OrderPlacementResult {
                     order_id,
@@ -85,10 +94,14 @@ impl TradingService {
             }
             Err(e) => {
                 // Emit order error event
-                let _ = self.state.event_emitter.emit(AppEvent::OrderError {
-                    order_id: None,
-                    error: e.to_string(),
-                }).await;
+                let _ = self
+                    .state
+                    .event_emitter
+                    .emit(AppEvent::OrderError {
+                        order_id: None,
+                        error: e.to_string(),
+                    })
+                    .await;
 
                 Err(e.to_string())
             }
@@ -132,20 +145,22 @@ impl TradingService {
         // Check if we're tracking this order
         let orders = self.pending_orders.read().await;
         if !orders.contains_key(&order_id) {
-            return Err(format!("Order {} not found in tracking", order_id));
+            return Err(format!("Order {order_id} not found in tracking"));
         }
         drop(orders);
 
         // TODO: Implement actual order cancellation when API supports it
-        
+
         // Remove from tracking
         let mut orders = self.pending_orders.write().await;
         orders.remove(&order_id);
 
         // Emit cancellation event
-        let _ = self.state.event_emitter.emit(AppEvent::OrderCancelled {
-            order_id,
-        }).await;
+        let _ = self
+            .state
+            .event_emitter
+            .emit(AppEvent::OrderCancelled { order_id })
+            .await;
 
         Ok(())
     }
@@ -153,7 +168,7 @@ impl TradingService {
     /// Get status of pending orders
     pub async fn get_pending_orders(&self) -> Vec<OrderStatusReport> {
         let orders = self.pending_orders.read().await;
-        
+
         orders
             .values()
             .map(|tracker| OrderStatusReport {
@@ -177,7 +192,7 @@ impl TradingService {
     /// Update order status (would be called by event handlers)
     pub async fn update_order_status(&self, order_id: i32, status: OrderStatus) {
         let mut orders = self.pending_orders.write().await;
-        
+
         if let Some(tracker) = orders.get_mut(&order_id) {
             let was_pending = tracker.status.remaining > 0.0;
             tracker.status = status.clone();
@@ -186,10 +201,14 @@ impl TradingService {
             // Check if order is filled
             if was_pending && status.remaining == 0.0 {
                 // Emit fill event
-                let _ = self.state.event_emitter.emit(AppEvent::OrderFilled {
-                    order_id,
-                    filled_qty: status.filled,
-                }).await;
+                let _ = self
+                    .state
+                    .event_emitter
+                    .emit(AppEvent::OrderFilled {
+                        order_id,
+                        filled_qty: status.filled,
+                    })
+                    .await;
 
                 // Remove from pending orders after a delay
                 let _order_id_to_remove = order_id;

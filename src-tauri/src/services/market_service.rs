@@ -24,10 +24,18 @@ impl MarketService {
     /// Subscribe to market data with rate limiting
     pub async fn subscribe_with_rate_limit(&self, symbol: &str) -> Result<(), String> {
         // Check rate limit
-        match self.state.rate_limiter.check_and_update("market_data").await {
+        match self
+            .state
+            .rate_limiter
+            .check_and_update("market_data")
+            .await
+        {
             Ok(remaining) => {
                 if remaining < 10 {
-                    tracing::warn!("Approaching rate limit for market data: {} remaining", remaining);
+                    tracing::warn!(
+                        "Approaching rate limit for market data: {} remaining",
+                        remaining
+                    );
                 }
             }
             Err(e) => return Err(e),
@@ -42,7 +50,7 @@ impl MarketService {
 
         // Subscribe
         let result = self.state.client.subscribe_market_data(symbol).await;
-        
+
         match result {
             Ok(_) => {
                 // Track subscription
@@ -50,9 +58,13 @@ impl MarketService {
                 subs.insert(symbol.to_string(), utils::current_timestamp_ms() as i32);
 
                 // Emit subscription event
-                let _ = self.state.event_emitter.emit(AppEvent::MarketDataSubscribed {
-                    symbol: symbol.to_string(),
-                }).await;
+                let _ = self
+                    .state
+                    .event_emitter
+                    .emit(AppEvent::MarketDataSubscribed {
+                        symbol: symbol.to_string(),
+                    })
+                    .await;
 
                 Ok(())
             }
@@ -63,14 +75,18 @@ impl MarketService {
     /// Unsubscribe from market data
     pub async fn unsubscribe(&self, symbol: &str) -> Result<(), String> {
         let mut subs = self.active_subscriptions.write().await;
-        
+
         if subs.remove(symbol).is_some() {
             // TODO: Call actual unsubscribe method when implemented
-            
+
             // Emit unsubscription event
-            let _ = self.state.event_emitter.emit(AppEvent::MarketDataUnsubscribed {
-                symbol: symbol.to_string(),
-            }).await;
+            let _ = self
+                .state
+                .event_emitter
+                .emit(AppEvent::MarketDataUnsubscribed {
+                    symbol: symbol.to_string(),
+                })
+                .await;
         }
 
         Ok(())
@@ -94,18 +110,21 @@ impl MarketService {
         if let Some(cached) = self.state.get_cached_market_data(symbol).await {
             Ok(cached)
         } else {
-            Err(format!("No market data available for {}", symbol))
+            Err(format!("No market data available for {symbol}"))
         }
     }
 
     /// Bulk subscribe to multiple symbols
-    pub async fn bulk_subscribe(&self, symbols: Vec<String>) -> HashMap<String, Result<(), String>> {
+    pub async fn bulk_subscribe(
+        &self,
+        symbols: Vec<String>,
+    ) -> HashMap<String, Result<(), String>> {
         let mut results = HashMap::new();
 
         for symbol in symbols {
             let result = self.subscribe_with_rate_limit(&symbol).await;
             results.insert(symbol, result);
-            
+
             // Small delay between subscriptions to avoid overwhelming the API
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }

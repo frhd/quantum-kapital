@@ -14,12 +14,14 @@ pub struct ConnectionInfo {
     pub retry_count: u32,
 }
 
+#[derive(Default)]
 #[allow(dead_code)]
 pub struct MarketDataCache {
     snapshots: HashMap<String, MarketDataSnapshot>,
     last_updated: HashMap<String, chrono::DateTime<chrono::Utc>>,
 }
 
+#[derive(Default)]
 #[allow(dead_code)]
 pub struct PositionCache {
     positions: HashMap<String, Position>,
@@ -66,20 +68,23 @@ impl IbkrState {
         let mut info = self.connection_info.write().await;
         info.connected = connected;
         info.last_attempt = Some(chrono::Utc::now());
-        
+
         if connected {
             info.retry_count = 0;
         }
 
         // Emit connection status event
-        let _ = self.event_emitter.emit(AppEvent::ConnectionStatusChanged {
-            connected,
-            message: if connected {
-                "Connected to IBKR".to_string()
-            } else {
-                "Disconnected from IBKR".to_string()
-            },
-        }).await;
+        let _ = self
+            .event_emitter
+            .emit(AppEvent::ConnectionStatusChanged {
+                connected,
+                message: if connected {
+                    "Connected to IBKR".to_string()
+                } else {
+                    "Disconnected from IBKR".to_string()
+                },
+            })
+            .await;
     }
 
     pub async fn increment_retry_count(&self) {
@@ -90,13 +95,18 @@ impl IbkrState {
     pub async fn cache_market_data(&self, symbol: String, snapshot: MarketDataSnapshot) {
         let mut cache = self.market_data_cache.write().await;
         cache.snapshots.insert(symbol.clone(), snapshot.clone());
-        cache.last_updated.insert(symbol.clone(), chrono::Utc::now());
+        cache
+            .last_updated
+            .insert(symbol.clone(), chrono::Utc::now());
 
         // Emit market data update event
-        let _ = self.event_emitter.emit(AppEvent::MarketDataUpdate {
-            symbol,
-            data: serde_json::to_value(&snapshot).unwrap_or_default(),
-        }).await;
+        let _ = self
+            .event_emitter
+            .emit(AppEvent::MarketDataUpdate {
+                symbol,
+                data: serde_json::to_value(&snapshot).unwrap_or_default(),
+            })
+            .await;
     }
 
     pub async fn get_cached_market_data(&self, symbol: &str) -> Option<MarketDataSnapshot> {
@@ -107,11 +117,11 @@ impl IbkrState {
     pub async fn cache_positions(&self, positions: Vec<Position>) {
         let mut cache = self.position_cache.write().await;
         cache.positions.clear();
-        
+
         for position in positions {
             cache.positions.insert(position.symbol.clone(), position);
         }
-        
+
         cache.last_refresh = Some(chrono::Utc::now());
 
         // Emit positions refreshed event
@@ -125,7 +135,7 @@ impl IbkrState {
 
     pub async fn is_cache_stale(&self, cache_duration_secs: i64) -> bool {
         let cache = self.position_cache.read().await;
-        
+
         if let Some(last_refresh) = cache.last_refresh {
             let elapsed = chrono::Utc::now()
                 .signed_duration_since(last_refresh)
@@ -133,24 +143,6 @@ impl IbkrState {
             elapsed > cache_duration_secs
         } else {
             true
-        }
-    }
-}
-
-impl Default for MarketDataCache {
-    fn default() -> Self {
-        Self {
-            snapshots: HashMap::new(),
-            last_updated: HashMap::new(),
-        }
-    }
-}
-
-impl Default for PositionCache {
-    fn default() -> Self {
-        Self {
-            positions: HashMap::new(),
-            last_refresh: None,
         }
     }
 }
