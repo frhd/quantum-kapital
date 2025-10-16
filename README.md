@@ -2,7 +2,7 @@
 
 A professional cross-platform algorithmic trading application built with Tauri and React, providing seamless integration with Interactive Brokers (IBKR) API for real-time portfolio management and automated trading.
 
-## 🚀 Features
+## Features
 
 - **Real-time Portfolio Dashboard**: Monitor your IBKR account with live updates
 - **Position Management**: Track all your positions with real-time P&L calculations
@@ -12,7 +12,7 @@ A professional cross-platform algorithmic trading application built with Tauri a
 - **Cross-Platform**: Runs natively on Windows, macOS, and Linux
 - **Secure**: All sensitive data is handled securely through Tauri's IPC bridge
 
-## 🏗️ Architecture
+## Architecture
 
 ### Frontend (React + TypeScript)
 - **UI Framework**: React 18 with TypeScript
@@ -28,7 +28,7 @@ A professional cross-platform algorithmic trading application built with Tauri a
 - **Error Handling**: Custom error types with thiserror
 - **Logging**: Structured logging with tracing
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 quantum-kapital/
@@ -53,7 +53,7 @@ quantum-kapital/
 └── package.json         # Node.js dependencies
 ```
 
-## 🔧 Prerequisites
+## Prerequisites
 
 - **Node.js** (v18 or higher)
 - **Rust** (latest stable)
@@ -61,7 +61,7 @@ quantum-kapital/
 - **Interactive Brokers TWS** or **IB Gateway** running locally
 - IBKR account with API access enabled
 
-## 📦 Installation
+## Installation
 
 1. Clone the repository:
 ```bash
@@ -79,7 +79,7 @@ pnpm install
    - Default connection settings: `127.0.0.1:4002`
    - Client ID: 100 (configurable in the app)
 
-## 🚀 Development
+## Development
 
 Run the application in development mode:
 
@@ -103,7 +103,7 @@ pnpm tauri build
 
 This will create optimized binaries for your platform in `src-tauri/target/release/`.
 
-## 🔌 IBKR API Configuration
+## IBKR API Configuration
 
 ### TWS Configuration
 1. Enable API connections in TWS:
@@ -116,7 +116,7 @@ This will create optimized binaries for your platform in `src-tauri/target/relea
 1. Similar settings available in IB Gateway
 2. Recommended for production use (more stable for long-running connections)
 
-## 📊 Available Commands
+## Available Commands
 
 The application exposes the following Tauri commands:
 
@@ -129,7 +129,7 @@ The application exposes the following Tauri commands:
 - `ibkr_subscribe_market_data`: Subscribe to real-time quotes
 - `ibkr_place_order`: Submit orders to IBKR
 
-## 🎨 UI Components
+## UI Components
 
 The application uses a comprehensive component library:
 
@@ -140,14 +140,14 @@ The application uses a comprehensive component library:
 - **Badges**: Status indicators
 - **Tables**: Position listings (extensible)
 
-## 🔒 Security Considerations
+## Security Considerations
 
 - All IBKR API communications happen through the Rust backend
 - No sensitive data is exposed to the web context
 - Connection settings are managed securely through Tauri's state management
 - Consider using environment variables for production deployments
 
-## 🛠️ Technologies Used
+## Technologies Used
 
 ### Frontend
 - React 18.3
@@ -165,7 +165,7 @@ The application uses a comprehensive component library:
 - Serde (serialization)
 - Tracing (logging)
 
-## 📚 Resources
+## Resources
 
 - [Tauri Documentation](https://tauri.app)
 - [IBKR API Documentation](https://interactivebrokers.github.io)
@@ -173,14 +173,14 @@ The application uses a comprehensive component library:
 - [React Documentation](https://react.dev)
 - [shadcn/ui](https://ui.shadcn.com)
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please read our contributing guidelines before submitting PRs.
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This software is for educational and informational purposes only. Trading financial instruments carries risk. Always perform your own research and consider consulting with a qualified financial advisor before making investment decisions.
