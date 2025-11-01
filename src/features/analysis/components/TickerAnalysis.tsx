@@ -26,8 +26,8 @@ export function TickerAnalysis() {
   return (
     <div className="space-y-6">
       {/* Search Input */}
-      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
-        <CardContent className="pt-6">
+      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm overflow-visible relative z-50">
+        <CardContent className="pt-6 overflow-visible">
           <TickerSearch
             searchQuery={searchQuery}
             searchResults={searchResults}

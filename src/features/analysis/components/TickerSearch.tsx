@@ -46,7 +46,7 @@ export function TickerSearch({
 
       {/* Search Results Dropdown */}
       {searchResults.length > 0 && (
-        <Card className="absolute z-10 w-full mt-2 bg-slate-800 border-slate-700 max-h-96 overflow-y-auto">
+        <Card className="absolute z-50 w-full mt-2 bg-slate-800 border-slate-700 max-h-96 overflow-y-auto">
           <CardContent className="p-0">
             {searchResults.map((result) => (
               <button
