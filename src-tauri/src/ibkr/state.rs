@@ -43,8 +43,9 @@ pub struct IbkrState {
 #[allow(dead_code)]
 impl IbkrState {
     pub fn new(config: ConnectionConfig) -> Self {
+        let config_arc = Arc::new(RwLock::new(config));
         Self {
-            client: Arc::new(IbkrClient::new(config.clone())),
+            client: Arc::new(IbkrClient::with_shared_config(Arc::clone(&config_arc))),
             event_emitter: Arc::new(EventEmitter::new()),
             rate_limiter: Arc::new(RateLimiter::new(50)), // Default 50 requests per second
             connection_info: Arc::new(RwLock::new(ConnectionInfo {
@@ -60,7 +61,7 @@ impl IbkrState {
                 positions: HashMap::new(),
                 last_refresh: None,
             })),
-            config: Arc::new(RwLock::new(config)),
+            config: config_arc,
         }
     }
 
@@ -144,5 +145,11 @@ impl IbkrState {
         } else {
             true
         }
+    }
+
+    pub async fn increment_client_id(&self) {
+        let mut config = self.config.write().await;
+        config.client_id += 1;
+        tracing::info!("🔵 CLIENT ID INCREMENTED TO: {}", config.client_id);
     }
 }

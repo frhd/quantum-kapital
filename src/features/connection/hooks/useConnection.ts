@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ibkrApi } from "../../../shared/api/ibkr"
 import type { ConnectionConfig, ConnectionStatus } from "../../../shared/types"
 
@@ -14,7 +14,30 @@ export function useConnection() {
     client_id: 100,
   })
   const [loading, setLoading] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasCheckedConnection, setHasCheckedConnection] = useState(false)
+
+  // Check for existing connection on mount (only once)
+  useEffect(() => {
+    if (!hasCheckedConnection) {
+      const checkExistingConnection = async () => {
+        try {
+          const status = await ibkrApi.getConnectionStatus()
+          if (status.connected) {
+            console.log("Found existing connection, reusing it")
+            setConnectionStatus(status)
+          }
+        } catch (err) {
+          console.error("Failed to check existing connection:", err)
+        } finally {
+          setHasCheckedConnection(true)
+        }
+      }
+
+      checkExistingConnection()
+    }
+  }, [hasCheckedConnection])
 
   const connect = async () => {
     setLoading(true)
@@ -34,18 +57,27 @@ export function useConnection() {
   }
 
   const disconnect = async () => {
+    console.log("🔴 FRONTEND: Disconnect function called")
+    setDisconnecting(true)
+    console.log("🔴 FRONTEND: Set disconnecting = true")
+    setError(null)
     try {
-      await ibkrApi.disconnect()
+      console.log("🔴 FRONTEND: Calling ibkrApi.disconnect()")
+      const result = await ibkrApi.disconnect()
+      console.log("🔴 FRONTEND: ibkrApi.disconnect() returned:", result)
       setConnectionStatus({
         connected: false,
         server_time: null,
         client_id: connectionSettings.client_id,
       })
-      setError(null)
+      console.log("🔴 FRONTEND: Successfully disconnected from IBKR")
     } catch (err) {
-      console.error("Failed to disconnect:", err)
+      console.error("🔴 FRONTEND: Failed to disconnect:", err)
       setError(typeof err === 'string' ? err : 'Failed to disconnect from IBKR')
       throw err
+    } finally {
+      console.log("🔴 FRONTEND: Setting disconnecting = false")
+      setDisconnecting(false)
     }
   }
 
@@ -54,6 +86,7 @@ export function useConnection() {
     connectionSettings,
     setConnectionSettings,
     loading,
+    disconnecting,
     error,
     connect,
     disconnect,

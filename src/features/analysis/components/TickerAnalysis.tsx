@@ -1,10 +1,12 @@
 import { Card, CardContent } from "../../../shared/components/ui/card"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
+import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
 import { TickerSearch } from "./TickerSearch"
 import { TickerCards } from "./TickerCards"
 import { ScenarioTabs } from "./ScenarioTabs"
 import { useTickerSearch } from "../hooks/useTickerSearch"
 import { useProjections } from "../hooks/useProjections"
+import { AlertCircle } from "lucide-react"
 
 export function TickerAnalysis() {
   const {
@@ -17,7 +19,7 @@ export function TickerAnalysis() {
     clearSelection,
   } = useTickerSearch()
 
-  const { projections, loading: projectionsLoading } = useProjections(
+  const { projections, loading: projectionsLoading, error: projectionsError } = useProjections(
     selectedTicker?.symbol || null
   )
 
@@ -61,24 +63,17 @@ export function TickerAnalysis() {
                 <Skeleton className="h-96 bg-slate-700" />
               </CardContent>
             </Card>
+          ) : projectionsError ? (
+            <Alert className="bg-red-900/20 border-red-900/50">
+              <AlertCircle className="h-4 w-4 text-red-400" />
+              <AlertDescription className="text-red-300">
+                Failed to load projections: {projectionsError}
+              </AlertDescription>
+            </Alert>
           ) : projections ? (
             <ScenarioTabs projections={projections} symbol={selectedTicker.symbol} />
           ) : null}
         </>
-      )}
-
-      {/* Empty State */}
-      {!selectedTicker && !loading && (
-        <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
-          <CardContent className="text-center py-12">
-            <p className="text-slate-400 text-lg">
-              Search for a ticker symbol to view detailed analysis
-            </p>
-            <p className="text-slate-500 text-sm mt-2">
-              Try searching for AAPL, MSFT, GOOGL, or any other symbol
-            </p>
-          </CardContent>
-        </Card>
       )}
     </div>
   )

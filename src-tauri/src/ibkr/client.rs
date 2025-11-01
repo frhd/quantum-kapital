@@ -2,7 +2,7 @@ use ibapi::contracts::Contract;
 use ibapi::orders::Order;
 use ibapi::Client;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tracing::{error, info};
 
 use crate::ibkr::error::{IbkrError, Result};
@@ -13,24 +13,65 @@ use crate::ibkr::types::{
 
 pub struct IbkrClient {
     client: Arc<RwLock<Option<Arc<Client>>>>,
-    config: Arc<Mutex<ConnectionConfig>>,
+    config: Arc<RwLock<ConnectionConfig>>,
 }
 
 impl IbkrClient {
+    #[allow(dead_code)]
     pub fn new(config: ConnectionConfig) -> Self {
         Self {
             client: Arc::new(RwLock::new(None)),
-            config: Arc::new(Mutex::new(config)),
+            config: Arc::new(RwLock::new(config)),
+        }
+    }
+
+    pub fn with_shared_config(config: Arc<RwLock<ConnectionConfig>>) -> Self {
+        Self {
+            client: Arc::new(RwLock::new(None)),
+            config,
         }
     }
 
     pub async fn connect(&self) -> Result<()> {
-        let config = self.config.lock().await;
+        // Check if already connected and verify the connection is still active
+        {
+            let client_lock = self.client.read().await;
+            if let Some(ref client) = *client_lock {
+                let client_clone = Arc::clone(client);
+                drop(client_lock);
+
+                // Verify the existing connection is still active with a timeout
+                let check_result = tokio::time::timeout(
+                    std::time::Duration::from_secs(2),
+                    tokio::task::spawn_blocking(move || {
+                        client_clone.server_time().is_ok()
+                    })
+                ).await;
+
+                let is_active = match check_result {
+                    Ok(Ok(result)) => result,
+                    _ => {
+                        info!("Connection check timed out or failed, treating as dead");
+                        false
+                    }
+                };
+
+                if is_active {
+                    info!("Reusing existing active connection to IBKR API Gateway");
+                    return Ok(());
+                } else {
+                    info!("Existing connection is dead, reconnecting");
+                    self.disconnect().await?;
+                }
+            }
+        }
+
+        let config = self.config.read().await;
         let connection_url = format!("{}:{}", config.host, config.port);
         let client_id = config.client_id;
         drop(config);
 
-        info!("Connecting to IBKR API Gateway at {}", connection_url);
+        info!("🟢 CONNECTING TO IBKR API GATEWAY AT {} WITH CLIENT ID {}", connection_url, client_id);
 
         // Run the synchronous connect in a blocking task
         let connect_result =
@@ -40,25 +81,59 @@ impl IbkrClient {
 
         match connect_result {
             Ok(client) => {
-                info!("Successfully connected to IBKR API Gateway");
+                info!("🟢 SUCCESSFULLY CONNECTED TO IBKR API GATEWAY WITH CLIENT ID {}", client_id);
                 let mut client_lock = self.client.write().await;
                 *client_lock = Some(Arc::new(client));
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to connect to IBKR API Gateway: {}", e);
+                error!("🟢 FAILED TO CONNECT TO IBKR API GATEWAY WITH CLIENT ID {}: {}", client_id, e);
                 Err(IbkrError::ConnectionFailed(e.to_string()))
             }
         }
     }
 
     pub async fn disconnect(&self) -> Result<()> {
+        info!("🔴 CLIENT DISCONNECT METHOD CALLED");
         let mut client_lock = self.client.write().await;
-        if client_lock.is_some() {
-            *client_lock = None;
-            info!("Disconnected from IBKR API Gateway");
+        info!("🔴 CLIENT WRITE LOCK ACQUIRED");
+
+        if let Some(client) = client_lock.take() {
+            info!("🔴 CLIENT EXISTS - DISCONNECTING FROM IBKR API GATEWAY");
+
+            // Drop the client in a blocking task with a timeout
+            // Wait for it to complete to ensure TWS/Gateway releases the client ID
+            let drop_result = tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                tokio::task::spawn_blocking(move || {
+                    info!("🔴 BLOCKING TASK - DROPPING CLIENT");
+                    drop(client);
+                    info!("🔴 IBKR CLIENT DROPPED SUCCESSFULLY");
+                })
+            ).await;
+
+            match drop_result {
+                Ok(Ok(_)) => {
+                    info!("🔴 CLIENT DROP COMPLETED");
+                }
+                Ok(Err(e)) => {
+                    error!("🔴 CLIENT DROP TASK ERROR: {}", e);
+                }
+                Err(_) => {
+                    info!("🔴 CLIENT DROP TIMED OUT (but connection removed from state)");
+                }
+            }
+
+            // Add a small delay to ensure TWS/Gateway has fully released the client ID
+            info!("🔴 WAITING 1 SECOND FOR TWS/GATEWAY TO RELEASE CLIENT ID");
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            info!("🔴 DISCONNECTED FROM IBKR API GATEWAY");
+
+            Ok(())
+        } else {
+            info!("🔴 NO CLIENT EXISTS - ALREADY DISCONNECTED FROM IBKR API GATEWAY");
+            Ok(())
         }
-        Ok(())
     }
 
     #[allow(dead_code)]
@@ -69,25 +144,35 @@ impl IbkrClient {
 
     pub async fn get_connection_status(&self) -> Result<ConnectionStatus> {
         let client = self.client.read().await;
-        let config = self.config.lock().await;
+        let config = self.config.read().await;
 
         if let Some(ref client) = *client {
             let client_clone = Arc::clone(client);
-            let time_result = tokio::task::spawn_blocking(move || client_clone.server_time())
-                .await
-                .map_err(|e| IbkrError::Unknown(e.to_string()))?;
 
-            match time_result {
-                Ok(time) => Ok(ConnectionStatus {
-                    connected: true,
-                    server_time: Some(time.to_string()),
-                    client_id: config.client_id,
-                }),
-                Err(_) => Ok(ConnectionStatus {
-                    connected: false,
-                    server_time: None,
-                    client_id: config.client_id,
-                }),
+            // Check server time with a timeout to prevent hanging
+            let time_check = tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                tokio::task::spawn_blocking(move || client_clone.server_time())
+            ).await;
+
+            match time_check {
+                Ok(Ok(Ok(time))) => {
+                    // Successfully got server time
+                    Ok(ConnectionStatus {
+                        connected: true,
+                        server_time: Some(time.to_string()),
+                        client_id: config.client_id,
+                    })
+                }
+                _ => {
+                    // Timeout, spawn error, or server_time error - treat as disconnected
+                    info!("Connection status check failed or timed out");
+                    Ok(ConnectionStatus {
+                        connected: false,
+                        server_time: None,
+                        client_id: config.client_id,
+                    })
+                }
             }
         } else {
             Ok(ConnectionStatus {
@@ -99,9 +184,11 @@ impl IbkrClient {
     }
 
     pub async fn get_accounts(&self) -> Result<Vec<String>> {
-        let client = self.client.read().await;
-        let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-        let client_clone = Arc::clone(client);
+        let client_clone = {
+            let client = self.client.read().await;
+            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+            Arc::clone(client)
+        }; // Lock is dropped here!
 
         let accounts = tokio::task::spawn_blocking(move || client_clone.managed_accounts())
             .await
@@ -117,9 +204,12 @@ impl IbkrClient {
     }
 
     pub async fn get_account_summary(&self, account: &str) -> Result<Vec<AccountSummary>> {
-        let client = self.client.read().await;
-        let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-        let client_clone = Arc::clone(client);
+        let client_clone = {
+            let client = self.client.read().await;
+            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+            Arc::clone(client)
+        }; // Lock is dropped here!
+
         let account = account.to_string();
 
         let summaries = tokio::task::spawn_blocking(move || {
@@ -163,17 +253,19 @@ impl IbkrClient {
     }
 
     pub async fn get_positions(&self) -> Result<Vec<Position>> {
-        let client = self.client.read().await;
-        let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-        let client_clone = Arc::clone(client);
-
-        // First get the accounts
+        // First get the accounts (before acquiring any locks)
         let accounts = self.get_accounts().await?;
         if accounts.is_empty() {
             return Ok(Vec::new());
         }
 
         let account = accounts[0].clone(); // Use first account
+
+        let client_clone = {
+            let client = self.client.read().await;
+            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+            Arc::clone(client)
+        }; // Lock is dropped here!
 
         let positions = tokio::task::spawn_blocking(move || {
             let mut positions = Vec::new();
@@ -218,9 +310,12 @@ impl IbkrClient {
     }
 
     pub async fn subscribe_market_data(&self, symbol: &str) -> Result<()> {
-        let client = self.client.read().await;
-        let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-        let client_clone = Arc::clone(client);
+        let client_clone = {
+            let client = self.client.read().await;
+            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+            Arc::clone(client)
+        }; // Lock is dropped here!
+
         let symbol = symbol.to_string();
 
         tokio::task::spawn_blocking(move || {
@@ -240,9 +335,11 @@ impl IbkrClient {
     }
 
     pub async fn place_order(&self, order_request: OrderRequest) -> Result<i32> {
-        let client = self.client.read().await;
-        let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-        let client_clone = Arc::clone(client);
+        let client_clone = {
+            let client = self.client.read().await;
+            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+            Arc::clone(client)
+        }; // Lock is dropped here!
 
         let order_id = tokio::task::spawn_blocking(move || {
             let contract = Contract::stock(&order_request.symbol);

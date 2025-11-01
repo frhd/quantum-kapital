@@ -126,6 +126,7 @@ pub enum FundamentalReportType {
 }
 
 impl FundamentalReportType {
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         match self {
             Self::ReportsFinSummary => "ReportsFinSummary",

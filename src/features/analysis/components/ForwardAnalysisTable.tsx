@@ -8,10 +8,18 @@ interface ForwardAnalysisTableProps {
 }
 
 export function ForwardAnalysisTable({ projections, cagr, scenarioType }: ForwardAnalysisTableProps) {
-  const formatBillions = (value: number) => `$${value.toFixed(2)}B`
-  const formatPercent = (value: number | null) => value !== null ? `${value.toFixed(1)}%` : '—'
-  const formatDollars = (value: number) => `$${value.toFixed(2)}`
-  const formatNumber = (value: number) => value.toFixed(1)
+  // Debug: Log projections to see what we're getting
+  console.log('ForwardAnalysisTable projections:', projections)
+  console.log('First projection:', projections[0])
+
+  const formatBillions = (value: number | null | undefined) =>
+    value != null ? `$${value.toFixed(2)}B` : '—'
+  const formatPercent = (value: number | null | undefined) =>
+    value != null ? `${value.toFixed(1)}%` : '—'
+  const formatDollars = (value: number | null | undefined) =>
+    value != null ? `$${value.toFixed(2)}` : '—'
+  const formatNumber = (value: number | null | undefined) =>
+    value != null ? value.toFixed(1) : '—'
 
   // Color scheme based on scenario
   const scenarioColors = {

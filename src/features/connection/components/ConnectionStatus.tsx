@@ -5,11 +5,12 @@ import type { ConnectionStatus as ConnectionStatusType } from "../../../shared/t
 interface ConnectionStatusProps {
   connectionStatus: ConnectionStatusType
   loading: boolean
+  disconnecting: boolean
   onConnect: () => void
   onDisconnect: () => void
 }
 
-export function ConnectionStatus({ connectionStatus, loading, onConnect, onDisconnect }: ConnectionStatusProps) {
+export function ConnectionStatus({ connectionStatus, loading, disconnecting, onConnect, onDisconnect }: ConnectionStatusProps) {
   return (
     <div className="flex items-center gap-4">
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
@@ -30,11 +31,12 @@ export function ConnectionStatus({ connectionStatus, loading, onConnect, onDisco
       {connectionStatus.connected ? (
         <Button
           onClick={onDisconnect}
+          disabled={disconnecting}
           variant="outline"
           className="border-slate-600 hover:bg-slate-800 bg-transparent"
         >
           <WifiOff className="h-4 w-4 mr-2" />
-          Disconnect
+          {disconnecting ? "Disconnecting..." : "Disconnect"}
         </Button>
       ) : (
         <Button

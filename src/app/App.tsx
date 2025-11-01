@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Card, CardContent } from "../shared/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/components/ui/tabs"
 import { AlertCircle, BarChart3, Settings, LineChart } from "lucide-react"
@@ -19,6 +20,7 @@ export default function App() {
     connectionSettings,
     setConnectionSettings,
     loading,
+    disconnecting,
     error,
     connect,
     disconnect,
@@ -32,6 +34,14 @@ export default function App() {
     clearAccountData,
   } = useAccountData()
 
+  // Fetch account data when connection is detected on mount
+  useEffect(() => {
+    if (connectionStatus.connected && accounts.length === 0) {
+      console.log("Connection detected on mount, fetching account data")
+      fetchAccountData()
+    }
+  }, [connectionStatus.connected, accounts.length, fetchAccountData])
+
   const handleConnect = async () => {
     try {
       const status = await connect()
@@ -44,8 +54,15 @@ export default function App() {
   }
 
   const handleDisconnect = async () => {
-    await disconnect()
-    clearAccountData()
+    console.log("🔴 APP: handleDisconnect called")
+    try {
+      await disconnect()
+      console.log("🔴 APP: disconnect() completed")
+      clearAccountData()
+      console.log("🔴 APP: clearAccountData() completed")
+    } catch (err) {
+      console.error("🔴 APP: handleDisconnect error:", err)
+    }
   }
 
   return (
@@ -54,6 +71,7 @@ export default function App() {
       <PageHeader
         connectionStatus={connectionStatus}
         loading={loading}
+        disconnecting={disconnecting}
         onConnect={handleConnect}
         onDisconnect={handleDisconnect}
       />
