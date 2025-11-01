@@ -40,67 +40,73 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700 backdrop-blur-sm hover:from-slate-800/90 hover:to-slate-900/90 transition-all duration-300">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-300">Total Equity</CardTitle>
-          <div className="p-2 bg-blue-500/20 rounded-lg">
-            <DollarSign className="h-4 w-4 text-blue-400" />
-          </div>
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-blue-400/60" />
+            Total Equity
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-white">{formatCurrency(totalEquity)}</div>
-          <p className="text-xs text-slate-400 mt-1">
-            {accounts.length > 0 ? `Account: ${anonymizeAccountNumber(accounts[0])}` : "No account"}
-          </p>
+          <div className="space-y-1">
+            <p className="text-3xl font-bold text-white">{formatCurrency(totalEquity)}</p>
+            <p className="text-sm text-slate-400">
+              {accounts.length > 0 ? `Account: ${anonymizeAccountNumber(accounts[0])}` : "No account"}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700 backdrop-blur-sm hover:from-slate-800/90 hover:to-slate-900/90 transition-all duration-300">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-300">Available Funds</CardTitle>
-          <div className="p-2 bg-purple-500/20 rounded-lg">
-            <Activity className="h-4 w-4 text-purple-400" />
-          </div>
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-purple-400/60" />
+            Available Funds
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-white">{formatCurrency(availableFunds)}</div>
-          <p className="text-xs text-slate-400 mt-1">Buying Power: {formatCurrency(buyingPower)}</p>
+          <div className="space-y-1">
+            <p className="text-3xl font-bold text-white">{formatCurrency(availableFunds)}</p>
+            <p className="text-sm text-slate-400">Buying Power: {formatCurrency(buyingPower)}</p>
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700 backdrop-blur-sm hover:from-slate-800/90 hover:to-slate-900/90 transition-all duration-300">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-300">Total P&L</CardTitle>
-          <div className={`p-2 rounded-lg ${totalPnL >= 0 ? "bg-green-500/20" : "bg-red-500/20"}`}>
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
             {totalPnL >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-400" />
+              <TrendingUp className="h-4 w-4 text-green-400/60" />
             ) : (
-              <TrendingDown className="h-4 w-4 text-red-400" />
+              <TrendingDown className="h-4 w-4 text-red-400/60" />
             )}
-          </div>
+            Total P&L
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`text-2xl font-bold ${totalPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
-            {formatCurrency(totalPnL)}
+          <div className="space-y-1">
+            <p className={`text-3xl font-bold ${totalPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {formatCurrency(totalPnL)}
+            </p>
+            <p className="text-sm text-slate-400">Unrealized + Realized</p>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Unrealized + Realized</p>
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border-slate-700 backdrop-blur-sm hover:from-slate-800/90 hover:to-slate-900/90 transition-all duration-300">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-slate-300">Unrealized P&L</CardTitle>
-          <div className="p-2 bg-orange-500/20 rounded-lg">
-            <PieChart className="h-4 w-4 text-orange-400" />
-          </div>
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+            <PieChart className="h-4 w-4 text-orange-400/60" />
+            Unrealized P&L
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div
-            className={`text-2xl font-bold ${unrealizedPnL >= 0 ? "text-green-400" : "text-red-400"}`}
-          >
-            {formatCurrency(unrealizedPnL)}
+          <div className="space-y-1">
+            <p className={`text-3xl font-bold ${unrealizedPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {formatCurrency(unrealizedPnL)}
+            </p>
+            <p className="text-sm text-slate-400">Open positions</p>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Open positions</p>
         </CardContent>
       </Card>
     </div>
