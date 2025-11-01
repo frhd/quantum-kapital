@@ -14,7 +14,7 @@ async fn test_command_connect_flow() {
     // Simulate the connect command flow
     let config = ConnectionConfig::default();
     assert_eq!(config.host, "127.0.0.1");
-    assert_eq!(config.port, 4002);
+    assert_eq!(config.port, 4004);
     assert_eq!(config.client_id, 100);
 
     // Connect should succeed with default config

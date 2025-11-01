@@ -1,6 +1,6 @@
 import { Card, CardContent } from "../shared/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/components/ui/tabs"
-import { AlertCircle, BarChart3, Settings } from "lucide-react"
+import { AlertCircle, BarChart3, Settings, LineChart } from "lucide-react"
 
 import { PageHeader } from "../shared/components/layout/PageHeader"
 import { ConnectionSettings } from "../features/connection/components/ConnectionSettings"
@@ -8,6 +8,7 @@ import { AccountSummary } from "../features/portfolio/components/AccountSummary"
 import { StockPositions } from "../features/portfolio/components/StockPositions"
 import { OptionPositions } from "../features/portfolio/components/OptionPositions"
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
+import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
 
 import { useConnection } from "../features/connection/hooks/useConnection"
 import { useAccountData } from "../features/portfolio/hooks/useAccountData"
@@ -48,7 +49,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 space-y-6">
+    <div className="min-h-screen bg-slate-900 text-white p-4 space-y-6">
       {/* Header */}
       <PageHeader
         connectionStatus={connectionStatus}
@@ -85,8 +86,15 @@ export default function App() {
           />
 
           {/* Main Content Tabs */}
-          <Tabs defaultValue="positions" className="space-y-4">
+          <Tabs defaultValue="analysis" className="space-y-4">
             <TabsList className="bg-slate-800/50 border border-slate-700">
+              <TabsTrigger
+                value="analysis"
+                className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+              >
+                <LineChart className="h-4 w-4 mr-2" />
+                Analysis
+              </TabsTrigger>
               <TabsTrigger
                 value="positions"
                 className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
@@ -100,10 +108,14 @@ export default function App() {
               </TabsTrigger>
             </TabsList>
 
+            <TabsContent value="analysis" className="space-y-4">
+              <TickerAnalysis />
+            </TabsContent>
+
             <TabsContent value="positions" className="space-y-4">
               <StockPositions positions={positions} />
               <OptionPositions positions={positions} />
-              
+
               {positions.length === 0 && (
                 <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
                   <CardContent className="text-center py-8">

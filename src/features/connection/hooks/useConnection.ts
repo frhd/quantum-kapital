@@ -10,7 +10,7 @@ export function useConnection() {
   })
   const [connectionSettings, setConnectionSettings] = useState<ConnectionConfig>({
     host: "127.0.0.1",
-    port: 4002,
+    port: 4004,
     client_id: 100,
   })
   const [loading, setLoading] = useState(false)

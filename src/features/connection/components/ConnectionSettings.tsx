@@ -40,8 +40,8 @@ export function ConnectionSettings({ connectionSettings, setConnectionSettings }
             id="port"
             type="number"
             value={connectionSettings.port}
-            onChange={(e) => setConnectionSettings((prev) => ({ ...prev, port: parseInt(e.target.value) || 4002 }))}
-            placeholder="4002"
+            onChange={(e) => setConnectionSettings((prev) => ({ ...prev, port: parseInt(e.target.value) || 4004 }))}
+            placeholder="4004"
             className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
           />
         </div>

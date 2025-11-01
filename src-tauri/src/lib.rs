@@ -42,6 +42,8 @@ pub fn run() {
             ibkr::commands::ibkr_get_positions,
             ibkr::commands::ibkr_subscribe_market_data,
             ibkr::commands::ibkr_place_order,
+            ibkr::commands::ibkr_get_fundamental_data,
+            ibkr::commands::ibkr_generate_projections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

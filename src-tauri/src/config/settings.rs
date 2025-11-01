@@ -40,7 +40,7 @@ impl Default for IbkrConfig {
     fn default() -> Self {
         Self {
             default_host: "127.0.0.1".to_string(),
-            default_port: 4002,
+            default_port: 4004,
             default_client_id: 100,
             connection_timeout_ms: 30000,
             reconnect_interval_ms: 5000,

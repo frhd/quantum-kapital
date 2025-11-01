@@ -76,7 +76,7 @@ pnpm install
 
 3. Configure IBKR connection:
    - Ensure TWS or IB Gateway is running
-   - Default connection settings: `127.0.0.1:4002`
+   - Default connection settings: `127.0.0.1:4004`
    - Client ID: 100 (configurable in the app)
 
 ## Development
@@ -109,7 +109,7 @@ This will create optimized binaries for your platform in `src-tauri/target/relea
 1. Enable API connections in TWS:
    - File → Global Configuration → API → Settings
    - Enable "Enable ActiveX and Socket Clients"
-   - Configure "Socket port" (default: 4002)
+   - Configure "Socket port" (default: 4004)
    - Add "127.0.0.1" to "Trusted IPs"
 
 ### IB Gateway Configuration

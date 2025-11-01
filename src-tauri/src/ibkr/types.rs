@@ -3,6 +3,7 @@
 
 pub mod account;
 pub mod connection;
+pub mod fundamentals;
 pub mod historical;
 pub mod market_data;
 pub mod orders;
@@ -12,6 +13,7 @@ pub mod scanner;
 // Re-export all types at the root level for backward compatibility
 pub use account::*;
 pub use connection::*;
+pub use fundamentals::*;
 #[allow(unused_imports)]
 pub use historical::*;
 pub use market_data::*;

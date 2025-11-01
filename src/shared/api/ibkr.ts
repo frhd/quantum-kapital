@@ -1,10 +1,13 @@
 import { invoke } from "@tauri-apps/api/core"
-import type { 
-  ConnectionConfig, 
-  ConnectionStatus, 
-  AccountSummary, 
-  Position, 
-  OrderRequest 
+import type {
+  ConnectionConfig,
+  ConnectionStatus,
+  AccountSummary,
+  Position,
+  OrderRequest,
+  FundamentalData,
+  ScenarioProjections,
+  ProjectionAssumptions
 } from "../types"
 
 export const ibkrApi = {
@@ -38,5 +41,13 @@ export const ibkrApi = {
 
   placeOrder: async (order: OrderRequest) => {
     return invoke("ibkr_place_order", { order })
+  },
+
+  getFundamentalData: async (symbol: string) => {
+    return invoke<FundamentalData>("ibkr_get_fundamental_data", { symbol })
+  },
+
+  generateProjections: async (symbol: string, assumptions?: ProjectionAssumptions) => {
+    return invoke<ScenarioProjections>("ibkr_generate_projections", { symbol, assumptions })
   }
 }

@@ -12,7 +12,7 @@ impl Default for ConnectionConfig {
     fn default() -> Self {
         Self {
             host: "127.0.0.1".to_string(),
-            port: 4002,
+            port: 4004,
             client_id: 100,
         }
     }
