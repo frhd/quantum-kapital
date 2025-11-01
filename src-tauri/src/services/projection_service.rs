@@ -172,6 +172,7 @@ impl ProjectionService {
     }
 
     /// Generate mock fundamental data for testing (will be replaced with real IBKR data)
+    /// Updated with current NVDA data as of November 2025
     pub fn generate_mock_fundamental_data(symbol: &str) -> FundamentalData {
         use crate::ibkr::types::{AnalystEstimate, AnalystEstimates, CurrentMetrics, HistoricalFinancial};
 
@@ -180,55 +181,55 @@ impl ProjectionService {
             historical: vec![
                 HistoricalFinancial {
                     year: 2021,
-                    revenue: 26.97,
-                    net_income: 3.76,
-                    eps: 2.32,
+                    revenue: 26.91,
+                    net_income: 9.75,
+                    eps: 3.85,
                 },
                 HistoricalFinancial {
                     year: 2022,
-                    revenue: 27.21,
+                    revenue: 26.97,
                     net_income: 4.37,
-                    eps: 2.69,
+                    eps: 0.17,
                 },
                 HistoricalFinancial {
                     year: 2023,
-                    revenue: 26.97,
-                    net_income: 4.79,
-                    eps: 2.96,
+                    revenue: 60.92,
+                    net_income: 29.76,
+                    eps: 1.19,
                 },
                 HistoricalFinancial {
                     year: 2024,
-                    revenue: 29.65,
-                    net_income: 5.04,
-                    eps: 3.12,
+                    revenue: 130.50,
+                    net_income: 72.88,
+                    eps: 2.94,
                 },
             ],
             analyst_estimates: Some(AnalystEstimates {
                 revenue: vec![
                     AnalystEstimate {
                         year: 2025,
-                        estimate: 33.18,
+                        estimate: 170.8,
                     },
                     AnalystEstimate {
                         year: 2026,
-                        estimate: 38.50,
+                        estimate: 195.0,
                     },
                 ],
                 eps: vec![
                     AnalystEstimate {
                         year: 2025,
-                        estimate: 3.46,
+                        estimate: 3.50,
                     },
                     AnalystEstimate {
                         year: 2026,
-                        estimate: 4.50,
+                        estimate: 4.25,
                     },
                 ],
             }),
             current_metrics: CurrentMetrics {
-                price: 138.50,
-                pe_ratio: 44.0,
-                shares_outstanding: 1620.0, // in millions
+                price: 202.49,
+                pe_ratio: 68.9,
+                shares_outstanding: 24804.0, // in millions (24.804B shares)
             },
         }
     }

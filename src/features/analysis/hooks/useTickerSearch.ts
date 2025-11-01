@@ -41,6 +41,19 @@ const mockTickerDetails: Record<string, TickerData> = {
     pe: 35.2,
     yield: 0.78,
   },
+  NVDA: {
+    symbol: "NVDA",
+    name: "NVIDIA Corporation",
+    exchange: "NASDAQ",
+    type: "Stock",
+    price: 202.49,
+    change: 1.52,
+    changePercent: 0.76,
+    volume: 345000000,
+    marketCap: "5.0T",
+    pe: 68.9,
+    yield: 0.03,
+  },
   // Add more as needed
 }
 
