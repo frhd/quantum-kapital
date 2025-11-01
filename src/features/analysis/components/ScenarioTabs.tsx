@@ -1,16 +1,18 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card"
 import { ForwardAnalysisTable } from "./ForwardAnalysisTable"
+import { ProjectionSummary } from "./ProjectionSummary"
 import { TrendingDown, Minus, TrendingUp } from "lucide-react"
-import type { ScenarioProjections, ScenarioType } from "../../../shared/types"
+import type { ScenarioProjections, ScenarioType, ProjectionAssumptions } from "../../../shared/types"
 import { cn } from "../../../shared/lib/utils"
 
 interface ScenarioTabsProps {
   projections: ScenarioProjections
   symbol: string
+  assumptions?: ProjectionAssumptions
 }
 
-export function ScenarioTabs({ projections, symbol }: ScenarioTabsProps) {
+export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsProps) {
   const [activeScenario, setActiveScenario] = useState<ScenarioType>('base')
 
   const scenarios = [
@@ -81,11 +83,16 @@ export function ScenarioTabs({ projections, symbol }: ScenarioTabsProps) {
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="space-y-6">
         <ForwardAnalysisTable
           projections={activeProjection}
           cagr={activeCagr}
           scenarioType={activeScenario}
+        />
+
+        <ProjectionSummary
+          projections={projections}
+          assumptions={assumptions}
         />
       </CardContent>
     </Card>
