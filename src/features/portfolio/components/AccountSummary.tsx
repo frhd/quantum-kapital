@@ -6,7 +6,7 @@ import {
   TrendingDown, 
   PieChart 
 } from "lucide-react"
-import { formatCurrency } from "../utils"
+import { formatCurrency, anonymizeAccountNumber } from "../utils"
 import type { AccountSummary as AccountSummaryType, Position } from "../../../shared/types"
 
 interface AccountSummaryProps {
@@ -50,7 +50,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
         <CardContent>
           <div className="text-2xl font-bold text-white">{formatCurrency(totalEquity)}</div>
           <p className="text-xs text-slate-400 mt-1">
-            {accounts.length > 0 ? `Account: ${accounts[0]}` : "No account"}
+            {accounts.length > 0 ? `Account: ${anonymizeAccountNumber(accounts[0])}` : "No account"}
           </p>
         </CardContent>
       </Card>

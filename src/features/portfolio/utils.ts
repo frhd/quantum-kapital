@@ -14,3 +14,12 @@ export const formatCurrency = (value: number) => {
 export const formatPercent = (value: number) => {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
 }
+
+export const anonymizeAccountNumber = (accountNumber: string) => {
+  if (!accountNumber || accountNumber.length <= 2) {
+    return accountNumber
+  }
+  const lastTwo = accountNumber.slice(-2)
+  const masked = "*".repeat(accountNumber.length - 2)
+  return masked + lastTwo
+}

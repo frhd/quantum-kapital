@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../shared/components/ui/card"
 import { Settings, Clock } from "lucide-react"
-import { formatCurrency } from "../utils"
+import { formatCurrency, anonymizeAccountNumber } from "../utils"
 import type { AccountSummary as AccountSummaryType, ConnectionStatus } from "../../../shared/types"
 
 interface AccountDetailsProps {
@@ -98,7 +98,7 @@ export function AccountDetails({ accounts, accountSummary, connectionStatus }: A
           <div className="flex justify-between items-center">
             <div>
               <h4 className="text-sm font-medium text-slate-300">Account ID</h4>
-              <p className="text-lg font-mono text-white">{accounts[0] || "N/A"}</p>
+              <p className="text-lg font-mono text-white">{accounts[0] ? anonymizeAccountNumber(accounts[0]) : "N/A"}</p>
             </div>
             <div className="text-right">
               <h4 className="text-sm font-medium text-slate-300">Server Time</h4>
