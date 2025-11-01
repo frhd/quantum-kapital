@@ -8,10 +8,6 @@ interface ForwardAnalysisTableProps {
 }
 
 export function ForwardAnalysisTable({ projections, cagr, scenarioType }: ForwardAnalysisTableProps) {
-  // Debug: Log projections to see what we're getting
-  console.log('ForwardAnalysisTable projections:', projections)
-  console.log('First projection:', projections[0])
-
   const formatBillions = (value: number | null | undefined) =>
     value != null ? `$${value.toFixed(2)}B` : '—'
   const formatPercent = (value: number | null | undefined) =>

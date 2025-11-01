@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Financial projection for a single year
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FinancialProjection {
     pub year: u32,
     pub revenue: f64,              // in billions
@@ -18,6 +19,7 @@ pub struct FinancialProjection {
 
 /// CAGR (Compound Annual Growth Rate) calculations
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CagrMetrics {
     pub revenue: f64,      // percentage
     pub share_price: f64,  // percentage
@@ -41,6 +43,7 @@ pub struct ScenarioCagr {
 
 /// Historical financial data point
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoricalFinancial {
     pub year: u32,
     pub revenue: f64,
@@ -50,6 +53,7 @@ pub struct HistoricalFinancial {
 
 /// Analyst estimate for a specific metric
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalystEstimate {
     pub year: u32,
     pub estimate: f64,
@@ -57,6 +61,7 @@ pub struct AnalystEstimate {
 
 /// Complete fundamental data for a security
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FundamentalData {
     pub symbol: String,
     pub historical: Vec<HistoricalFinancial>,
@@ -65,12 +70,14 @@ pub struct FundamentalData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalystEstimates {
     pub revenue: Vec<AnalystEstimate>,
     pub eps: Vec<AnalystEstimate>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CurrentMetrics {
     pub price: f64,
     pub pe_ratio: f64,
@@ -79,6 +86,7 @@ pub struct CurrentMetrics {
 
 /// Assumptions for generating projections
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectionAssumptions {
     pub years: u32,                    // number of years to project (default 5)
     pub bear_revenue_growth: f64,      // percentage (e.g., 20.0 for 20%)
