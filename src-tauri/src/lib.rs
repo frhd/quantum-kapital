@@ -6,7 +6,7 @@ mod middleware;
 mod services;
 mod utils;
 
-use config::AppConfig;
+use config::{AppConfig, SettingsState};
 use google_sheets::SheetsState;
 use ibkr::IbkrState;
 use tauri::Manager;
@@ -22,8 +22,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Load configuration
-            let config = AppConfig::default(); // In production, would load from file
+            // Load configuration from disk or use defaults
+            let config = AppConfig::load_sync().unwrap_or_default();
+
+            // Initialize settings state
+            let settings_state = SettingsState::new(config.clone());
 
             // Initialize IBKR state with configuration
             let ibkr_state = IbkrState::new(config.ibkr.clone().into());
@@ -38,6 +41,7 @@ pub fn run() {
                 state_clone.event_emitter.set_app_handle(app_handle).await;
             });
 
+            app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(sheets_state);
             Ok(())
@@ -64,6 +68,11 @@ pub fn run() {
             google_sheets::commands::export_all_positions_to_sheets,
             google_sheets::commands::update_dashboard,
             google_sheets::commands::get_spreadsheet_url,
+            config::commands::get_settings,
+            config::commands::update_settings,
+            config::commands::update_google_sheets_spreadsheet,
+            config::commands::get_google_sheets_spreadsheet,
+            config::commands::get_settings_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

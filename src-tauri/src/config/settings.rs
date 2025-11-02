@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tokio::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -7,6 +8,7 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     pub ui: UiConfig,
     pub api: ApiConfig,
+    pub google_sheets: GoogleSheetsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +42,14 @@ pub struct UiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     pub alpha_vantage_api_key: Option<String>, // Alpha Vantage API key
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoogleSheetsConfig {
+    pub spreadsheet_id: Option<String>,
+    pub spreadsheet_name: String,
+    pub auto_export: bool,
+    pub last_export_timestamp: Option<String>,
 }
 
 impl Default for IbkrConfig {
@@ -87,17 +97,68 @@ impl Default for ApiConfig {
     }
 }
 
+impl Default for GoogleSheetsConfig {
+    fn default() -> Self {
+        Self {
+            spreadsheet_id: None,
+            spreadsheet_name: "Quantum Kapital Analysis".to_string(),
+            auto_export: false,
+            last_export_timestamp: None,
+        }
+    }
+}
+
 #[allow(dead_code)]
 impl AppConfig {
-    pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
-        // Try to load from config file, fall back to defaults
-        // This is a placeholder - implement actual config loading logic
-        Ok(Self::default())
+    /// Get the path to the settings file
+    pub fn settings_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let config_dir = dirs::config_dir().ok_or("Could not find config directory")?;
+        let app_dir = config_dir.join("quantum-kapital");
+        Ok(app_dir.join("settings.json"))
     }
 
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Save config to file
-        // This is a placeholder - implement actual config saving logic
+    /// Load settings from disk, or return defaults if file doesn't exist
+    pub async fn load() -> Result<Self, Box<dyn std::error::Error>> {
+        let settings_path = Self::settings_path()?;
+
+        if settings_path.exists() {
+            let contents = fs::read_to_string(&settings_path).await?;
+            let config: AppConfig = serde_json::from_str(&contents)?;
+            Ok(config)
+        } else {
+            // Return default settings if file doesn't exist
+            Ok(Self::default())
+        }
+    }
+
+    /// Save settings to disk
+    pub async fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let settings_path = Self::settings_path()?;
+
+        // Ensure directory exists
+        if let Some(parent) = settings_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+
+        // Serialize settings with pretty formatting
+        let json = serde_json::to_string_pretty(self)?;
+
+        // Write to file
+        fs::write(&settings_path, json).await?;
+
         Ok(())
+    }
+
+    /// Load synchronously (for initial app setup)
+    pub fn load_sync() -> Result<Self, Box<dyn std::error::Error>> {
+        let settings_path = Self::settings_path()?;
+
+        if settings_path.exists() {
+            let contents = std::fs::read_to_string(&settings_path)?;
+            let config: AppConfig = serde_json::from_str(&contents)?;
+            Ok(config)
+        } else {
+            Ok(Self::default())
+        }
     }
 }
