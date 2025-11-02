@@ -9,6 +9,8 @@ A professional cross-platform algorithmic trading application built with Tauri a
 - **Account Summary**: Comprehensive view of account metrics including equity, buying power, and available funds
 - **Market Data Streaming**: Subscribe to real-time market data for your holdings
 - **Order Execution**: Place market and limit orders directly from the application
+- **Forward Analysis & Projections**: Multi-year financial projections with Bear/Base/Bull scenarios
+- **Fundamental Data Integration**: Real fundamental data via Alpha Vantage API (configured and working!)
 - **Cross-Platform**: Runs natively on Windows, macOS, and Linux
 - **Secure**: All sensitive data is handled securely through Tauri's IPC bridge
 
@@ -116,18 +118,56 @@ This will create optimized binaries for your platform in `src-tauri/target/relea
 1. Similar settings available in IB Gateway
 2. Recommended for production use (more stable for long-running connections)
 
+## Fundamental Data API Setup ✅ CONFIGURED
+
+The application uses Alpha Vantage API for fetching real fundamental data. This is **optional** - the app works with mock data if not configured.
+
+### ✅ Already Configured for You!
+
+Your API key is already set up and tested:
+- API key added to `src-tauri/.env`
+- All endpoints verified and working
+- Real data ready for 8+ ticker lookups per day
+
+Just run `pnpm tauri dev` and select a ticker to see real fundamental data!
+
+### Manual Setup (If Needed)
+
+1. Get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
+2. Create `.env` file in `src-tauri/`:
+   ```bash
+   cd src-tauri
+   cp .env.example .env
+   ```
+3. Add your API key to `.env`:
+   ```
+   ALPHA_VANTAGE_API_KEY=your_api_key_here
+   ```
+4. Restart the application
+
+**Free tier includes 25 API calls per day** (~8 ticker lookups with real fundamental data).
+
+For detailed documentation, see [ALPHA_VANTAGE_SETUP.md](ALPHA_VANTAGE_SETUP.md).
+
 ## Available Commands
 
 The application exposes the following Tauri commands:
 
+### Connection & Account Management
 - `ibkr_connect`: Establish connection to IBKR
 - `ibkr_disconnect`: Close the connection
 - `ibkr_get_connection_status`: Check connection status
 - `ibkr_get_accounts`: Retrieve account list
 - `ibkr_get_account_summary`: Get detailed account metrics
 - `ibkr_get_positions`: Fetch current positions
+
+### Market Data & Trading
 - `ibkr_subscribe_market_data`: Subscribe to real-time quotes
 - `ibkr_place_order`: Submit orders to IBKR
+
+### Analysis & Projections
+- `ibkr_get_fundamental_data`: Fetch fundamental data (real or mock)
+- `ibkr_generate_projections`: Generate Bear/Base/Bull scenario projections
 
 ## UI Components
 

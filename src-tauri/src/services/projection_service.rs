@@ -30,10 +30,9 @@ impl ProjectionService {
         let current_year = 2025; // TODO: Use actual current year from chrono
 
         // Get the most recent historical data as baseline
-        let baseline = fundamental
-            .historical
-            .last()
-            .ok_or_else(|| crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string()))?;
+        let baseline = fundamental.historical.last().ok_or_else(|| {
+            crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string())
+        })?;
 
         // Generate projections for each scenario
         let bear = Self::generate_scenario_projection(ScenarioParams {
@@ -173,7 +172,9 @@ impl ProjectionService {
     /// Generate mock fundamental data for testing (will be replaced with real IBKR data)
     /// Updated with current NVDA data as of November 2025
     pub fn generate_mock_fundamental_data(symbol: &str) -> FundamentalData {
-        use crate::ibkr::types::{AnalystEstimate, AnalystEstimates, CurrentMetrics, HistoricalFinancial};
+        use crate::ibkr::types::{
+            AnalystEstimate, AnalystEstimates, CurrentMetrics, HistoricalFinancial,
+        };
 
         FundamentalData {
             symbol: symbol.to_string(),

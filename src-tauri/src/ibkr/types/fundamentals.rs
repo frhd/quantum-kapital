@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct FinancialProjection {
     pub year: u32,
-    pub revenue: f64,              // in billions
-    pub revenue_growth: f64,       // percentage (e.g., 35.0 for 35%)
-    pub net_income: f64,           // in billions
+    pub revenue: f64,                   // in billions
+    pub revenue_growth: f64,            // percentage (e.g., 35.0 for 35%)
+    pub net_income: f64,                // in billions
     pub net_income_growth: Option<f64>, // percentage, None for first year
-    pub net_income_margins: f64,   // percentage (e.g., 17.0 for 17%)
-    pub eps: f64,                  // dollars per share
+    pub net_income_margins: f64,        // percentage (e.g., 17.0 for 17%)
+    pub eps: f64,                       // dollars per share
     pub pe_low_est: f64,
     pub pe_high_est: f64,
     pub share_price_low: f64,
@@ -21,8 +21,8 @@ pub struct FinancialProjection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CagrMetrics {
-    pub revenue: f64,      // percentage
-    pub share_price: f64,  // percentage
+    pub revenue: f64,     // percentage
+    pub share_price: f64, // percentage
 }
 
 /// Complete scenario projections (Bear/Base/Bull)
@@ -88,16 +88,16 @@ pub struct CurrentMetrics {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectionAssumptions {
-    pub years: u32,                    // number of years to project (default 5)
-    pub bear_revenue_growth: f64,      // percentage (e.g., 20.0 for 20%)
-    pub base_revenue_growth: f64,      // percentage
-    pub bull_revenue_growth: f64,      // percentage
-    pub bear_margin_change: f64,       // percentage points per year (can be negative)
-    pub base_margin_change: f64,       // percentage points per year
-    pub bull_margin_change: f64,       // percentage points per year
-    pub pe_low: f64,                   // PE multiple low estimate
-    pub pe_high: f64,                  // PE multiple high estimate
-    pub shares_growth: f64,            // annual change in shares (negative for buybacks)
+    pub years: u32,               // number of years to project (default 5)
+    pub bear_revenue_growth: f64, // percentage (e.g., 20.0 for 20%)
+    pub base_revenue_growth: f64, // percentage
+    pub bull_revenue_growth: f64, // percentage
+    pub bear_margin_change: f64,  // percentage points per year (can be negative)
+    pub base_margin_change: f64,  // percentage points per year
+    pub bull_margin_change: f64,  // percentage points per year
+    pub pe_low: f64,              // PE multiple low estimate
+    pub pe_high: f64,             // PE multiple high estimate
+    pub shares_growth: f64,       // annual change in shares (negative for buybacks)
 }
 
 impl Default for ProjectionAssumptions {

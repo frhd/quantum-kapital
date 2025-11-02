@@ -43,10 +43,9 @@ impl IbkrClient {
                 // Verify the existing connection is still active with a timeout
                 let check_result = tokio::time::timeout(
                     std::time::Duration::from_secs(2),
-                    tokio::task::spawn_blocking(move || {
-                        client_clone.server_time().is_ok()
-                    })
-                ).await;
+                    tokio::task::spawn_blocking(move || client_clone.server_time().is_ok()),
+                )
+                .await;
 
                 let is_active = match check_result {
                     Ok(Ok(result)) => result,
@@ -71,7 +70,10 @@ impl IbkrClient {
         let client_id = config.client_id;
         drop(config);
 
-        info!("🟢 CONNECTING TO IBKR API GATEWAY AT {} WITH CLIENT ID {}", connection_url, client_id);
+        info!(
+            "🟢 CONNECTING TO IBKR API GATEWAY AT {} WITH CLIENT ID {}",
+            connection_url, client_id
+        );
 
         // Run the synchronous connect in a blocking task
         let connect_result =
@@ -81,13 +83,19 @@ impl IbkrClient {
 
         match connect_result {
             Ok(client) => {
-                info!("🟢 SUCCESSFULLY CONNECTED TO IBKR API GATEWAY WITH CLIENT ID {}", client_id);
+                info!(
+                    "🟢 SUCCESSFULLY CONNECTED TO IBKR API GATEWAY WITH CLIENT ID {}",
+                    client_id
+                );
                 let mut client_lock = self.client.write().await;
                 *client_lock = Some(Arc::new(client));
                 Ok(())
             }
             Err(e) => {
-                error!("🟢 FAILED TO CONNECT TO IBKR API GATEWAY WITH CLIENT ID {}: {}", client_id, e);
+                error!(
+                    "🟢 FAILED TO CONNECT TO IBKR API GATEWAY WITH CLIENT ID {}: {}",
+                    client_id, e
+                );
                 Err(IbkrError::ConnectionFailed(e.to_string()))
             }
         }
@@ -109,8 +117,9 @@ impl IbkrClient {
                     info!("🔴 BLOCKING TASK - DROPPING CLIENT");
                     drop(client);
                     info!("🔴 IBKR CLIENT DROPPED SUCCESSFULLY");
-                })
-            ).await;
+                }),
+            )
+            .await;
 
             match drop_result {
                 Ok(Ok(_)) => {
@@ -152,8 +161,9 @@ impl IbkrClient {
             // Check server time with a timeout to prevent hanging
             let time_check = tokio::time::timeout(
                 std::time::Duration::from_secs(2),
-                tokio::task::spawn_blocking(move || client_clone.server_time())
-            ).await;
+                tokio::task::spawn_blocking(move || client_clone.server_time()),
+            )
+            .await;
 
             match time_check {
                 Ok(Ok(Ok(time))) => {
