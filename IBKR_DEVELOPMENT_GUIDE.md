@@ -52,7 +52,7 @@ Create tests that define the expected behavior:
 async fn test_new_feature_success() {
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();
-    
+
     // Define expected behavior
     let result = client.new_feature_method().await;
     assert!(result.is_ok());
@@ -64,7 +64,7 @@ async fn test_new_feature_error_handling() {
     let client = MockIbkrClient::with_error(
         IbkrError::ApiError("Expected error".to_string())
     );
-    
+
     let result = client.new_feature_method().await;
     assert!(result.is_err());
 }
@@ -88,7 +88,7 @@ impl IbkrClientTrait for MockIbkrClient {
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
-        
+
         // Return mock data
         Ok(NewFeatureData {
             id: "test_id".to_string(),
@@ -184,11 +184,11 @@ pub mod test_fixtures {
 #[tokio::test]
 async fn test_operation_requires_connection() {
     let client = MockIbkrClient::new();
-    
+
     // Should fail when not connected
     let result = client.some_operation().await;
     assert!(matches!(result, Err(IbkrError::NotConnected)));
-    
+
     // Should succeed after connecting
     client.connect().await.unwrap();
     let result = client.some_operation().await;
@@ -203,7 +203,7 @@ async fn test_operation_requires_connection() {
 async fn test_error_handling_chain() {
     let client = MockIbkrClient::new();
     client.set_error(Some(IbkrError::ApiError("TWS Error".to_string()))).await;
-    
+
     let result = client.place_order(order).await;
     match result {
         Err(IbkrError::ApiError(msg)) => assert!(msg.contains("TWS Error")),
@@ -219,13 +219,13 @@ async fn test_error_handling_chain() {
 async fn test_concurrent_requests() {
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();
-    
+
     let futures = vec![
         client.get_positions("account1"),
         client.get_positions("account2"),
         client.get_positions("account3"),
     ];
-    
+
     let results = futures::future::join_all(futures).await;
     assert!(results.iter().all(|r| r.is_ok()));
 }

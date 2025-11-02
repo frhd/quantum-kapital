@@ -14,7 +14,7 @@ Retrieves current market data for a symbol including bid/ask, last trade, volume
 
 **Response Structure:**
 - `bid_price`, `bid_size`: Current best bid
-- `ask_price`, `ask_size`: Current best ask  
+- `ask_price`, `ask_size`: Current best ask
 - `last_price`, `last_size`: Last trade information
 - `high`, `low`, `open`, `close`: Daily price points
 - `volume`: Daily volume

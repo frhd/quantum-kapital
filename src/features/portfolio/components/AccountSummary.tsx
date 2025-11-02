@@ -1,10 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card"
-import { 
-  DollarSign, 
-  Activity, 
-  TrendingUp, 
-  TrendingDown, 
-  PieChart 
+import {
+  DollarSign,
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  PieChart
 } from "lucide-react"
 import { formatCurrency, anonymizeAccountNumber } from "../utils"
 import type { AccountSummary as AccountSummaryType, Position } from "../../../shared/types"
@@ -32,7 +32,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
   const totalEquity = getAccountValue(["NetLiquidation", "NetLiquidationByCurrency", "TotalNetLiquidation"])
   const availableFunds = getAccountValue(["AvailableFunds", "AvailableFunds-S", "AvailableFunds-C"])
   const buyingPower = getAccountValue(["BuyingPower", "BuyingPower-S"])
-  
+
   // Calculate P&L from positions
   const unrealizedPnL = positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
   const realizedPnL = positions.reduce((sum, pos) => sum + pos.realized_pnl, 0)

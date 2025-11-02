@@ -132,7 +132,7 @@ async fn test_account_values() {
     let essential_keys = vec!["NetLiquidation", "TotalCashValue", "BuyingPower"];
     for key in essential_keys {
         let value = values.iter().find(|v| v.key == key);
-        assert!(value.is_some(), "Missing essential account value: {}", key);
+        assert!(value.is_some(), "Missing essential account value: {key}");
     }
 
     // Verify all values have the correct account

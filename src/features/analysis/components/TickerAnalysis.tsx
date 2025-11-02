@@ -4,8 +4,10 @@ import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
 import { TickerSearch } from "./TickerSearch"
 import { TickerCards } from "./TickerCards"
 import { ScenarioTabs } from "./ScenarioTabs"
+import { GoogleSheetsExport } from "./GoogleSheetsExport"
 import { useTickerSearch } from "../hooks/useTickerSearch"
 import { useProjections } from "../hooks/useProjections"
+import { convertToTickerAnalysisData } from "../utils/exportHelpers"
 import { AlertCircle } from "lucide-react"
 
 export function TickerAnalysis() {
@@ -19,7 +21,7 @@ export function TickerAnalysis() {
     clearSelection,
   } = useTickerSearch()
 
-  const { projections, loading: projectionsLoading, error: projectionsError } = useProjections(
+  const { projections, fundamentalData, loading: projectionsLoading, error: projectionsError } = useProjections(
     selectedTicker?.symbol || null
   )
 
@@ -71,7 +73,17 @@ export function TickerAnalysis() {
               </AlertDescription>
             </Alert>
           ) : projections ? (
-            <ScenarioTabs projections={projections} symbol={selectedTicker.symbol} />
+            <>
+              <ScenarioTabs projections={projections} symbol={selectedTicker.symbol} />
+              {fundamentalData && (
+                <div className="flex justify-end">
+                  <GoogleSheetsExport
+                    ticker={selectedTicker.symbol}
+                    analysisData={convertToTickerAnalysisData(fundamentalData, projections)}
+                  />
+                </div>
+              )}
+            </>
           ) : null}
         </>
       )}

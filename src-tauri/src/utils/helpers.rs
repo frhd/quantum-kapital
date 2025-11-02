@@ -94,9 +94,10 @@ mod tests {
 
     #[test]
     fn test_round_to_decimals() {
-        assert_eq!(round_to_decimals(3.141520, 2), 3.14);
-        assert_eq!(round_to_decimals(3.14559, 2), 3.15);
-        assert_eq!(round_to_decimals(3.141520, 4), 3.1415);
+        assert_eq!(round_to_decimals(1.236789, 2), 1.24);
+        assert_eq!(round_to_decimals(2.71559, 2), 2.72);
+        assert_eq!(round_to_decimals(1.234567, 4), 1.2346);
+        assert_eq!(round_to_decimals(5.678901, 3), 5.679);
     }
 
     #[test]

@@ -57,10 +57,10 @@ jobs:
             -f tag_name='${{ steps.vars.outputs.tag }}' \
             -f target_commitish='${{ github.sha }}' \
             > notes.json
-          
+
           # Extract the body
           jq -r '.body' notes.json > RELEASE_NOTES.md
-          
+
           # Check if it's a prerelease
           if [[ "${{ steps.vars.outputs.tag }}" =~ -(alpha|beta|rc) ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
