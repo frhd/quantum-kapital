@@ -26,7 +26,7 @@ pub async fn ibkr_generate_projections(
     // Get fundamental data
     let fundamental = ibkr_get_fundamental_data(state, symbol)
         .await
-        .map_err(|e| format!("Failed to get fundamental data: {}", e))?;
+        .map_err(|e| format!("Failed to get fundamental data: {e}"))?;
 
     // Use provided assumptions or default
     let assumptions = assumptions.unwrap_or_default();

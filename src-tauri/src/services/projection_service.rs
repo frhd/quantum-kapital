@@ -7,6 +7,20 @@ use crate::ibkr::types::{
 /// Service for calculating financial projections based on fundamental data
 pub struct ProjectionService;
 
+/// Parameters for generating scenario projections
+struct ScenarioParams {
+    initial_revenue: f64,
+    initial_net_income: f64,
+    initial_shares: f64,
+    revenue_growth_rate: f64,
+    margin_change_rate: f64,
+    pe_low: f64,
+    pe_high: f64,
+    shares_growth_rate: f64,
+    start_year: u32,
+    num_years: u32,
+}
+
 impl ProjectionService {
     /// Generate complete scenario projections (Bear/Base/Bull) from fundamental data
     pub fn generate_projections(
@@ -22,47 +36,44 @@ impl ProjectionService {
             .ok_or_else(|| crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string()))?;
 
         // Generate projections for each scenario
-        let bear = Self::generate_scenario_projection(
-            baseline.revenue,
-            baseline.net_income,
-            baseline.revenue,
-            fundamental.current_metrics.shares_outstanding,
-            assumptions.bear_revenue_growth,
-            assumptions.bear_margin_change,
-            assumptions.pe_low,
-            assumptions.pe_high,
-            assumptions.shares_growth,
-            current_year,
-            assumptions.years,
-        );
+        let bear = Self::generate_scenario_projection(ScenarioParams {
+            initial_revenue: baseline.revenue,
+            initial_net_income: baseline.net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: assumptions.bear_revenue_growth,
+            margin_change_rate: assumptions.bear_margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: current_year,
+            num_years: assumptions.years,
+        });
 
-        let base = Self::generate_scenario_projection(
-            baseline.revenue,
-            baseline.net_income,
-            baseline.revenue,
-            fundamental.current_metrics.shares_outstanding,
-            assumptions.base_revenue_growth,
-            assumptions.base_margin_change,
-            assumptions.pe_low,
-            assumptions.pe_high,
-            assumptions.shares_growth,
-            current_year,
-            assumptions.years,
-        );
+        let base = Self::generate_scenario_projection(ScenarioParams {
+            initial_revenue: baseline.revenue,
+            initial_net_income: baseline.net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: assumptions.base_revenue_growth,
+            margin_change_rate: assumptions.base_margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: current_year,
+            num_years: assumptions.years,
+        });
 
-        let bull = Self::generate_scenario_projection(
-            baseline.revenue,
-            baseline.net_income,
-            baseline.revenue,
-            fundamental.current_metrics.shares_outstanding,
-            assumptions.bull_revenue_growth,
-            assumptions.bull_margin_change,
-            assumptions.pe_low,
-            assumptions.pe_high,
-            assumptions.shares_growth,
-            current_year,
-            assumptions.years,
-        );
+        let bull = Self::generate_scenario_projection(ScenarioParams {
+            initial_revenue: baseline.revenue,
+            initial_net_income: baseline.net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: assumptions.bull_revenue_growth,
+            margin_change_rate: assumptions.bull_margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: current_year,
+            num_years: assumptions.years,
+        });
 
         // Calculate CAGR for each scenario
         let bear_cagr = Self::calculate_cagr(&bear);
@@ -82,41 +93,29 @@ impl ProjectionService {
     }
 
     /// Generate projections for a single scenario
-    fn generate_scenario_projection(
-        initial_revenue: f64,
-        initial_net_income: f64,
-        _baseline_revenue: f64,
-        initial_shares: f64,
-        revenue_growth_rate: f64,
-        margin_change_rate: f64,
-        pe_low: f64,
-        pe_high: f64,
-        shares_growth_rate: f64,
-        start_year: u32,
-        num_years: u32,
-    ) -> Vec<FinancialProjection> {
+    fn generate_scenario_projection(params: ScenarioParams) -> Vec<FinancialProjection> {
         let mut projections = Vec::new();
-        let mut revenue = initial_revenue;
-        let mut net_income = initial_net_income;
-        let mut shares = initial_shares;
-        let mut margin = (initial_net_income / initial_revenue) * 100.0; // Calculate initial margin
+        let mut revenue = params.initial_revenue;
+        let mut net_income = params.initial_net_income;
+        let mut shares = params.initial_shares;
+        let mut margin = (params.initial_net_income / params.initial_revenue) * 100.0; // Calculate initial margin
 
-        let mut prev_net_income = initial_net_income;
+        let mut prev_net_income = params.initial_net_income;
 
-        for year_offset in 0..num_years {
-            let year = start_year + year_offset;
+        for year_offset in 0..params.num_years {
+            let year = params.start_year + year_offset;
 
             // Apply growth rates
             if year_offset > 0 {
-                revenue *= 1.0 + (revenue_growth_rate / 100.0);
-                margin += margin_change_rate; // Add percentage points
+                revenue *= 1.0 + (params.revenue_growth_rate / 100.0);
+                margin += params.margin_change_rate; // Add percentage points
                 net_income = revenue * (margin / 100.0);
-                shares *= 1.0 + (shares_growth_rate / 100.0);
+                shares *= 1.0 + (params.shares_growth_rate / 100.0);
             }
 
             let eps = net_income / shares * 1_000.0; // Convert from billions and millions to per share
-            let share_price_low = eps * pe_low;
-            let share_price_high = eps * pe_high;
+            let share_price_low = eps * params.pe_low;
+            let share_price_high = eps * params.pe_high;
 
             let net_income_growth = if year_offset == 0 {
                 None
@@ -127,13 +126,13 @@ impl ProjectionService {
             projections.push(FinancialProjection {
                 year,
                 revenue,
-                revenue_growth: revenue_growth_rate,
+                revenue_growth: params.revenue_growth_rate,
                 net_income,
                 net_income_growth,
                 net_income_margins: margin,
                 eps,
-                pe_low_est: pe_low,
-                pe_high_est: pe_high,
+                pe_low_est: params.pe_low,
+                pe_high_est: params.pe_high,
                 share_price_low,
                 share_price_high,
             });
