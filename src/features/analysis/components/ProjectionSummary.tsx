@@ -12,6 +12,18 @@ interface ProjectionSummaryProps {
 export function ProjectionSummary({ projections, assumptions = defaultProjectionAssumptions }: ProjectionSummaryProps) {
   // Get baseline data from the first year of base case projections
   const baseline = projections.base[0]
+
+  // Safety check: ensure baseline exists
+  if (!baseline) {
+    return (
+      <Card className="bg-slate-800/30 border-slate-700/50">
+        <CardContent className="pt-6">
+          <p className="text-slate-400 text-center">No projection data available</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const baselineYear = baseline.year
 
   const formatBillions = (value: number) => `$${value.toFixed(2)}B`

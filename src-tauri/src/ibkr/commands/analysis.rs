@@ -1,6 +1,8 @@
 use crate::ibkr::types::{FundamentalData, ProjectionAssumptions, ScenarioProjections};
+use crate::services::cache_service::CacheService;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::projection_service::ProjectionService;
+use std::collections::HashSet;
 use tauri::State;
 use tracing::{info, warn};
 
@@ -65,4 +67,32 @@ pub async fn ibkr_generate_projections(
 
     // Generate projections
     ProjectionService::generate_projections(&fundamental, &assumptions).map_err(|e| e.to_string())
+}
+
+/// Get list of cached ticker symbols
+/// Returns unique ticker symbols that have cached data
+#[tauri::command]
+pub async fn ibkr_get_cached_tickers() -> Result<Vec<String>, String> {
+    // Initialize cache service with the same path used by FinancialDataService
+    let cache = CacheService::new("cache/alphavantage").map_err(|e| e.to_string())?;
+
+    // Get all valid cache keys
+    let keys = cache.list_valid_keys().map_err(|e| e.to_string())?;
+
+    // Extract unique ticker symbols from cache keys
+    // Cache keys are like "AAPL_overview", "AAPL_income_statement", "AAPL_earnings"
+    let mut tickers = HashSet::new();
+    for key in keys {
+        // Split by underscore and take the first part (the ticker symbol)
+        if let Some(ticker) = key.split('_').next() {
+            tickers.insert(ticker.to_string());
+        }
+    }
+
+    // Convert to sorted vector
+    let mut ticker_list: Vec<String> = tickers.into_iter().collect();
+    ticker_list.sort();
+
+    info!("Found {} cached tickers", ticker_list.len());
+    Ok(ticker_list)
 }

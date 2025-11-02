@@ -15,6 +15,25 @@ interface ScenarioTabsProps {
 export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsProps) {
   const [activeScenario, setActiveScenario] = useState<ScenarioType>('base')
 
+  // Validate projections data
+  if (!projections || !projections.base || !projections.bear || !projections.bull ||
+      projections.base.length === 0 || projections.bear.length === 0 || projections.bull.length === 0) {
+    return (
+      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-xl text-white">
+            Forward Analysis - {symbol}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-slate-400 text-center py-8">
+            Unable to generate projections for {symbol}. This may be due to insufficient historical financial data.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const scenarios = [
     {
       key: 'bear' as ScenarioType,

@@ -4,9 +4,10 @@ use crate::ibkr::types::fundamentals::{
 use crate::services::cache_service::CacheService;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::error::Error;
 use std::path::PathBuf;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Service for fetching fundamental data from Alpha Vantage API
 pub struct FinancialDataService {
@@ -42,8 +43,9 @@ struct AlphaVantageOverview {
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct AlphaVantageIncomeStatement {
-    symbol: String,
-    #[serde(rename = "annualReports")]
+    #[serde(default)]
+    symbol: Option<String>,
+    #[serde(rename = "annualReports", default)]
     annual_reports: Vec<AnnualReport>,
 }
 
@@ -60,10 +62,11 @@ struct AnnualReport {
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct AlphaVantageEarnings {
-    symbol: String,
-    #[serde(rename = "annualEarnings")]
+    #[serde(default)]
+    symbol: Option<String>,
+    #[serde(rename = "annualEarnings", default)]
     annual_earnings: Vec<AnnualEarning>,
-    #[serde(rename = "quarterlyEarnings")]
+    #[serde(rename = "quarterlyEarnings", default)]
     quarterly_earnings: Option<Vec<QuarterlyEarning>>,
 }
 
@@ -84,6 +87,28 @@ struct QuarterlyEarning {
 }
 
 impl FinancialDataService {
+    /// Check if the API response contains an error message
+    fn check_api_error(json: &Value) -> Result<(), Box<dyn Error + Send + Sync>> {
+        // Check for "Error Message" field
+        if let Some(error_msg) = json.get("Error Message").and_then(|v| v.as_str()) {
+            return Err(format!("Alpha Vantage API error: {error_msg}").into());
+        }
+
+        // Check for "Note" field (rate limit warning)
+        if let Some(note) = json.get("Note").and_then(|v| v.as_str()) {
+            warn!("Alpha Vantage API note: {}", note);
+            return Err("API rate limit reached. Please try again later.".into());
+        }
+
+        // Check for "Information" field (another type of message)
+        if let Some(info) = json.get("Information").and_then(|v| v.as_str()) {
+            warn!("Alpha Vantage API information: {}", info);
+            return Err(format!("Alpha Vantage API: {info}").into());
+        }
+
+        Ok(())
+    }
+
     /// Creates a new FinancialDataService instance for Alpha Vantage
     pub fn new(api_key: String) -> Self {
         Self::with_cache_dir(api_key, "cache/alphavantage")
@@ -127,6 +152,13 @@ impl FinancialDataService {
         // Process historical data (combine income statement and earnings)
         let historical = self.process_historical_data(&income_statement, &earnings);
 
+        // Validate we have at least some historical data
+        if historical.is_empty() {
+            return Err(format!(
+                "No historical financial data available for {symbol}. This ticker may be too new or not have sufficient financial reporting history."
+            ).into());
+        }
+
         // Get current metrics from overview
         let current_metrics = self.process_current_metrics(&overview);
 
@@ -168,7 +200,12 @@ impl FinancialDataService {
             return Err(format!("API request failed: {}", response.status()).into());
         }
 
-        let overview: AlphaVantageOverview = response.json().await?;
+        // Parse as generic JSON first to check for errors
+        let json: Value = response.json().await?;
+        Self::check_api_error(&json)?;
+
+        // Deserialize to the specific type
+        let overview: AlphaVantageOverview = serde_json::from_value(json)?;
 
         // Write to cache
         if let Some(ref cache) = self.cache {
@@ -205,7 +242,12 @@ impl FinancialDataService {
             return Err(format!("API request failed: {}", response.status()).into());
         }
 
-        let statement: AlphaVantageIncomeStatement = response.json().await?;
+        // Parse as generic JSON first to check for errors
+        let json: Value = response.json().await?;
+        Self::check_api_error(&json)?;
+
+        // Deserialize to the specific type
+        let statement: AlphaVantageIncomeStatement = serde_json::from_value(json)?;
 
         // Write to cache
         if let Some(ref cache) = self.cache {
@@ -242,7 +284,12 @@ impl FinancialDataService {
             return Err(format!("API request failed: {}", response.status()).into());
         }
 
-        let earnings: AlphaVantageEarnings = response.json().await?;
+        // Parse as generic JSON first to check for errors
+        let json: Value = response.json().await?;
+        Self::check_api_error(&json)?;
+
+        // Deserialize to the specific type
+        let earnings: AlphaVantageEarnings = serde_json::from_value(json)?;
 
         // Write to cache
         if let Some(ref cache) = self.cache {
@@ -361,7 +408,7 @@ impl FinancialDataService {
         } else if value >= 1_000_000.0 {
             format!("{:.1}M", value / 1_000_000.0)
         } else {
-            format!("{:.0}", value)
+            format!("{value:.0}")
         }
     }
 

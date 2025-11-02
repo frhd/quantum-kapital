@@ -58,7 +58,10 @@ impl CacheService {
         match self.get_cache_age(&cache_path) {
             Ok(age) => {
                 if age > self.ttl_seconds {
-                    debug!("Cache expired: {} (age: {}s, ttl: {}s)", key, age, self.ttl_seconds);
+                    debug!(
+                        "Cache expired: {} (age: {}s, ttl: {}s)",
+                        key, age, self.ttl_seconds
+                    );
                     false
                 } else {
                     debug!("Cache hit: {} (age: {}s)", key, age);
@@ -97,14 +100,9 @@ impl CacheService {
     {
         let cache_path = self.get_cache_path(key);
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
-        let cached = CachedData {
-            timestamp,
-            data,
-        };
+        let cached = CachedData { timestamp, data };
 
         let content = serde_json::to_string_pretty(&cached)?;
         fs::write(&cache_path, content)?;
@@ -187,10 +185,35 @@ impl CacheService {
     fn get_cache_age(&self, path: &Path) -> Result<u64, Box<dyn Error + Send + Sync>> {
         let metadata = fs::metadata(path)?;
         let modified = metadata.modified()?;
-        let age = SystemTime::now()
-            .duration_since(modified)?
-            .as_secs();
+        let age = SystemTime::now().duration_since(modified)?.as_secs();
         Ok(age)
+    }
+
+    /// Lists all valid (non-expired) cache keys
+    pub fn list_valid_keys(&self) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+        let mut keys = Vec::new();
+
+        if !self.cache_dir.exists() {
+            return Ok(keys);
+        }
+
+        for entry in fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_file() {
+                if let Some(file_name) = path.file_stem() {
+                    let key = file_name.to_string_lossy().to_string();
+
+                    // Only include valid (non-expired) entries
+                    if self.is_valid(&key) {
+                        keys.push(key);
+                    }
+                }
+            }
+        }
+
+        Ok(keys)
     }
 }
 

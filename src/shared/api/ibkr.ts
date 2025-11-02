@@ -49,5 +49,9 @@ export const ibkrApi = {
 
   generateProjections: async (symbol: string, assumptions?: ProjectionAssumptions) => {
     return invoke<ScenarioProjections>("ibkr_generate_projections", { symbol, assumptions })
+  },
+
+  getCachedTickers: async () => {
+    return invoke<string[]>("ibkr_get_cached_tickers")
   }
 }

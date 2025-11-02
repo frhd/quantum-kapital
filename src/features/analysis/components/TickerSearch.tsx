@@ -19,6 +19,18 @@ export function TickerSearch({
   onSelect,
   onClear,
 }: TickerSearchProps) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && searchQuery.trim()) {
+      // If there's a search result, select the first one
+      // Otherwise, search for the entered symbol directly
+      if (searchResults.length > 0) {
+        onSelect(searchResults[0].symbol)
+      } else {
+        onSelect(searchQuery.trim())
+      }
+    }
+  }
+
   return (
     <div className="relative">
       <div className="flex gap-2">
@@ -26,9 +38,10 @@ export function TickerSearch({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             type="text"
-            placeholder="Search ticker symbol or company name..."
+            placeholder="Search ticker symbol (e.g., AAPL) or press Enter..."
             value={searchQuery}
             onChange={(e) => onSearch(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="pl-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-400"
           />
         </div>

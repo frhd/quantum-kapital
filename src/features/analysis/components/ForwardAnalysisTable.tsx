@@ -8,6 +8,15 @@ interface ForwardAnalysisTableProps {
 }
 
 export function ForwardAnalysisTable({ projections, cagr, scenarioType }: ForwardAnalysisTableProps) {
+  // Validate projections array
+  if (!projections || projections.length === 0) {
+    return (
+      <div className="text-slate-400 text-center py-8">
+        No projection data available
+      </div>
+    )
+  }
+
   const formatBillions = (value: number | null | undefined) =>
     value != null ? `$${value.toFixed(2)}B` : '—'
   const formatPercent = (value: number | null | undefined) =>
