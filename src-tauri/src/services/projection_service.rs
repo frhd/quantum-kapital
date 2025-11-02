@@ -230,6 +230,10 @@ impl ProjectionService {
                 price: 202.49,
                 pe_ratio: 68.9,
                 shares_outstanding: 24804.0, // in millions (24.804B shares)
+                name: Some(format!("{} Corporation", symbol)),
+                exchange: Some("NASDAQ".to_string()),
+                market_cap: Some("5.0T".to_string()),
+                dividend_yield: Some(0.03),
             },
         }
     }

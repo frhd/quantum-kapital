@@ -30,7 +30,7 @@ impl CacheService {
 
         Ok(Self {
             cache_dir,
-            ttl_seconds: 24 * 60 * 60, // 24 hours
+            ttl_seconds: 7 * 24 * 60 * 60, // 7 days
         })
     }
 

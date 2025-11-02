@@ -1,7 +1,10 @@
 import { useState, useCallback } from "react"
+import { ibkrApi } from "../../../shared/api/ibkr"
 import type { TickerSearchResult, TickerData } from "../types"
+import type { FundamentalData } from "../../../shared/types"
 
-// Mock ticker data for demonstration
+// Mock ticker search results (for autocomplete)
+// In a real implementation, this could be replaced with a proper ticker search API
 const mockTickers: TickerSearchResult[] = [
   { symbol: "AAPL", name: "Apple Inc.", exchange: "NASDAQ", type: "Stock" },
   { symbol: "MSFT", name: "Microsoft Corporation", exchange: "NASDAQ", type: "Stock" },
@@ -12,50 +15,6 @@ const mockTickers: TickerSearchResult[] = [
   { symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", type: "Stock" },
   { symbol: "AMD", name: "Advanced Micro Devices Inc.", exchange: "NASDAQ", type: "Stock" },
 ]
-
-// Mock detailed ticker data
-const mockTickerDetails: Record<string, TickerData> = {
-  AAPL: {
-    symbol: "AAPL",
-    name: "Apple Inc.",
-    exchange: "NASDAQ",
-    type: "Stock",
-    price: 178.25,
-    change: 2.15,
-    changePercent: 1.22,
-    volume: 52430000,
-    marketCap: "2.8T",
-    pe: 29.5,
-    yield: 0.52,
-  },
-  MSFT: {
-    symbol: "MSFT",
-    name: "Microsoft Corporation",
-    exchange: "NASDAQ",
-    type: "Stock",
-    price: 378.91,
-    change: -1.25,
-    changePercent: -0.33,
-    volume: 28340000,
-    marketCap: "2.8T",
-    pe: 35.2,
-    yield: 0.78,
-  },
-  NVDA: {
-    symbol: "NVDA",
-    name: "NVIDIA Corporation",
-    exchange: "NASDAQ",
-    type: "Stock",
-    price: 202.49,
-    change: 1.52,
-    changePercent: 0.76,
-    volume: 345000000,
-    marketCap: "5.0T",
-    pe: 68.9,
-    yield: 0.03,
-  },
-  // Add more as needed
-}
 
 export function useTickerSearch() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -81,23 +40,51 @@ export function useTickerSearch() {
     setSearchResults(filtered)
   }, [])
 
-  const selectTicker = useCallback((symbol: string) => {
+  const selectTicker = useCallback(async (symbol: string) => {
     setLoading(true)
 
-    // Mock API call - in real implementation, this would fetch from IBKR or another data source
-    setTimeout(() => {
-      const tickerData = mockTickerDetails[symbol] || {
-        symbol,
-        name: mockTickers.find((t) => t.symbol === symbol)?.name || symbol,
-        exchange: mockTickers.find((t) => t.symbol === symbol)?.exchange || "NASDAQ",
-        type: mockTickers.find((t) => t.symbol === symbol)?.type || "Stock",
+    try {
+      // Fetch real fundamental data from the API
+      const fundamentalData: FundamentalData = await ibkrApi.getFundamentalData(symbol)
+
+      // Convert FundamentalData to TickerData format
+      const tickerData: TickerData = {
+        symbol: fundamentalData.symbol,
+        name: fundamentalData.currentMetrics.name ||
+              mockTickers.find((t) => t.symbol === symbol)?.name ||
+              symbol,
+        exchange: fundamentalData.currentMetrics.exchange || "NASDAQ",
+        type: "Stock",
+        price: fundamentalData.currentMetrics.price,
+        // Note: Alpha Vantage OVERVIEW doesn't provide change/changePercent or volume
+        // These would require a separate real-time quote endpoint
+        change: undefined,
+        changePercent: undefined,
+        volume: undefined,
+        marketCap: fundamentalData.currentMetrics.marketCap || undefined,
+        pe: fundamentalData.currentMetrics.peRatio,
+        yield: fundamentalData.currentMetrics.dividendYield,
       }
 
       setSelectedTicker(tickerData)
       setSearchQuery(symbol)
       setSearchResults([])
+    } catch (error) {
+      console.error("Error fetching ticker data:", error)
+
+      // Fallback to basic data if API fails
+      const fallbackData: TickerData = {
+        symbol,
+        name: mockTickers.find((t) => t.symbol === symbol)?.name || symbol,
+        exchange: mockTickers.find((t) => t.symbol === symbol)?.exchange || "NASDAQ",
+        type: mockTickers.find((t) => t.symbol === symbol)?.type || "Stock",
+      }
+      setSelectedTicker(fallbackData)
+      setSearchQuery(symbol)
+      setSearchResults([])
+    } finally {
       setLoading(false)
-    }, 300)
+    }
   }, [])
 
   const clearSelection = useCallback(() => {

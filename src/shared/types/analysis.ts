@@ -64,6 +64,10 @@ export interface CurrentMetrics {
   price: number
   peRatio: number
   sharesOutstanding: number // in millions
+  name?: string
+  exchange?: string
+  marketCap?: string
+  dividendYield?: number
 }
 
 // Assumptions for generating projections

@@ -23,6 +23,10 @@ pub struct FinancialDataService {
 struct AlphaVantageOverview {
     #[serde(rename = "Symbol")]
     symbol: Option<String>,
+    #[serde(rename = "Name")]
+    name: Option<String>,
+    #[serde(rename = "Exchange")]
+    exchange: Option<String>,
     #[serde(rename = "MarketCapitalization")]
     market_capitalization: Option<String>,
     #[serde(rename = "PERatio")]
@@ -31,6 +35,8 @@ struct AlphaVantageOverview {
     shares_outstanding: Option<String>,
     #[serde(rename = "52WeekHigh")]
     week_52_high: Option<String>,
+    #[serde(rename = "DividendYield")]
+    dividend_yield: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -321,10 +327,41 @@ impl FinancialDataService {
             .and_then(|p| p.parse::<f64>().ok())
             .unwrap_or(0.0);
 
+        // Parse dividend yield (convert from percentage string like "0.42" to 0.42)
+        let dividend_yield = overview
+            .dividend_yield
+            .as_ref()
+            .and_then(|dy| dy.parse::<f64>().ok());
+
+        // Format market cap (already a string from API, e.g., "2800000000000" -> "2.8T")
+        let market_cap = overview.market_capitalization.as_ref().map(|mc_str| {
+            if let Ok(mc) = mc_str.parse::<f64>() {
+                Self::format_market_cap(mc)
+            } else {
+                mc_str.clone()
+            }
+        });
+
         CurrentMetrics {
             price,
             pe_ratio,
             shares_outstanding,
+            name: overview.name.clone(),
+            exchange: overview.exchange.clone(),
+            market_cap,
+            dividend_yield,
+        }
+    }
+
+    fn format_market_cap(value: f64) -> String {
+        if value >= 1_000_000_000_000.0 {
+            format!("{:.1}T", value / 1_000_000_000_000.0)
+        } else if value >= 1_000_000_000.0 {
+            format!("{:.1}B", value / 1_000_000_000.0)
+        } else if value >= 1_000_000.0 {
+            format!("{:.1}M", value / 1_000_000.0)
+        } else {
+            format!("{:.0}", value)
         }
     }
 

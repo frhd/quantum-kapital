@@ -82,6 +82,14 @@ pub struct CurrentMetrics {
     pub price: f64,
     pub pe_ratio: f64,
     pub shares_outstanding: f64, // in millions
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exchange: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub market_cap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dividend_yield: Option<f64>,
 }
 
 /// Assumptions for generating projections
