@@ -1,4 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../shared/components/ui/table"
+import { Badge } from "../../../shared/components/ui/badge"
+import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import type { FinancialProjection, CagrMetrics } from "../../../shared/types"
 
 interface ForwardAnalysisTableProps {
@@ -121,6 +123,65 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
             ))}
             <TableCell className="text-center text-slate-500">—</TableCell>
           </TableRow>
+
+          {/* Analyst EPS Estimate Row (if available) */}
+          {projections.some(p => p.analystEpsEstimate != null) && (
+            <TableRow className="border-slate-700/50 hover:bg-slate-800/30 bg-blue-500/5">
+              <TableCell className="font-medium text-slate-300 flex items-center gap-2">
+                <span>Analyst Consensus</span>
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-blue-400/30 text-blue-400">
+                  Wall St.
+                </Badge>
+              </TableCell>
+              {projections.map((proj) => {
+                if (proj.analystEpsEstimate == null) {
+                  return (
+                    <TableCell key={`analyst-${proj.year}`} className="text-center text-slate-500">
+                      —
+                    </TableCell>
+                  )
+                }
+
+                // Compare projected EPS vs analyst estimate
+                const diff = proj.eps - proj.analystEpsEstimate
+                const diffPercent = (diff / Math.abs(proj.analystEpsEstimate)) * 100
+
+                // Determine sentiment
+                let icon = null
+                let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary"
+                let badgeText = ""
+
+                if (Math.abs(diffPercent) < 5) {
+                  icon = <Minus className="h-3 w-3" />
+                  badgeVariant = "secondary"
+                  badgeText = "Aligned"
+                } else if (diff > 0) {
+                  icon = <TrendingUp className="h-3 w-3" />
+                  badgeVariant = "default"
+                  badgeText = `+${diffPercent.toFixed(0)}%`
+                } else {
+                  icon = <TrendingDown className="h-3 w-3" />
+                  badgeVariant = "destructive"
+                  badgeText = `${diffPercent.toFixed(0)}%`
+                }
+
+                return (
+                  <TableCell key={`analyst-${proj.year}`} className="text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-blue-300 font-medium">
+                        {formatDollars(proj.analystEpsEstimate)}
+                      </span>
+                      <Badge variant={badgeVariant} className="text-[10px] px-1 py-0 h-4 flex items-center gap-0.5">
+                        {icon}
+                        {badgeText}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                )
+              })}
+              <TableCell className="text-center text-slate-500">—</TableCell>
+            </TableRow>
+          )}
 
           {/* PE Range Row */}
           <TableRow className="border-slate-700/50 hover:bg-slate-800/30">

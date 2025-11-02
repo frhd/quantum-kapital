@@ -7,6 +7,7 @@ import type {
   OrderRequest,
   FundamentalData,
   ScenarioProjections,
+  ProjectionResults,
   ProjectionAssumptions
 } from "../types"
 
@@ -49,6 +50,10 @@ export const ibkrApi = {
 
   generateProjections: async (symbol: string, assumptions?: ProjectionAssumptions) => {
     return invoke<ScenarioProjections>("ibkr_generate_projections", { symbol, assumptions })
+  },
+
+  generateProjectionResults: async (symbol: string, assumptions?: ProjectionAssumptions) => {
+    return invoke<ProjectionResults>("ibkr_generate_projection_results", { symbol, assumptions })
   },
 
   getCachedTickers: async () => {

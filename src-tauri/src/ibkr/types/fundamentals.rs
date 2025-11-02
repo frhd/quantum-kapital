@@ -15,6 +15,13 @@ pub struct FinancialProjection {
     pub pe_high_est: f64,
     pub share_price_low: f64,
     pub share_price_high: f64,
+    pub valuation_method: String, // "P/E" or "P/S" - indicates which method was used
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ps_low_est: Option<f64>, // Price-to-Sales low (if P/S used)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ps_high_est: Option<f64>, // Price-to-Sales high (if P/S used)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analyst_eps_estimate: Option<f64>, // Analyst consensus EPS estimate (if available)
 }
 
 /// CAGR (Compound Annual Growth Rate) calculations
@@ -25,7 +32,26 @@ pub struct CagrMetrics {
     pub share_price: f64, // percentage
 }
 
-/// Complete scenario projections (Bear/Base/Bull)
+/// Projections for a single year with bear/base/bull scenarios
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YearlyProjection {
+    pub year: u32,
+    pub bear: FinancialProjection,
+    pub base: FinancialProjection,
+    pub bull: FinancialProjection,
+}
+
+/// Complete projection results with baseline and forward projections
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectionResults {
+    pub baseline: FinancialProjection, // Most recent complete year (actual data)
+    pub projections: Vec<YearlyProjection>, // Future years with bear/base/bull scenarios
+    pub cagr: ScenarioCagr,            // CAGR for each scenario
+}
+
+/// Complete scenario projections (Bear/Base/Bull) - DEPRECATED, use ProjectionResults
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioProjections {
     pub bear: Vec<FinancialProjection>,
@@ -35,6 +61,7 @@ pub struct ScenarioProjections {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScenarioCagr {
     pub bear: CagrMetrics,
     pub base: CagrMetrics,
@@ -103,8 +130,10 @@ pub struct ProjectionAssumptions {
     pub bear_margin_change: f64,  // percentage points per year (can be negative)
     pub base_margin_change: f64,  // percentage points per year
     pub bull_margin_change: f64,  // percentage points per year
-    pub pe_low: f64,              // PE multiple low estimate
-    pub pe_high: f64,             // PE multiple high estimate
+    pub pe_low: f64,              // PE multiple low estimate (used when EPS > 0)
+    pub pe_high: f64,             // PE multiple high estimate (used when EPS > 0)
+    pub ps_low: f64,              // Price-to-Sales low estimate (used when EPS < 0)
+    pub ps_high: f64,             // Price-to-Sales high estimate (used when EPS < 0)
     pub shares_growth: f64,       // annual change in shares (negative for buybacks)
 }
 
@@ -120,6 +149,8 @@ impl Default for ProjectionAssumptions {
             bull_margin_change: 1.0,
             pe_low: 50.0,
             pe_high: 60.0,
+            ps_low: 3.0,  // Conservative P/S for unprofitable companies
+            ps_high: 8.0, // Optimistic P/S for high-growth companies
             shares_growth: 0.0,
         }
     }

@@ -304,10 +304,9 @@ impl FinancialDataService {
         income_statement: &AlphaVantageIncomeStatement,
         earnings: &AlphaVantageEarnings,
     ) -> Vec<HistoricalFinancial> {
-        // Take last 5 years
-        let annual_reports: Vec<_> = income_statement.annual_reports.iter().take(5).collect();
-
-        annual_reports
+        // Parse ALL reports first, then take the most recent 5 years
+        let mut historical: Vec<HistoricalFinancial> = income_statement
+            .annual_reports
             .iter()
             .filter_map(|report| {
                 // Extract year from fiscal date ending (format: "YYYY-MM-DD")
@@ -347,7 +346,15 @@ impl FinancialDataService {
                     eps,
                 })
             })
-            .collect()
+            .collect();
+
+        // CRITICAL: Sort by year ascending (oldest to newest)
+        historical.sort_by_key(|h| h.year);
+
+        // Take only the LAST 5 years (most recent)
+        // This ensures we don't use old data if API returns 10+ years
+        let start_idx = historical.len().saturating_sub(5);
+        historical[start_idx..].to_vec()
     }
 
     fn process_current_metrics(&self, overview: &AlphaVantageOverview) -> CurrentMetrics {
@@ -422,31 +429,63 @@ impl FinancialDataService {
             return None;
         }
 
-        // Extract future quarters with estimates
-        let eps: Vec<AnalystEstimate> = quarterly
-            .iter()
-            .filter_map(|q| {
-                let year = q
-                    .fiscal_date_ending
-                    .split('-')
-                    .next()
-                    .and_then(|y| y.parse::<u32>().ok())?;
+        // Extract quarterly EPS estimates and group by year
+        use std::collections::HashMap;
+        let mut quarterly_by_year: HashMap<u32, Vec<f64>> = HashMap::new();
 
-                let estimate = q
+        for q in quarterly.iter() {
+            // Extract year from fiscal date ending (format: "YYYY-MM-DD")
+            if let Some(year) = q
+                .fiscal_date_ending
+                .split('-')
+                .next()
+                .and_then(|y| y.parse::<u32>().ok())
+            {
+                // Parse estimated EPS
+                if let Some(estimate) = q
                     .estimated_eps
                     .as_ref()
-                    .and_then(|eps_str| eps_str.parse::<f64>().ok())?;
+                    .and_then(|eps_str| eps_str.parse::<f64>().ok())
+                {
+                    quarterly_by_year.entry(year).or_default().push(estimate);
+                }
+            }
+        }
 
-                Some(AnalystEstimate { year, estimate })
+        // Aggregate quarterly estimates to annual (sum all quarters for each year)
+        let mut annual_eps: Vec<AnalystEstimate> = quarterly_by_year
+            .into_iter()
+            .map(|(year, quarters)| {
+                // Log if we don't have all 4 quarters of data
+                if quarters.len() != 4 {
+                    info!(
+                        "Year {} has {} quarters of EPS estimates (partial year)",
+                        year,
+                        quarters.len()
+                    );
+                }
+
+                let annual_estimate = quarters.iter().sum();
+                AnalystEstimate {
+                    year,
+                    estimate: annual_estimate,
+                }
             })
             .collect();
 
-        if eps.is_empty() {
+        // Sort by year
+        annual_eps.sort_by_key(|e| e.year);
+
+        if annual_eps.is_empty() {
             None
         } else {
+            info!(
+                "Processed {} annual EPS estimates from quarterly data",
+                annual_eps.len()
+            );
             Some(AnalystEstimates {
                 revenue: vec![], // Alpha Vantage doesn't provide revenue estimates in EARNINGS endpoint
-                eps,
+                eps: annual_eps,
             })
         }
     }
