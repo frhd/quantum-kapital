@@ -10,7 +10,9 @@ A professional cross-platform algorithmic trading application built with Tauri a
 - **Market Data Streaming**: Subscribe to real-time market data for your holdings
 - **Order Execution**: Place market and limit orders directly from the application
 - **Forward Analysis & Projections**: Multi-year financial projections with Bear/Base/Bull scenarios
-- **Fundamental Data Integration**: Real fundamental data via Alpha Vantage API (configured and working!)
+- **Fundamental Data Integration**: Real fundamental data via Alpha Vantage API (revenue, EPS, analyst estimates)
+- **Google Sheets Export**: Export analysis data directly to Google Sheets
+- **Test-Driven Development**: Comprehensive test suite with MockIbkrClient for reliable development
 - **Cross-Platform**: Runs natively on Windows, macOS, and Linux
 - **Secure**: All sensitive data is handled securely through Tauri's IPC bridge
 
@@ -34,25 +36,69 @@ A professional cross-platform algorithmic trading application built with Tauri a
 
 ```
 quantum-kapital/
-├── src/                    # React frontend
-│   ├── App.tsx            # Main application component with IBKR integration
-│   ├── components/        # Reusable UI components
-│   │   ├── ui/           # shadcn/ui component library
-│   │   └── theme-provider.tsx
-│   ├── lib/              # Utility functions
-│   └── main.tsx          # Application entry point
-├── src-tauri/            # Rust backend
+├── src/                           # React frontend (feature-based architecture)
+│   ├── app/                      # Main application entry
+│   │   └── App.tsx              # Root component with routing
+│   ├── features/                # Feature-based modules
+│   │   ├── analysis/            # Forward projections & fundamental analysis
+│   │   │   ├── components/      # TickerAnalysis, ProjectionSummary, etc.
+│   │   │   ├── hooks/           # useProjections, useTickerSearch
+│   │   │   └── types/           # Analysis type definitions
+│   │   ├── connection/          # IBKR connection management
+│   │   │   ├── components/      # ConnectionSettings, ConnectionStatus
+│   │   │   └── hooks/           # useConnection
+│   │   ├── portfolio/           # Account & position management
+│   │   │   ├── components/      # AccountSummary, StockPositions, etc.
+│   │   │   └── hooks/           # useAccountData
+│   │   ├── market-data/         # Real-time market data streaming
+│   │   └── trading/             # Order placement & execution
+│   ├── shared/                  # Shared utilities & components
+│   │   ├── api/                 # API layer (ibkr.ts, googleSheets.ts)
+│   │   ├── components/          # Reusable UI components
+│   │   │   ├── ui/             # 50+ shadcn/ui components
+│   │   │   └── layout/         # Layout components
+│   │   ├── hooks/              # Shared custom hooks
+│   │   ├── lib/                # Utility functions
+│   │   └── types/              # Shared type definitions
+│   └── main.tsx                # Application entry point
+├── src-tauri/                   # Rust backend (layered architecture)
 │   ├── src/
-│   │   ├── ibkr/        # IBKR API integration modules
-│   │   │   ├── client.rs     # IBKR client implementation
-│   │   │   ├── commands.rs   # Tauri command handlers
-│   │   │   ├── types.rs      # Shared type definitions
-│   │   │   ├── state.rs      # Application state management
-│   │   │   └── error.rs      # Error handling
-│   │   ├── lib.rs       # Library configuration
-│   │   └── main.rs      # Application entry point
-│   └── Cargo.toml       # Rust dependencies
-└── package.json         # Node.js dependencies
+│   │   ├── ibkr/               # IBKR API integration layer
+│   │   │   ├── client.rs       # IBKR TWS/Gateway client
+│   │   │   ├── commands/       # Modular command handlers
+│   │   │   │   ├── connection.rs  # Connection management
+│   │   │   │   ├── accounts.rs    # Account operations
+│   │   │   │   ├── market_data.rs # Market data subscriptions
+│   │   │   │   ├── trading.rs     # Order placement
+│   │   │   │   └── analysis.rs    # Fundamental data & projections
+│   │   │   ├── types/          # Domain-specific types
+│   │   │   │   ├── account.rs     # Account types
+│   │   │   │   ├── positions.rs   # Position types
+│   │   │   │   ├── market_data.rs # Market data types
+│   │   │   │   └── fundamentals.rs # Analysis types
+│   │   │   ├── state.rs        # Application state management
+│   │   │   ├── error.rs        # Custom error types
+│   │   │   ├── mocks.rs        # MockIbkrClient for testing
+│   │   │   └── tests/          # Comprehensive test suite
+│   │   ├── services/           # Business logic layer
+│   │   │   ├── account_service.rs      # Account operations
+│   │   │   ├── market_service.rs       # Market data operations
+│   │   │   ├── trading_service.rs      # Trading operations
+│   │   │   ├── financial_data_service.rs # Alpha Vantage integration
+│   │   │   └── projection_service.rs   # Financial projections
+│   │   ├── middleware/         # Cross-cutting concerns
+│   │   │   ├── logging.rs      # Structured logging
+│   │   │   └── rate_limit.rs   # API rate limiting
+│   │   ├── events/             # Event system for real-time updates
+│   │   │   └── emitter.rs      # Event emitter
+│   │   ├── config/             # Application configuration
+│   │   │   └── settings.rs     # Configuration management
+│   │   ├── google_sheets/      # Google Sheets integration
+│   │   ├── utils/              # Shared utilities
+│   │   ├── lib.rs              # Tauri setup & command registration
+│   │   └── main.rs             # Application entry point
+│   └── Cargo.toml              # Rust dependencies
+└── package.json                # Node.js dependencies
 ```
 
 ## Prerequisites
@@ -83,13 +129,41 @@ pnpm install
 
 ## Development
 
-Run the application in development mode:
-
+### Frontend Development
 ```bash
+# Install dependencies
+pnpm install
+
+# Run development server (Vite + Tauri)
 pnpm tauri dev
+
+# Run frontend only (without Tauri)
+pnpm dev
+
+# Build frontend only
+pnpm build
 ```
 
-This will:
+### Rust/Tauri Development
+```bash
+# Check Rust code
+cargo check --manifest-path src-tauri/Cargo.toml
+
+# Run tests
+cargo test --manifest-path src-tauri/Cargo.toml
+
+# Run specific IBKR tests
+cargo test --manifest-path src-tauri/Cargo.toml ibkr::
+
+# Format Rust code
+cargo fmt --manifest-path src-tauri/Cargo.toml
+
+# Lint Rust code
+cargo clippy --manifest-path src-tauri/Cargo.toml
+```
+
+### Development Workflow
+Running `pnpm tauri dev` will:
 - Start the Vite dev server for the React frontend
 - Build and run the Tauri application
 - Enable hot module replacement for the frontend
@@ -166,8 +240,12 @@ The application exposes the following Tauri commands:
 - `ibkr_place_order`: Submit orders to IBKR
 
 ### Analysis & Projections
-- `ibkr_get_fundamental_data`: Fetch fundamental data (real or mock)
+- `ibkr_get_fundamental_data`: Fetch fundamental data (real via Alpha Vantage or mock)
 - `ibkr_generate_projections`: Generate Bear/Base/Bull scenario projections
+
+### Google Sheets Integration
+- `google_sheets_export`: Export analysis data to Google Sheets
+- `google_sheets_auth`: Authenticate with Google Sheets API
 
 ## UI Components
 
@@ -187,6 +265,28 @@ The application uses a comprehensive component library:
 - Connection settings are managed securely through Tauri's state management
 - Consider using environment variables for production deployments
 
+## Code Quality
+
+The project uses pre-commit hooks to ensure code quality:
+
+```bash
+# Install pre-commit (if not already installed)
+brew install pre-commit
+
+# Install hooks in the repository
+pre-commit install
+
+# Run hooks manually on all files
+pre-commit run --all-files
+```
+
+### Configured Hooks
+- **cargo fmt --check**: Ensures Rust code formatting
+- **cargo clippy**: Runs Rust linter with strict warnings
+- **trailing-whitespace**: Removes trailing whitespace
+- **end-of-file-fixer**: Ensures files end with newline
+- **check-merge-conflict**: Prevents committing merge conflicts
+
 ## Technologies Used
 
 ### Frontend
@@ -194,16 +294,20 @@ The application uses a comprehensive component library:
 - TypeScript 5
 - Tailwind CSS 3.4
 - Vite 6
-- shadcn/ui components
+- shadcn/ui components (50+ components)
 - Lucide React icons
+- React Hook Form with Zod validation
+- Recharts for data visualization
 
 ### Backend
 - Tauri 2.0
 - Rust (stable)
-- ibapi 1.2
+- ibapi 1.2 (IBKR integration)
 - Tokio (async runtime)
 - Serde (serialization)
-- Tracing (logging)
+- Tracing (structured logging)
+- Thiserror (error handling)
+- Alpha Vantage API (fundamental data)
 
 ## Resources
 
