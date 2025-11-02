@@ -285,7 +285,7 @@ impl IbkrClient {
                     for update in stream {
                         match update {
                             ibapi::accounts::AccountUpdate::PortfolioValue(portfolio) => {
-                                tracing::info!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}", 
+                                tracing::info!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}",
                                     portfolio.contract.symbol, portfolio.position, portfolio.market_price,
                                     portfolio.market_value, portfolio.unrealized_pnl);
                                 positions.push(Position {

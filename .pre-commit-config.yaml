@@ -1,0 +1,34 @@
+repos:
+  # Rust formatting and linting
+  - repo: local
+    hooks:
+      - id: cargo-fmt-check
+        name: cargo fmt --check
+        description: Check Rust code formatting
+        entry: cargo
+        language: system
+        args: [fmt, --manifest-path, src-tauri/Cargo.toml, --all, --, --check]
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy
+        description: Run clippy on Rust code
+        entry: cargo
+        language: system
+        args: [clippy, --manifest-path, src-tauri/Cargo.toml, --all-targets, --all-features, --, -D, warnings]
+        types: [rust]
+        pass_filenames: false
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+
+# Run hooks in the following order
+default_stages: [pre-commit]

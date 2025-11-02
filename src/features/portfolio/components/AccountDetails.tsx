@@ -92,7 +92,7 @@ export function AccountDetails({ accounts, accountSummary, connectionStatus }: A
             </p>
           </div>
         </div>
-        
+
         {/* Account Info */}
         <div className="mt-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
           <div className="flex justify-between items-center">
@@ -109,7 +109,7 @@ export function AccountDetails({ accounts, accountSummary, connectionStatus }: A
             </div>
           </div>
         </div>
-        
+
         {accountSummary.length > 0 && (
           <div className="mt-6">
             <h4 className="text-sm font-medium text-slate-300 mb-4">All Account Values</h4>
