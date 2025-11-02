@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { open } from "@tauri-apps/plugin-opener";
 import { Button } from "../../../shared/components/ui/button";
 import {
   Dialog,
@@ -73,8 +74,13 @@ export function GoogleSheetsExport({ ticker, analysisData, onExportComplete }: G
     setSuccess(null);
 
     try {
+      console.log('[GoogleSheetsExport] Starting export process...');
+
       // Check credentials
+      console.log('[GoogleSheetsExport] Step 1: Checking credentials...');
       const hasCredsential = await checkGoogleCredentials();
+      console.log('[GoogleSheetsExport] Has credentials:', hasCredsential);
+
       if (!hasCredsential) {
         setShowSetup(true);
         setLoading(false);
@@ -82,13 +88,20 @@ export function GoogleSheetsExport({ ticker, analysisData, onExportComplete }: G
       }
 
       // Authenticate with Google
-      await googleSheetsAuthenticate();
+      console.log('[GoogleSheetsExport] Step 2: Authenticating with Google...');
+      const authState = await googleSheetsAuthenticate();
+      console.log('[GoogleSheetsExport] Auth state:', authState);
 
       // Create or get spreadsheet
-      await createOrGetSpreadsheet("Quantum Kapital Analysis");
+      console.log('[GoogleSheetsExport] Step 3: Creating/getting spreadsheet...');
+      const spreadsheetId = await createOrGetSpreadsheet("Quantum Kapital Analysis");
+      console.log('[GoogleSheetsExport] Spreadsheet ID:', spreadsheetId);
 
       // Export ticker data
+      console.log('[GoogleSheetsExport] Step 4: Exporting ticker data for:', ticker);
+      console.log('[GoogleSheetsExport] Analysis data:', analysisData);
       const result = await exportTickerToSheets(ticker, analysisData);
+      console.log('[GoogleSheetsExport] Export result:', result);
 
       setExportResult(result);
       setSuccess(result.message);
@@ -97,7 +110,10 @@ export function GoogleSheetsExport({ ticker, analysisData, onExportComplete }: G
         onExportComplete(result);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      console.error('[GoogleSheetsExport] ❌ Export failed:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('[GoogleSheetsExport] Error message:', errorMessage);
+      setError(`Export failed: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -175,7 +191,7 @@ export function GoogleSheetsExport({ ticker, analysisData, onExportComplete }: G
                     variant="link"
                     size="sm"
                     className="p-0 h-auto"
-                    onClick={() => window.open(exportResult.spreadsheet_url, "_blank")}
+                    onClick={() => open(exportResult.spreadsheet_url)}
                   >
                     <ExternalLink className="mr-1 h-3 w-3" />
                     Open Spreadsheet
