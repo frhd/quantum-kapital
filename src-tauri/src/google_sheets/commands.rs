@@ -1,6 +1,7 @@
 use super::auth::SheetsAuthenticator;
 use super::service::GoogleSheetsService;
 use super::types::*;
+use crate::config::SettingsState;
 use crate::ibkr::state::IbkrState;
 use std::sync::Arc;
 use tauri::State;
@@ -100,19 +101,20 @@ pub async fn get_google_sheets_auth_state(
 #[tauri::command]
 pub async fn create_or_get_spreadsheet(
     name: String,
-    state: State<'_, SheetsState>,
+    sheets_state: State<'_, SheetsState>,
+    settings_state: State<'_, SettingsState>,
 ) -> Result<String, String> {
-    let service_lock = state.service.lock().await;
+    let service_lock = sheets_state.service.lock().await;
     let service = service_lock
         .as_ref()
         .ok_or("Not authenticated with Google Sheets")?;
 
-    // Check if we already have a spreadsheet ID
-    let mut config = state.config.lock().await;
-
-    if let Some(spreadsheet_id) = &config.spreadsheet_id {
+    // Check if we already have a spreadsheet ID in persistent settings
+    let settings = settings_state.config.read().await;
+    if let Some(spreadsheet_id) = &settings.google_sheets.spreadsheet_id {
         return Ok(spreadsheet_id.clone());
     }
+    drop(settings); // Release read lock
 
     // Create new spreadsheet
     let spreadsheet_id = service
@@ -120,9 +122,14 @@ pub async fn create_or_get_spreadsheet(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Save to config
-    config.spreadsheet_id = Some(spreadsheet_id.clone());
-    config.spreadsheet_name = name;
+    // Save to persistent settings
+    let mut settings = settings_state.config.write().await;
+    settings.google_sheets.spreadsheet_id = Some(spreadsheet_id.clone());
+    settings.google_sheets.spreadsheet_name = name.clone();
+    settings
+        .save()
+        .await
+        .map_err(|e| format!("Failed to save settings: {e}"))?;
 
     Ok(spreadsheet_id)
 }
@@ -133,15 +140,17 @@ pub async fn export_ticker_to_sheets(
     ticker: String,
     analysis_data: TickerAnalysisData,
     sheets_state: State<'_, SheetsState>,
+    settings_state: State<'_, SettingsState>,
 ) -> Result<ExportResult, String> {
     let service_lock = sheets_state.service.lock().await;
     let service = service_lock
         .as_ref()
         .ok_or("Not authenticated with Google Sheets")?;
 
-    // Get or create spreadsheet
-    let config = sheets_state.config.lock().await;
-    let spreadsheet_id = config
+    // Get spreadsheet from persistent settings
+    let settings = settings_state.config.read().await;
+    let spreadsheet_id = settings
+        .google_sheets
         .spreadsheet_id
         .clone()
         .ok_or("No spreadsheet configured. Please create one first.")?;
@@ -183,15 +192,17 @@ pub async fn export_ticker_to_sheets(
 pub async fn export_all_positions_to_sheets(
     ibkr_state: State<'_, IbkrState>,
     sheets_state: State<'_, SheetsState>,
+    settings_state: State<'_, SettingsState>,
 ) -> Result<ExportResult, String> {
     let service_lock = sheets_state.service.lock().await;
     let service = service_lock
         .as_ref()
         .ok_or("Not authenticated with Google Sheets")?;
 
-    // Get or create spreadsheet
-    let config = sheets_state.config.lock().await;
-    let spreadsheet_id = config
+    // Get spreadsheet from persistent settings
+    let settings = settings_state.config.read().await;
+    let spreadsheet_id = settings
+        .google_sheets
         .spreadsheet_id
         .clone()
         .ok_or("No spreadsheet configured. Please create one first.")?;
@@ -241,14 +252,16 @@ pub async fn export_all_positions_to_sheets(
 pub async fn update_dashboard(
     ibkr_state: State<'_, IbkrState>,
     sheets_state: State<'_, SheetsState>,
+    settings_state: State<'_, SettingsState>,
 ) -> Result<String, String> {
     let service_lock = sheets_state.service.lock().await;
     let service = service_lock
         .as_ref()
         .ok_or("Not authenticated with Google Sheets")?;
 
-    let config = sheets_state.config.lock().await;
-    let spreadsheet_id = config
+    let settings = settings_state.config.read().await;
+    let spreadsheet_id = settings
+        .google_sheets
         .spreadsheet_id
         .clone()
         .ok_or("No spreadsheet configured")?;
