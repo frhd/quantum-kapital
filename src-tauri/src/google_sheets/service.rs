@@ -115,9 +115,9 @@ impl GoogleSheetsService {
         // Add empty row
         rows.push(vec![String::new(); 10]);
 
-        // Add ticker input section
+        // Add ticker input section with instructions
         rows.push(vec![
-            "Enter Ticker:".to_string(),
+            "Click a ticker below to view its analysis →".to_string(),
             String::new(),
             String::new(),
             "Total Positions:".to_string(),
@@ -137,13 +137,22 @@ impl GoogleSheetsService {
 
         // Add analyzed tickers header
         rows.push(vec![
-            "Analyzed Tickers".to_string(),
+            "Ticker".to_string(),
+            "Click to View".to_string(),
             "Last Updated".to_string(),
         ]);
 
-        // Add ticker list with links
+        // Add ticker list with hyperlink formulas
         for ticker in &data.analyzed_tickers {
-            rows.push(vec![ticker.clone(), data.last_updated.clone()]);
+            rows.push(vec![
+                ticker.clone(),
+                // Create a hyperlink formula that links to the ticker sheet
+                format!(
+                    "=HYPERLINK(\"#gid=0&range={0}!A1\", \"→ View {0}\")",
+                    ticker
+                ),
+                data.last_updated.clone(),
+            ]);
         }
 
         // Convert to ValueRange
@@ -160,7 +169,7 @@ impl GoogleSheetsService {
 
         hub.spreadsheets()
             .values_update(value_range, spreadsheet_id, "Dashboard!A1")
-            .value_input_option("RAW")
+            .value_input_option("USER_ENTERED") // Parse formulas
             .doit()
             .await
             .map_err(|e| SheetsError::GoogleError(format!("Failed to update dashboard: {e}")))?;
