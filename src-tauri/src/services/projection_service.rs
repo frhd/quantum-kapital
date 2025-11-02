@@ -1,14 +1,14 @@
 use crate::ibkr::error::Result;
 use crate::ibkr::types::{
-    CagrMetrics, FinancialProjection, FundamentalData, ProjectionAssumptions, ScenarioCagr,
-    ScenarioProjections,
+    CagrMetrics, FinancialProjection, FundamentalData, ProjectionAssumptions, ProjectionResults,
+    ScenarioCagr, ScenarioProjections, YearlyProjection,
 };
 
 /// Service for calculating financial projections based on fundamental data
 pub struct ProjectionService;
 
 /// Parameters for generating scenario projections
-struct ScenarioParams {
+struct ScenarioParams<'a> {
     initial_revenue: f64,
     initial_net_income: f64,
     initial_shares: f64,
@@ -16,9 +16,12 @@ struct ScenarioParams {
     margin_change_rate: f64,
     pe_low: f64,
     pe_high: f64,
+    ps_low: f64,  // Price-to-Sales low (for negative EPS)
+    ps_high: f64, // Price-to-Sales high (for negative EPS)
     shares_growth_rate: f64,
     start_year: u32,
     num_years: u32,
+    analyst_estimates: Option<&'a crate::ibkr::types::AnalystEstimates>,
 }
 
 impl ProjectionService {
@@ -27,12 +30,14 @@ impl ProjectionService {
         fundamental: &FundamentalData,
         assumptions: &ProjectionAssumptions,
     ) -> Result<ScenarioProjections> {
-        let current_year = 2025; // TODO: Use actual current year from chrono
-
         // Get the most recent historical data as baseline
         let baseline = fundamental.historical.last().ok_or_else(|| {
             crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string())
         })?;
+
+        // Start projections from the year after the baseline
+        // This ensures we don't mislabel historical data as projections
+        let projection_start_year = baseline.year + 1;
 
         // Generate projections for each scenario
         let bear = Self::generate_scenario_projection(ScenarioParams {
@@ -43,9 +48,12 @@ impl ProjectionService {
             margin_change_rate: assumptions.bear_margin_change,
             pe_low: assumptions.pe_low,
             pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
             shares_growth_rate: assumptions.shares_growth,
-            start_year: current_year,
+            start_year: projection_start_year,
             num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
         });
 
         let base = Self::generate_scenario_projection(ScenarioParams {
@@ -56,9 +64,12 @@ impl ProjectionService {
             margin_change_rate: assumptions.base_margin_change,
             pe_low: assumptions.pe_low,
             pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
             shares_growth_rate: assumptions.shares_growth,
-            start_year: current_year,
+            start_year: projection_start_year,
             num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
         });
 
         let bull = Self::generate_scenario_projection(ScenarioParams {
@@ -69,9 +80,12 @@ impl ProjectionService {
             margin_change_rate: assumptions.bull_margin_change,
             pe_low: assumptions.pe_low,
             pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
             shares_growth_rate: assumptions.shares_growth,
-            start_year: current_year,
+            start_year: projection_start_year,
             num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
         });
 
         // Calculate CAGR for each scenario
@@ -91,36 +105,212 @@ impl ProjectionService {
         })
     }
 
+    /// Generate projection results grouped by year (baseline + forward projections)
+    /// This is the preferred format for displaying projections in the UI
+    pub fn generate_projection_results(
+        fundamental: &FundamentalData,
+        assumptions: &ProjectionAssumptions,
+    ) -> Result<ProjectionResults> {
+        // Get the most recent historical data as baseline
+        let baseline_data = fundamental.historical.last().ok_or_else(|| {
+            crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string())
+        })?;
+
+        // Create baseline projection (actual data, not a projection)
+        let baseline = Self::create_baseline_projection(
+            baseline_data,
+            fundamental.current_metrics.shares_outstanding,
+            fundamental.current_metrics.price,
+            assumptions,
+        );
+
+        // Start projections from the year after the baseline
+        let projection_start_year = baseline_data.year + 1;
+
+        // Generate projections for all three scenarios
+        let bear = Self::generate_scenario_projection(ScenarioParams {
+            initial_revenue: baseline_data.revenue,
+            initial_net_income: baseline_data.net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: assumptions.bear_revenue_growth,
+            margin_change_rate: assumptions.bear_margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: projection_start_year,
+            num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
+        });
+
+        let base = Self::generate_scenario_projection(ScenarioParams {
+            initial_revenue: baseline_data.revenue,
+            initial_net_income: baseline_data.net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: assumptions.base_revenue_growth,
+            margin_change_rate: assumptions.base_margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: projection_start_year,
+            num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
+        });
+
+        let bull = Self::generate_scenario_projection(ScenarioParams {
+            initial_revenue: baseline_data.revenue,
+            initial_net_income: baseline_data.net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: assumptions.bull_revenue_growth,
+            margin_change_rate: assumptions.bull_margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: projection_start_year,
+            num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
+        });
+
+        // Group projections by year
+        let mut projections = Vec::new();
+        for i in 0..assumptions.years as usize {
+            if let (Some(bear_proj), Some(base_proj), Some(bull_proj)) =
+                (bear.get(i), base.get(i), bull.get(i))
+            {
+                projections.push(YearlyProjection {
+                    year: bear_proj.year,
+                    bear: bear_proj.clone(),
+                    base: base_proj.clone(),
+                    bull: bull_proj.clone(),
+                });
+            }
+        }
+
+        // Calculate CAGR for each scenario
+        let bear_cagr = Self::calculate_cagr(&bear);
+        let base_cagr = Self::calculate_cagr(&base);
+        let bull_cagr = Self::calculate_cagr(&bull);
+
+        Ok(ProjectionResults {
+            baseline,
+            projections,
+            cagr: ScenarioCagr {
+                bear: bear_cagr,
+                base: base_cagr,
+                bull: bull_cagr,
+            },
+        })
+    }
+
+    /// Create a baseline projection from actual historical data
+    fn create_baseline_projection(
+        baseline_data: &crate::ibkr::types::HistoricalFinancial,
+        shares_outstanding: f64,
+        current_price: f64,
+        _assumptions: &ProjectionAssumptions,
+    ) -> FinancialProjection {
+        let eps = baseline_data.eps;
+        let margin = (baseline_data.net_income / baseline_data.revenue) * 100.0;
+
+        // For baseline, we use actual price and calculate implied P/E
+        let pe_ratio = if eps > 0.0 { current_price / eps } else { 0.0 };
+
+        FinancialProjection {
+            year: baseline_data.year,
+            revenue: baseline_data.revenue,
+            revenue_growth: 0.0, // Historical, not a projection
+            net_income: baseline_data.net_income,
+            net_income_growth: None,
+            net_income_margins: margin,
+            eps,
+            pe_low_est: pe_ratio,
+            pe_high_est: pe_ratio,
+            share_price_low: current_price,
+            share_price_high: current_price,
+            valuation_method: if eps > 0.0 {
+                "P/E".to_string()
+            } else {
+                "P/S".to_string()
+            },
+            ps_low_est: if eps < 0.0 {
+                Some(current_price / (baseline_data.revenue / shares_outstanding * 1_000.0))
+            } else {
+                None
+            },
+            ps_high_est: if eps < 0.0 {
+                Some(current_price / (baseline_data.revenue / shares_outstanding * 1_000.0))
+            } else {
+                None
+            },
+            analyst_eps_estimate: None, // Baseline is actual, not estimated
+        }
+    }
+
     /// Generate projections for a single scenario
-    fn generate_scenario_projection(params: ScenarioParams) -> Vec<FinancialProjection> {
+    fn generate_scenario_projection(params: ScenarioParams<'_>) -> Vec<FinancialProjection> {
         let mut projections = Vec::new();
         let mut revenue = params.initial_revenue;
-        let mut net_income = params.initial_net_income;
         let mut shares = params.initial_shares;
         let mut margin = (params.initial_net_income / params.initial_revenue) * 100.0; // Calculate initial margin
 
+        // Track previous net income for growth calculation (starts at baseline)
         let mut prev_net_income = params.initial_net_income;
 
         for year_offset in 0..params.num_years {
             let year = params.start_year + year_offset;
 
-            // Apply growth rates
-            if year_offset > 0 {
-                revenue *= 1.0 + (params.revenue_growth_rate / 100.0);
-                margin += params.margin_change_rate; // Add percentage points
-                net_income = revenue * (margin / 100.0);
-                shares *= 1.0 + (params.shares_growth_rate / 100.0);
-            }
+            // Apply growth rates for all projection years
+            // (start_year is already baseline + 1, so we always project forward)
+            revenue *= 1.0 + (params.revenue_growth_rate / 100.0);
+            margin += params.margin_change_rate; // Add percentage points
+            let net_income = revenue * (margin / 100.0);
+            shares *= 1.0 + (params.shares_growth_rate / 100.0);
 
             let eps = net_income / shares * 1_000.0; // Convert from billions and millions to per share
-            let share_price_low = eps * params.pe_low;
-            let share_price_high = eps * params.pe_high;
 
-            let net_income_growth = if year_offset == 0 {
-                None
-            } else {
-                Some(((net_income - prev_net_income) / prev_net_income) * 100.0)
-            };
+            // Hybrid valuation: Use P/E for positive EPS, P/S for negative EPS
+            let (share_price_low, share_price_high, valuation_method, ps_low_est, ps_high_est) =
+                if eps < 0.0 {
+                    // Company is losing money - use Price-to-Sales (P/S) valuation
+                    // P/S = Market Cap / Revenue
+                    // Share Price = (Revenue / Shares) × P/S Multiple
+                    let revenue_per_share = revenue / shares * 1_000.0; // Convert from billions and millions to per share
+                    (
+                        revenue_per_share * params.ps_low,
+                        revenue_per_share * params.ps_high,
+                        "P/S".to_string(),
+                        Some(params.ps_low),
+                        Some(params.ps_high),
+                    )
+                } else {
+                    // Company is profitable - use P/E valuation
+                    // Share Price = EPS × P/E Multiple
+                    (
+                        eps * params.pe_low,
+                        eps * params.pe_high,
+                        "P/E".to_string(),
+                        None,
+                        None,
+                    )
+                };
+
+            // Calculate growth vs previous year (or baseline for first projection year)
+            let net_income_growth =
+                Some(((net_income - prev_net_income) / prev_net_income) * 100.0);
+
+            // Find analyst EPS estimate for this year if available
+            let analyst_eps_estimate = params.analyst_estimates.and_then(|estimates| {
+                estimates
+                    .eps
+                    .iter()
+                    .find(|e| e.year == year)
+                    .map(|e| e.estimate)
+            });
 
             projections.push(FinancialProjection {
                 year,
@@ -134,6 +324,10 @@ impl ProjectionService {
                 pe_high_est: params.pe_high,
                 share_price_low,
                 share_price_high,
+                valuation_method,
+                ps_low_est,
+                ps_high_est,
+                analyst_eps_estimate,
             });
 
             prev_net_income = net_income;
@@ -242,6 +436,7 @@ impl ProjectionService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ibkr::types::{CurrentMetrics, HistoricalFinancial};
 
     #[test]
     fn test_generate_projections() {
@@ -281,6 +476,10 @@ mod tests {
                 pe_high_est: 60.0,
                 share_price_low: 500.0,
                 share_price_high: 600.0,
+                valuation_method: "P/E".to_string(),
+                ps_low_est: None,
+                ps_high_est: None,
+                analyst_eps_estimate: None,
             },
             FinancialProjection {
                 year: 2030,
@@ -294,6 +493,10 @@ mod tests {
                 pe_high_est: 60.0,
                 share_price_low: 1000.0,
                 share_price_high: 1200.0,
+                valuation_method: "P/E".to_string(),
+                ps_low_est: None,
+                ps_high_est: None,
+                analyst_eps_estimate: None,
             },
         ];
 
@@ -301,5 +504,106 @@ mod tests {
 
         // CAGR for doubling over 5 years is approximately 14.87%
         assert!((cagr.revenue - 14.87).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_negative_eps_uses_ps_valuation() {
+        // Test that companies with negative EPS use P/S valuation
+        let fundamental = FundamentalData {
+            symbol: "LOSSMAKER".to_string(),
+            historical: vec![HistoricalFinancial {
+                year: 2024,
+                revenue: 10.0,    // $10B revenue
+                net_income: -2.0, // Losing $2B
+                eps: -0.5,        // Negative EPS
+            }],
+            analyst_estimates: None,
+            current_metrics: CurrentMetrics {
+                price: 50.0,
+                pe_ratio: -1.0,             // N/A for negative earnings
+                shares_outstanding: 1000.0, // 1B shares
+                name: Some("Loss Maker Inc".to_string()),
+                exchange: Some("NASDAQ".to_string()),
+                market_cap: Some("50B".to_string()),
+                dividend_yield: None,
+            },
+        };
+
+        let assumptions = ProjectionAssumptions {
+            years: 3,
+            bear_revenue_growth: 10.0,
+            base_revenue_growth: 20.0,
+            bull_revenue_growth: 30.0,
+            bear_margin_change: -1.0, // Margins worsen
+            base_margin_change: 2.0,  // Margins improve
+            bull_margin_change: 5.0,  // Margins improve rapidly
+            pe_low: 40.0,
+            pe_high: 60.0,
+            ps_low: 3.0,
+            ps_high: 8.0,
+            shares_growth: 0.0,
+        };
+
+        let projections = ProjectionService::generate_projections(&fundamental, &assumptions)
+            .expect("Should generate projections");
+
+        // Check that bear case uses P/S (negative EPS)
+        let bear_first = &projections.bear[0];
+        assert!(bear_first.eps < 0.0, "Bear case should have negative EPS");
+        assert_eq!(
+            bear_first.valuation_method, "P/S",
+            "Should use P/S valuation"
+        );
+        assert!(
+            bear_first.ps_low_est.is_some(),
+            "Should have P/S low estimate"
+        );
+        assert!(
+            bear_first.ps_high_est.is_some(),
+            "Should have P/S high estimate"
+        );
+        assert!(
+            bear_first.share_price_low > 0.0,
+            "Share price should be positive"
+        );
+        assert!(
+            bear_first.share_price_high > 0.0,
+            "Share price should be positive"
+        );
+
+        // Check that bull case might transition to P/E (positive EPS if margins improve enough)
+        let bull_last = &projections.bull[projections.bull.len() - 1];
+        if bull_last.eps > 0.0 {
+            assert_eq!(
+                bull_last.valuation_method, "P/E",
+                "Should use P/E valuation for positive EPS"
+            );
+            assert!(
+                bull_last.ps_low_est.is_none(),
+                "Should not have P/S estimates"
+            );
+        } else {
+            assert_eq!(
+                bull_last.valuation_method, "P/S",
+                "Should use P/S valuation for negative EPS"
+            );
+            assert!(bull_last.ps_low_est.is_some(), "Should have P/S estimates");
+        }
+
+        println!("✓ Negative EPS correctly uses P/S valuation");
+        println!(
+            "  Bear EPS: {:.2}, Price: ${:.2}-${:.2} ({})",
+            bear_first.eps,
+            bear_first.share_price_low,
+            bear_first.share_price_high,
+            bear_first.valuation_method
+        );
+        println!(
+            "  Bull EPS: {:.2}, Price: ${:.2}-${:.2} ({})",
+            bull_last.eps,
+            bull_last.share_price_low,
+            bull_last.share_price_high,
+            bull_last.valuation_method
+        );
     }
 }

@@ -34,6 +34,21 @@ export interface ProjectionData {
   bull: ScenarioProjection;
 }
 
+export interface YearlyScenarioData {
+  revenue: number;
+  net_income: number;
+  eps: number;
+  share_price_low: number;
+  share_price_high: number;
+}
+
+export interface YearlyProjectionData {
+  year: number;
+  bear: YearlyScenarioData;
+  base: YearlyScenarioData;
+  bull: YearlyScenarioData;
+}
+
 export interface TickerAnalysisData {
   ticker: string;
   company_name: string;
@@ -44,6 +59,8 @@ export interface TickerAnalysisData {
   eps: number | null;
   historical_financials: HistoricalFinancial[];
   projections: ProjectionData;
+  yearly_projections?: YearlyProjectionData[];
+  baseline_year?: number;
 }
 
 export interface DashboardData {

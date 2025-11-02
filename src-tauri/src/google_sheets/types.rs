@@ -35,6 +35,8 @@ pub struct TickerAnalysisData {
     pub eps: Option<f64>,
     pub historical_financials: Vec<HistoricalFinancial>,
     pub projections: ProjectionData,
+    pub yearly_projections: Option<Vec<YearlyProjectionData>>, // NEW: Detailed year-by-year projections
+    pub baseline_year: Option<u32>, // NEW: The baseline year for projections
 }
 
 /// Historical financial data for a single year
@@ -63,6 +65,25 @@ pub struct ScenarioProjection {
     pub revenue_projection: f64,
     pub eps_projection: f64,
     pub timeline: String,
+}
+
+/// Yearly projection data with all scenarios for a single year
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YearlyProjectionData {
+    pub year: u32,
+    pub bear: YearlyScenarioData,
+    pub base: YearlyScenarioData,
+    pub bull: YearlyScenarioData,
+}
+
+/// Scenario data for a specific year
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YearlyScenarioData {
+    pub revenue: f64,
+    pub net_income: f64,
+    pub eps: f64,
+    pub share_price_low: f64,
+    pub share_price_high: f64,
 }
 
 /// Dashboard summary data

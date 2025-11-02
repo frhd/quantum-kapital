@@ -57,6 +57,7 @@ pub fn run() {
             ibkr::commands::ibkr_place_order,
             ibkr::commands::ibkr_get_fundamental_data,
             ibkr::commands::ibkr_generate_projections,
+            ibkr::commands::ibkr_generate_projection_results,
             ibkr::commands::ibkr_get_cached_tickers,
             google_sheets::commands::save_google_credentials,
             google_sheets::commands::check_google_credentials,

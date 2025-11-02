@@ -1,4 +1,4 @@
-import type { FundamentalData, ScenarioProjections } from "../../../shared/types/analysis";
+import type { FundamentalData, ProjectionResults } from "../../../shared/types/analysis";
 import type { TickerAnalysisData } from "../../../shared/api/googleSheets";
 
 /**
@@ -6,15 +6,16 @@ import type { TickerAnalysisData } from "../../../shared/api/googleSheets";
  */
 export function convertToTickerAnalysisData(
   fundamentalData: FundamentalData,
-  projections: ScenarioProjections
+  results: ProjectionResults
 ): TickerAnalysisData {
   const { symbol, historical, currentMetrics } = fundamentalData;
-  const { base, bear, bull } = projections;
+  const { baseline, projections, cagr } = results;
 
-  // Get the last projection for each scenario (final year)
-  const lastBase = base[base.length - 1];
-  const lastBear = bear[bear.length - 1];
-  const lastBull = bull[bull.length - 1];
+  // Get the last projection year for each scenario (final year)
+  const lastYearProj = projections[projections.length - 1];
+  const lastBase = lastYearProj.base;
+  const lastBear = lastYearProj.bear;
+  const lastBull = lastYearProj.bull;
 
   // Calculate upside percentage based on current price and target price
   const calculateUpside = (targetPrice: number) => {
@@ -61,5 +62,30 @@ export function convertToTickerAnalysisData(
         timeline: `${lastBull.year}`,
       },
     },
+    yearly_projections: projections.map(yearProj => ({
+      year: yearProj.year,
+      bear: {
+        revenue: yearProj.bear.revenue * 1_000_000_000,
+        net_income: yearProj.bear.netIncome * 1_000_000_000,
+        eps: yearProj.bear.eps,
+        share_price_low: yearProj.bear.sharePriceLow,
+        share_price_high: yearProj.bear.sharePriceHigh,
+      },
+      base: {
+        revenue: yearProj.base.revenue * 1_000_000_000,
+        net_income: yearProj.base.netIncome * 1_000_000_000,
+        eps: yearProj.base.eps,
+        share_price_low: yearProj.base.sharePriceLow,
+        share_price_high: yearProj.base.sharePriceHigh,
+      },
+      bull: {
+        revenue: yearProj.bull.revenue * 1_000_000_000,
+        net_income: yearProj.bull.netIncome * 1_000_000_000,
+        eps: yearProj.bull.eps,
+        share_price_low: yearProj.bull.sharePriceLow,
+        share_price_high: yearProj.bull.sharePriceHigh,
+      },
+    })),
+    baseline_year: baseline.year,
   };
 }

@@ -1,4 +1,6 @@
-use crate::ibkr::types::{FundamentalData, ProjectionAssumptions, ScenarioProjections};
+use crate::ibkr::types::{
+    FundamentalData, ProjectionAssumptions, ProjectionResults, ScenarioProjections,
+};
 use crate::services::cache_service::CacheService;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::projection_service::ProjectionService;
@@ -51,6 +53,7 @@ pub async fn ibkr_get_fundamental_data(
 }
 
 /// Generate financial projections based on fundamental data and assumptions
+/// DEPRECATED: Use ibkr_generate_projection_results for better UI display
 #[tauri::command]
 pub async fn ibkr_generate_projections(
     state: State<'_, IbkrState>,
@@ -67,6 +70,27 @@ pub async fn ibkr_generate_projections(
 
     // Generate projections
     ProjectionService::generate_projections(&fundamental, &assumptions).map_err(|e| e.to_string())
+}
+
+/// Generate projection results grouped by year (baseline + forward projections)
+/// This format is preferred for UI display as it shows bear/base/bull side-by-side for each year
+#[tauri::command]
+pub async fn ibkr_generate_projection_results(
+    state: State<'_, IbkrState>,
+    symbol: String,
+    assumptions: Option<ProjectionAssumptions>,
+) -> Result<ProjectionResults, String> {
+    // Get fundamental data
+    let fundamental = ibkr_get_fundamental_data(state, symbol)
+        .await
+        .map_err(|e| format!("Failed to get fundamental data: {e}"))?;
+
+    // Use provided assumptions or default
+    let assumptions = assumptions.unwrap_or_default();
+
+    // Generate projection results
+    ProjectionService::generate_projection_results(&fundamental, &assumptions)
+        .map_err(|e| e.to_string())
 }
 
 /// Get list of cached ticker symbols

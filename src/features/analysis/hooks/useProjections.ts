@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react"
 import { ibkrApi } from "../../../shared/api/ibkr"
-import type { ScenarioProjections, ProjectionAssumptions, FundamentalData } from "../../../shared/types"
+import type { ProjectionResults, ProjectionAssumptions, FundamentalData } from "../../../shared/types"
 
 export function useProjections(symbol: string | null, assumptions?: ProjectionAssumptions) {
-  const [projections, setProjections] = useState<ScenarioProjections | null>(null)
+  const [results, setResults] = useState<ProjectionResults | null>(null)
   const [fundamentalData, setFundamentalData] = useState<FundamentalData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!symbol) {
-      setProjections(null)
+      setResults(null)
       setFundamentalData(null)
       return
     }
@@ -20,14 +20,14 @@ export function useProjections(symbol: string | null, assumptions?: ProjectionAs
       setError(null)
 
       try {
-        // Fetch both fundamental data and projections
-        const [fundamentals, projectionsData] = await Promise.all([
+        // Fetch both fundamental data and projection results
+        const [fundamentals, projectionResults] = await Promise.all([
           ibkrApi.getFundamentalData(symbol),
-          ibkrApi.generateProjections(symbol, assumptions)
+          ibkrApi.generateProjectionResults(symbol, assumptions)
         ])
 
         setFundamentalData(fundamentals)
-        setProjections(projectionsData)
+        setResults(projectionResults)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch projections")
         console.error("Error fetching projections:", err)
@@ -39,5 +39,5 @@ export function useProjections(symbol: string | null, assumptions?: ProjectionAs
     fetchProjections()
   }, [symbol, assumptions])
 
-  return { projections, fundamentalData, loading, error }
+  return { results, fundamentalData, loading, error }
 }

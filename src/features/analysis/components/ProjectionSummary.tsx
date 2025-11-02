@@ -111,11 +111,17 @@ export function ProjectionSummary({ projections, assumptions = defaultProjection
 
           {/* Valuation Assumptions */}
           <div className="mt-4 pt-4 border-t border-slate-700/50">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <p className="text-slate-500 text-xs">P/E Range</p>
+                <p className="text-slate-500 text-xs">P/E Range (Profitable)</p>
                 <p className="text-white font-semibold">
                   {formatNumber(assumptions.peLow)} - {formatNumber(assumptions.peHigh)}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs">P/S Range (Unprofitable)</p>
+                <p className="text-white font-semibold">
+                  {formatNumber(assumptions.psLow)} - {formatNumber(assumptions.psHigh)}
                 </p>
               </div>
               <div>
@@ -141,8 +147,9 @@ export function ProjectionSummary({ projections, assumptions = defaultProjection
             <ul className="list-disc list-inside space-y-0.5 ml-2">
               <li>Historical financials: Based on company filings and reported results</li>
               <li>Baseline metrics: Most recent fiscal year data (FY{baselineYear - 1})</li>
+              <li>Analyst estimates: Consensus EPS forecasts from Wall Street analysts (via Alpha Vantage)</li>
               <li>Growth projections: Scenario-based modeling with varying revenue and margin assumptions</li>
-              <li>Valuation: Price targets calculated using projected EPS × estimated P/E multiples</li>
+              <li>Valuation: Hybrid approach - P/E multiples for profitable companies, P/S multiples for unprofitable companies</li>
               <li>CAGR: Compound annual growth rate from {baselineYear} to {baselineYear + assumptions.years - 1}</li>
             </ul>
             <p className="mt-2 text-slate-500 italic">
