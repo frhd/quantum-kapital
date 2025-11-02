@@ -35,6 +35,7 @@ impl CacheService {
     }
 
     /// Creates a new CacheService with custom TTL
+    #[allow(dead_code)]
     pub fn with_ttl(
         cache_dir: impl AsRef<Path>,
         ttl: Duration,
@@ -113,6 +114,7 @@ impl CacheService {
     }
 
     /// Clears a specific cache entry
+    #[allow(dead_code)]
     pub fn clear(&self, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         let cache_path = self.get_cache_path(key);
 
@@ -125,6 +127,7 @@ impl CacheService {
     }
 
     /// Clears all expired cache entries
+    #[allow(dead_code)]
     pub fn clear_expired(&self) -> Result<usize, Box<dyn Error + Send + Sync>> {
         let mut cleared = 0;
 
@@ -155,6 +158,7 @@ impl CacheService {
     }
 
     /// Clears all cache entries
+    #[allow(dead_code)]
     pub fn clear_all(&self) -> Result<usize, Box<dyn Error + Send + Sync>> {
         let mut cleared = 0;
 
@@ -177,7 +181,7 @@ impl CacheService {
     }
 
     fn get_cache_path(&self, key: &str) -> PathBuf {
-        self.cache_dir.join(format!("{}.json", key))
+        self.cache_dir.join(format!("{key}.json"))
     }
 
     fn get_cache_age(&self, path: &Path) -> Result<u64, Box<dyn Error + Send + Sync>> {
