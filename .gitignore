@@ -13,6 +13,9 @@ dist-ssr
 *.local
 target/
 
+# Alpha Vantage cache
+src-tauri/cache/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

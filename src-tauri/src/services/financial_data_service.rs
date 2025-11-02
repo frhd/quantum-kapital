@@ -1,20 +1,24 @@
 use crate::ibkr::types::fundamentals::{
     AnalystEstimate, AnalystEstimates, CurrentMetrics, FundamentalData, HistoricalFinancial,
 };
+use crate::services::cache_service::CacheService;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::path::PathBuf;
+use tracing::{debug, info};
 
 /// Service for fetching fundamental data from Alpha Vantage API
 pub struct FinancialDataService {
     client: Client,
     api_key: String,
     base_url: String,
+    cache: Option<CacheService>,
 }
 
 // Alpha Vantage API response structures
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct AlphaVantageOverview {
     #[serde(rename = "Symbol")]
@@ -29,7 +33,7 @@ struct AlphaVantageOverview {
     week_52_high: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct AlphaVantageIncomeStatement {
     symbol: String,
@@ -37,7 +41,7 @@ struct AlphaVantageIncomeStatement {
     annual_reports: Vec<AnnualReport>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct AnnualReport {
     #[serde(rename = "fiscalDateEnding")]
     fiscal_date_ending: String,
@@ -47,7 +51,7 @@ struct AnnualReport {
     net_income: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct AlphaVantageEarnings {
     symbol: String,
@@ -57,7 +61,7 @@ struct AlphaVantageEarnings {
     quarterly_earnings: Option<Vec<QuarterlyEarning>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct AnnualEarning {
     #[serde(rename = "fiscalDateEnding")]
     fiscal_date_ending: String,
@@ -65,7 +69,7 @@ struct AnnualEarning {
     reported_eps: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct QuarterlyEarning {
     #[serde(rename = "fiscalDateEnding")]
     fiscal_date_ending: String,
@@ -76,10 +80,29 @@ struct QuarterlyEarning {
 impl FinancialDataService {
     /// Creates a new FinancialDataService instance for Alpha Vantage
     pub fn new(api_key: String) -> Self {
+        Self::with_cache_dir(api_key, "cache/alphavantage")
+    }
+
+    /// Creates a new FinancialDataService instance with a custom cache directory
+    pub fn with_cache_dir(api_key: String, cache_dir: impl Into<PathBuf>) -> Self {
+        let cache = CacheService::new(cache_dir.into())
+            .map_err(|e| {
+                debug!("Failed to initialize cache: {}", e);
+                e
+            })
+            .ok();
+
+        if cache.is_some() {
+            info!("Alpha Vantage cache enabled at cache/alphavantage");
+        } else {
+            info!("Alpha Vantage cache disabled");
+        }
+
         Self {
             client: Client::new(),
             api_key,
             base_url: "https://www.alphavantage.co/query".to_string(),
+            cache,
         }
     }
 
@@ -116,6 +139,18 @@ impl FinancialDataService {
         &self,
         symbol: &str,
     ) -> Result<AlphaVantageOverview, Box<dyn Error + Send + Sync>> {
+        let cache_key = format!("{}_overview", symbol.to_uppercase());
+
+        // Try to read from cache first
+        if let Some(ref cache) = self.cache {
+            if let Ok(cached_data) = cache.read::<AlphaVantageOverview>(&cache_key) {
+                info!("Using cached overview data for {}", symbol);
+                return Ok(cached_data);
+            }
+        }
+
+        // Fetch from API
+        info!("Fetching overview data from API for {}", symbol);
         let url = format!(
             "{}?function=OVERVIEW&symbol={}&apikey={}",
             self.base_url, symbol, self.api_key
@@ -128,6 +163,12 @@ impl FinancialDataService {
         }
 
         let overview: AlphaVantageOverview = response.json().await?;
+
+        // Write to cache
+        if let Some(ref cache) = self.cache {
+            let _ = cache.write(&cache_key, &overview);
+        }
+
         Ok(overview)
     }
 
@@ -135,6 +176,18 @@ impl FinancialDataService {
         &self,
         symbol: &str,
     ) -> Result<AlphaVantageIncomeStatement, Box<dyn Error + Send + Sync>> {
+        let cache_key = format!("{}_income_statement", symbol.to_uppercase());
+
+        // Try to read from cache first
+        if let Some(ref cache) = self.cache {
+            if let Ok(cached_data) = cache.read::<AlphaVantageIncomeStatement>(&cache_key) {
+                info!("Using cached income statement data for {}", symbol);
+                return Ok(cached_data);
+            }
+        }
+
+        // Fetch from API
+        info!("Fetching income statement data from API for {}", symbol);
         let url = format!(
             "{}?function=INCOME_STATEMENT&symbol={}&apikey={}",
             self.base_url, symbol, self.api_key
@@ -147,6 +200,12 @@ impl FinancialDataService {
         }
 
         let statement: AlphaVantageIncomeStatement = response.json().await?;
+
+        // Write to cache
+        if let Some(ref cache) = self.cache {
+            let _ = cache.write(&cache_key, &statement);
+        }
+
         Ok(statement)
     }
 
@@ -154,6 +213,18 @@ impl FinancialDataService {
         &self,
         symbol: &str,
     ) -> Result<AlphaVantageEarnings, Box<dyn Error + Send + Sync>> {
+        let cache_key = format!("{}_earnings", symbol.to_uppercase());
+
+        // Try to read from cache first
+        if let Some(ref cache) = self.cache {
+            if let Ok(cached_data) = cache.read::<AlphaVantageEarnings>(&cache_key) {
+                info!("Using cached earnings data for {}", symbol);
+                return Ok(cached_data);
+            }
+        }
+
+        // Fetch from API
+        info!("Fetching earnings data from API for {}", symbol);
         let url = format!(
             "{}?function=EARNINGS&symbol={}&apikey={}",
             self.base_url, symbol, self.api_key
@@ -166,6 +237,12 @@ impl FinancialDataService {
         }
 
         let earnings: AlphaVantageEarnings = response.json().await?;
+
+        // Write to cache
+        if let Some(ref cache) = self.cache {
+            let _ = cache.write(&cache_key, &earnings);
+        }
+
         Ok(earnings)
     }
 
