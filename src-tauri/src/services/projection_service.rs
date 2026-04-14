@@ -264,13 +264,45 @@ impl ProjectionService {
         for year_offset in 0..params.num_years {
             let year = params.start_year + year_offset;
 
-            // Apply growth rates for all projection years
-            // (start_year is already baseline + 1, so we always project forward)
-            revenue *= 1.0 + (params.revenue_growth_rate / 100.0);
-            margin += params.margin_change_rate; // Add percentage points
-            let net_income = revenue * (margin / 100.0);
-            shares *= 1.0 + (params.shares_growth_rate / 100.0);
+            // For the first projection year, check if we have analyst forward estimates
+            // If available, use them as baseline instead of growing from historical data
+            // This ensures projections reflect what the market is already pricing in
+            let net_income = if year_offset == 0 {
+                if let Some(estimates) = params.analyst_estimates {
+                    // Try to get analyst revenue estimate for this year
+                    revenue = estimates
+                        .revenue
+                        .iter()
+                        .find(|e| e.year == year)
+                        .map(|e| e.estimate)
+                        .unwrap_or_else(|| revenue * (1.0 + params.revenue_growth_rate / 100.0));
 
+                    // Try to get analyst EPS estimate and back-calculate net income
+                    if let Some(eps_est) = estimates.eps.iter().find(|e| e.year == year) {
+                        // Back-calculate net income from analyst EPS estimate
+                        // EPS = (net_income / shares) * 1000, so net_income = EPS * shares / 1000
+                        let net_income = eps_est.estimate * shares / 1_000.0;
+                        margin = (net_income / revenue) * 100.0;
+                        net_income
+                    } else {
+                        // No analyst EPS, calculate from revenue and margin
+                        margin += params.margin_change_rate;
+                        revenue * (margin / 100.0)
+                    }
+                } else {
+                    // No analyst estimates, apply growth rates to historical baseline
+                    revenue *= 1.0 + (params.revenue_growth_rate / 100.0);
+                    margin += params.margin_change_rate;
+                    revenue * (margin / 100.0)
+                }
+            } else {
+                // For subsequent years (year_offset > 0), always compound growth from year 1
+                revenue *= 1.0 + (params.revenue_growth_rate / 100.0);
+                margin += params.margin_change_rate;
+                revenue * (margin / 100.0)
+            };
+
+            shares *= 1.0 + (params.shares_growth_rate / 100.0);
             let eps = net_income / shares * 1_000.0; // Convert from billions and millions to per share
 
             // Hybrid valuation: Use P/E for positive EPS, P/S for negative EPS
