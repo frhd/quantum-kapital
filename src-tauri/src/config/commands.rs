@@ -41,35 +41,6 @@ pub async fn update_settings(
     Ok(())
 }
 
-/// Update Google Sheets spreadsheet ID
-#[tauri::command]
-pub async fn update_google_sheets_spreadsheet(
-    spreadsheet_id: String,
-    spreadsheet_name: String,
-    state: State<'_, SettingsState>,
-) -> Result<(), String> {
-    let mut config = state.config.write().await;
-    config.google_sheets.spreadsheet_id = Some(spreadsheet_id);
-    config.google_sheets.spreadsheet_name = spreadsheet_name;
-
-    // Save to disk
-    config
-        .save()
-        .await
-        .map_err(|e| format!("Failed to save settings: {e}"))?;
-
-    Ok(())
-}
-
-/// Get Google Sheets spreadsheet ID
-#[tauri::command]
-pub async fn get_google_sheets_spreadsheet(
-    state: State<'_, SettingsState>,
-) -> Result<Option<String>, String> {
-    let config = state.config.read().await;
-    Ok(config.google_sheets.spreadsheet_id.clone())
-}
-
 /// Get settings file path (for debugging)
 #[tauri::command]
 pub async fn get_settings_path() -> Result<String, String> {

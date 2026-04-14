@@ -8,7 +8,6 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     pub ui: UiConfig,
     pub api: ApiConfig,
-    pub google_sheets: GoogleSheetsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,14 +41,6 @@ pub struct UiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     pub alpha_vantage_api_key: Option<String>, // Alpha Vantage API key
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GoogleSheetsConfig {
-    pub spreadsheet_id: Option<String>,
-    pub spreadsheet_name: String,
-    pub auto_export: bool,
-    pub last_export_timestamp: Option<String>,
 }
 
 impl Default for IbkrConfig {
@@ -93,17 +84,6 @@ impl Default for ApiConfig {
     fn default() -> Self {
         Self {
             alpha_vantage_api_key: std::env::var("ALPHA_VANTAGE_API_KEY").ok(),
-        }
-    }
-}
-
-impl Default for GoogleSheetsConfig {
-    fn default() -> Self {
-        Self {
-            spreadsheet_id: None,
-            spreadsheet_name: "Quantum Kapital Analysis".to_string(),
-            auto_export: false,
-            last_export_timestamp: None,
         }
     }
 }
