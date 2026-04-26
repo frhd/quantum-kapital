@@ -36,6 +36,12 @@ cargo test --manifest-path src-tauri/Cargo.toml
 # Run specific IBKR tests
 cargo test --manifest-path src-tauri/Cargo.toml ibkr::
 
+# Run a single test by name
+cargo test --manifest-path src-tauri/Cargo.toml test_name_here
+
+# Run tests in a specific module
+cargo test --manifest-path src-tauri/Cargo.toml ibkr::tests::client_tests
+
 # Format Rust code
 cargo fmt --manifest-path src-tauri/Cargo.toml
 
@@ -81,11 +87,14 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `state.rs`: Application state management with Tokio async runtime
     - `error.rs`: Custom error types with thiserror
     - `mocks.rs`: MockIbkrClient for test-driven development
-    - `tests/`: Comprehensive test modules (api_interface, client, command, integration)
+    - `tests/`: Comprehensive test modules (`api_interface_tests.rs`, `client_tests.rs`, `command_tests.rs`, `integration_tests.rs`)
   - `services/`: Business logic layer
     - `account_service.rs`: Account management operations
     - `market_service.rs`: Market data operations
     - `trading_service.rs`: Trading operations
+    - `financial_data_service.rs`: Alpha Vantage fundamental data integration
+    - `projection_service.rs`: Forward-looking financial projection logic
+    - `cache_service.rs`: In-memory caching for fundamentals/projections
   - `middleware/`: Cross-cutting concerns
     - `logging.rs`: Structured logging with tracing
     - `rate_limit.rs`: API rate limiting
@@ -100,7 +109,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
 
 ### Key Integration Points
 
-1. **Tauri Commands**: All IBKR functionality exposed through these commands (registered in `lib.rs:39-50`):
+1. **Tauri Commands**: All functionality exposed through commands registered in `lib.rs` via `tauri::generate_handler![]`:
    - `ibkr_connect`: Establish connection to TWS/Gateway
    - `ibkr_disconnect`: Close connection
    - `ibkr_get_connection_status`: Check connection state
@@ -111,6 +120,9 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
    - `ibkr_place_order`: Submit orders
    - `ibkr_get_fundamental_data`: Fetch fundamental data (via Alpha Vantage or mock)
    - `ibkr_generate_projections`: Generate forward-looking scenario projections
+   - `ibkr_generate_projection_results`: Run projection scenarios and return computed results
+   - `ibkr_get_cached_tickers`: List tickers currently cached in `cache_service`
+   - `get_settings` / `update_settings` / `get_settings_path`: Configuration management (in `config::commands`)
 
 2. **State Management**: The `IbkrState` (managed by Tauri) maintains the IBKR client connection and is accessed across commands using Tauri's state management. Initialized in `lib.rs` setup with configuration.
 
@@ -127,6 +139,9 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
 - Default connection: `127.0.0.1:4004`
 - API access must be enabled in TWS/Gateway settings
 - Client ID: 100 (configurable in app)
+
+## Archived Integrations
+- **Google Sheets export** has been archived (see `_archive/google_sheets/`). Do not revive or extend it without explicit instruction. Note that `Cargo.toml` may still list `google-sheets4` as a transitive leftover; it is not used by active code.
 
 ## Alpha Vantage API Integration
 The application integrates with Alpha Vantage API for real fundamental data (revenue, net income, EPS, analyst estimates) used in forward-looking projections:
@@ -164,8 +179,11 @@ The app fetches 3 endpoints per ticker symbol:
 
 ## Testing Approach
 - For Rust: Use `cargo test` with unit tests in respective modules
-- For React: Component testing setup needs to be added (no test framework currently configured)
+- For React: No test framework is configured — frontend changes are verified manually in `pnpm tauri dev`
 - Integration testing: Test Tauri commands with mock IBKR responses
+
+## Build Configuration Notes
+- Two Vite configs exist at the repo root: `vite.config.ts` is canonical. `vite.config.js` is legacy — prefer editing the `.ts` file.
 
 ## Code Quality and Pre-commit Hooks
 
@@ -173,8 +191,10 @@ The app fetches 3 endpoints per ticker symbol:
 The project uses pre-commit hooks to ensure code quality before commits:
 
 ```bash
-# Install pre-commit (if not already installed)
-brew install pre-commit
+# Install pre-commit (cross-platform via pipx)
+pipx install pre-commit
+# or: pip install --user pre-commit
+# macOS alternative: brew install pre-commit
 
 # Install hooks in the repository
 pre-commit install
