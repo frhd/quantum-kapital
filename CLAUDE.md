@@ -178,9 +178,6 @@ The app fetches 3 endpoints per ticker symbol:
 - For React: No test framework is configured — frontend changes are verified manually in `pnpm tauri dev`
 - Integration testing: Test Tauri commands with mock IBKR responses
 
-## Build Configuration Notes
-- Two Vite configs exist at the repo root: `vite.config.ts` is canonical. `vite.config.js` is legacy — prefer editing the `.ts` file.
-
 ## Code Quality and Pre-commit Hooks
 
 ### Pre-commit Setup
