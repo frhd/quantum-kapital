@@ -121,13 +121,10 @@ impl TradingService {
         }
 
         // Validate price for limit orders
-        match order.order_type {
-            OrderType::Limit | OrderType::StopLimit => {
-                if order.price.is_none() || order.price.unwrap() <= 0.0 {
-                    return Err("Limit orders require a positive price".to_string());
-                }
-            }
-            _ => {}
+        if matches!(order.order_type, OrderType::Limit | OrderType::StopLimit)
+            && order.price.is_none_or(|p| p <= 0.0)
+        {
+            return Err("Limit orders require a positive price".to_string());
         }
 
         Ok(())
