@@ -44,10 +44,10 @@ export default function App() {
 
   const handleConnect = async () => {
     try {
-      const status = await connect()
-      if (status.connected) {
-        await fetchAccountData()
-      }
+      await connect()
+      // The useEffect above watches connectionStatus.connected and runs
+      // fetchAccountData(); calling it here too caused parallel calls that
+      // raced on ibapi's shared account_updates channel, splitting positions.
     } catch (err) {
       // Error is already handled in the hook
     }

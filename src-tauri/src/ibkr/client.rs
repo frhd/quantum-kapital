@@ -4,7 +4,7 @@ use ibapi::Client;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
@@ -32,6 +32,12 @@ impl DailyPnLHandle {
 pub struct IbkrClient {
     client: Arc<RwLock<Option<Arc<Client>>>>,
     config: Arc<RwLock<ConnectionConfig>>,
+    // Serializes calls into ibapi's shared `account_updates` channel. The
+    // crossbeam receiver behind RequestAccountData is MPMC: two concurrent
+    // readers will split incoming PortfolioValue/AccountValue messages
+    // between them and the first to see AccountDownloadEnd will break out
+    // before the other has consumed its share. See client.rs:get_positions.
+    account_updates_lock: Arc<Mutex<()>>,
 }
 
 impl IbkrClient {
@@ -40,6 +46,7 @@ impl IbkrClient {
         Self {
             client: Arc::new(RwLock::new(None)),
             config: Arc::new(RwLock::new(config)),
+            account_updates_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -47,6 +54,7 @@ impl IbkrClient {
         Self {
             client: Arc::new(RwLock::new(None)),
             config,
+            account_updates_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -277,8 +285,10 @@ impl IbkrClient {
         }; // Lock is dropped here!
 
         let account = account.to_string();
+        let updates_guard = self.account_updates_lock.clone().lock_owned().await;
 
         let summaries = tokio::task::spawn_blocking(move || {
+            let _updates_guard = updates_guard;
             let mut summaries = Vec::new();
 
             // Use account_updates to get all account values
@@ -333,7 +343,10 @@ impl IbkrClient {
             Arc::clone(client)
         }; // Lock is dropped here!
 
+        let updates_guard = self.account_updates_lock.clone().lock_owned().await;
+
         let positions = tokio::task::spawn_blocking(move || {
+            let _updates_guard = updates_guard;
             let mut positions = Vec::new();
             // Use account_updates to get portfolio values with market data
             match client_clone.account_updates(&account) {
