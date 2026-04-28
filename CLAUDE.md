@@ -140,9 +140,6 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
 - API access must be enabled in TWS/Gateway settings
 - Client ID: 100 (configurable in app)
 
-## Archived Integrations
-- **Google Sheets export** has been archived (see `_archive/google_sheets/`). Do not revive or extend it without explicit instruction. Note that `Cargo.toml` may still list `google-sheets4` as a transitive leftover; it is not used by active code.
-
 ## Alpha Vantage API Integration
 The application integrates with Alpha Vantage API for real fundamental data (revenue, net income, EPS, analyst estimates) used in forward-looking projections:
 

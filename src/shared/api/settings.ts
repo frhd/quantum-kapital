@@ -7,7 +7,6 @@ export interface AppConfig {
   logging: LoggingConfig;
   ui: UiConfig;
   api: ApiConfig;
-  google_sheets: GoogleSheetsConfig;
 }
 
 export interface IbkrConfig {
@@ -39,13 +38,6 @@ export interface ApiConfig {
   alpha_vantage_api_key: string | null;
 }
 
-export interface GoogleSheetsConfig {
-  spreadsheet_id: string | null;
-  spreadsheet_name: string;
-  auto_export: boolean;
-  last_export_timestamp: string | null;
-}
-
 // API Functions
 
 /**
@@ -60,26 +52,6 @@ export async function getSettings(): Promise<AppConfig> {
  */
 export async function updateSettings(settings: AppConfig): Promise<void> {
   return await invoke("update_settings", { settings });
-}
-
-/**
- * Update Google Sheets spreadsheet configuration
- */
-export async function updateGoogleSheetsSpreadsheet(
-  spreadsheetId: string,
-  spreadsheetName: string
-): Promise<void> {
-  return await invoke("update_google_sheets_spreadsheet", {
-    spreadsheetId,
-    spreadsheetName,
-  });
-}
-
-/**
- * Get Google Sheets spreadsheet ID
- */
-export async function getGoogleSheetsSpreadsheet(): Promise<string | null> {
-  return await invoke("get_google_sheets_spreadsheet");
 }
 
 /**

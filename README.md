@@ -11,7 +11,6 @@ A professional cross-platform algorithmic trading application built with Tauri a
 - **Order Execution**: Place market and limit orders directly from the application
 - **Forward Analysis & Projections**: Multi-year financial projections with Bear/Base/Bull scenarios
 - **Fundamental Data Integration**: Real fundamental data via Alpha Vantage API (revenue, EPS, analyst estimates)
-- **Google Sheets Export**: Export analysis data directly to Google Sheets
 - **Test-Driven Development**: Comprehensive test suite with MockIbkrClient for reliable development
 - **Cross-Platform**: Runs natively on Windows, macOS, and Linux
 - **Secure**: All sensitive data is handled securely through Tauri's IPC bridge
@@ -53,7 +52,7 @@ quantum-kapital/
 │   │   ├── market-data/         # Real-time market data streaming
 │   │   └── trading/             # Order placement & execution
 │   ├── shared/                  # Shared utilities & components
-│   │   ├── api/                 # API layer (ibkr.ts, googleSheets.ts)
+│   │   ├── api/                 # API layer (ibkr.ts, settings.ts)
 │   │   ├── components/          # Reusable UI components
 │   │   │   ├── ui/             # 50+ shadcn/ui components
 │   │   │   └── layout/         # Layout components
@@ -93,7 +92,6 @@ quantum-kapital/
 │   │   │   └── emitter.rs      # Event emitter
 │   │   ├── config/             # Application configuration
 │   │   │   └── settings.rs     # Configuration management
-│   │   ├── google_sheets/      # Google Sheets integration
 │   │   ├── utils/              # Shared utilities
 │   │   ├── lib.rs              # Tauri setup & command registration
 │   │   └── main.rs             # Application entry point
@@ -242,10 +240,6 @@ The application exposes the following Tauri commands:
 ### Analysis & Projections
 - `ibkr_get_fundamental_data`: Fetch fundamental data (real via Alpha Vantage or mock)
 - `ibkr_generate_projections`: Generate Bear/Base/Bull scenario projections
-
-### Google Sheets Integration
-- `google_sheets_export`: Export analysis data to Google Sheets
-- `google_sheets_auth`: Authenticate with Google Sheets API
 
 ## UI Components
 

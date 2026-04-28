@@ -41,12 +41,6 @@ The settings JSON has the following structure:
   },
   "api": {
     "alpha_vantage_api_key": null
-  },
-  "google_sheets": {
-    "spreadsheet_id": null,
-    "spreadsheet_name": "Quantum Kapital Analysis",
-    "auto_export": false,
-    "last_export_timestamp": null
   }
 }
 ```
@@ -82,28 +76,9 @@ const settings = await getSettings();
 // Modify what you need
 settings.ui.theme = 'light';
 settings.ibkr.default_port = 7497;
-settings.google_sheets.auto_export = true;
 
 // Save back to disk
 await updateSettings(settings);
-```
-
-### 4. Update Google Sheets Spreadsheet
-
-```typescript
-import { updateGoogleSheetsSpreadsheet, getGoogleSheetsSpreadsheet } from '@/shared/api/settings';
-
-// After creating a spreadsheet
-await updateGoogleSheetsSpreadsheet(
-  'your-spreadsheet-id-here',
-  'My Analysis Spreadsheet'
-);
-
-// Later, retrieve it
-const spreadsheetId = await getGoogleSheetsSpreadsheet();
-if (spreadsheetId) {
-  console.log('Using spreadsheet:', spreadsheetId);
-}
 ```
 
 ## Example: Creating a Settings Page
@@ -184,26 +159,6 @@ function SettingsPage() {
         />
       </div>
 
-      {/* Auto Export */}
-      <div>
-        <label>
-          <input
-            type="checkbox"
-            checked={settings.google_sheets.auto_export}
-            onChange={(e) =>
-              setSettings({
-                ...settings,
-                google_sheets: {
-                  ...settings.google_sheets,
-                  auto_export: e.target.checked,
-                },
-              })
-            }
-          />
-          Auto-export to Google Sheets
-        </label>
-      </div>
-
       <button onClick={handleSave}>Save Settings</button>
     </div>
   );
@@ -277,19 +232,12 @@ async fn update_theme(
 ### API Settings (`api`)
 - `alpha_vantage_api_key`: Alpha Vantage API key for fundamental data
 
-### Google Sheets Settings (`google_sheets`)
-- `spreadsheet_id`: Current spreadsheet ID
-- `spreadsheet_name`: Spreadsheet name
-- `auto_export`: Automatically export after analysis
-- `last_export_timestamp`: Last export timestamp
-
 ## Default Values
 
 If the settings file doesn't exist, these defaults are used:
 - Theme: `dark`
 - IBKR Port: `4004` (live trading)
 - IBKR Client ID: `100`
-- Auto-export: `false`
 - Notifications: `true`
 
 ## Manual Editing
