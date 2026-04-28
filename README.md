@@ -288,10 +288,8 @@ pre-commit run --all-files
 - TypeScript 5
 - Tailwind CSS 3.4
 - Vite 6
-- shadcn/ui components (50+ components)
+- shadcn/ui-style components (Alert, Badge, Button, Card, Input, Label, Skeleton, Table, Tabs)
 - Lucide React icons
-- React Hook Form with Zod validation
-- Recharts for data visualization
 
 ### Backend
 - Tauri 2.0

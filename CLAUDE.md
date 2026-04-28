@@ -61,12 +61,11 @@ cp .env.example .env
 
 ### Frontend Architecture
 The React frontend (`/src`) uses a modular structure:
-- **Component Library**: shadcn/ui implementation (50+ components in `src/shared/components/ui/`)
+- **Component Library**: shadcn/ui-style components in `src/shared/components/ui/` (Alert, Badge, Button, Card, Input, Label, Skeleton, Table, Tabs)
 - **State Management**: React hooks with Tauri command invocation via `@tauri-apps/api`
 - **Styling**: Tailwind CSS with custom gradient themes
 - **TypeScript**: Strict mode with path mapping (`@/*` → `./src/*`)
-- **Form Handling**: react-hook-form with zod validation
-- **Icons**: Lucide React, recharts for data visualization
+- **Icons**: Lucide React
 - **Structure**:
   - `app/`: Main application entry and layout
   - `features/`: Feature-based modules (connection, portfolio, market-data, trading)
@@ -253,7 +252,6 @@ When creating new features:
 - Place shared components in `src/shared/components/ui/`
 - Feature-specific components go in their feature directory
 - Use the `Table` component from `shared/components/ui/table.tsx` for data tables
-- Use `Form` components with react-hook-form for forms
 - Use `Skeleton` component for loading states
 - Use `Alert` component for error/success messages
 - API calls to Tauri commands should be placed in `src/shared/api/` (see `src/shared/api/ibkr.ts` for existing IBKR API wrapper)
