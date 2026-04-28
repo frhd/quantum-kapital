@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Card, CardContent } from "../../../shared/components/ui/card"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
@@ -8,7 +9,11 @@ import { useTickerSearch } from "../hooks/useTickerSearch"
 import { useProjections } from "../hooks/useProjections"
 import { AlertCircle } from "lucide-react"
 
-export function TickerAnalysis() {
+interface TickerAnalysisProps {
+  pendingSymbol?: { symbol: string; nonce: number } | null
+}
+
+export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
   const {
     searchQuery,
     searchResults,
@@ -23,10 +28,18 @@ export function TickerAnalysis() {
     selectedTicker?.symbol || null
   )
 
+  useEffect(() => {
+    if (pendingSymbol) {
+      selectTicker(pendingSymbol.symbol)
+    }
+    // selectTicker is stable from useCallback in useTickerSearch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSymbol?.nonce])
+
   return (
     <div className="space-y-6">
       {/* Search Input */}
-      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm overflow-visible relative z-50">
+      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs overflow-visible relative z-50">
         <CardContent className="pt-6 overflow-visible">
           <TickerSearch
             searchQuery={searchQuery}

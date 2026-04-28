@@ -18,7 +18,7 @@ pub enum MarketDataType {
 impl From<MarketDataType> for ibapi::market_data::MarketDataType {
     fn from(value: MarketDataType) -> Self {
         match value {
-            MarketDataType::Live => ibapi::market_data::MarketDataType::Live,
+            MarketDataType::Live => ibapi::market_data::MarketDataType::Realtime,
             MarketDataType::Frozen => ibapi::market_data::MarketDataType::Frozen,
             MarketDataType::Delayed => ibapi::market_data::MarketDataType::Delayed,
             MarketDataType::DelayedFrozen => ibapi::market_data::MarketDataType::DelayedFrozen,

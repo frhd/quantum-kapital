@@ -19,7 +19,7 @@ export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsP
   if (!projections || !projections.base || !projections.bear || !projections.bull ||
       projections.base.length === 0 || projections.bear.length === 0 || projections.bull.length === 0) {
     return (
-      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
         <CardHeader>
           <CardTitle className="text-xl text-white">
             Forward Analysis - {symbol}
@@ -68,7 +68,7 @@ export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsP
   const activeCagr = projections.cagr[activeScenario]
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-xl text-white">
@@ -87,7 +87,7 @@ export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsP
                   onClick={() => setActiveScenario(scenario.key)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-lg transition-all",
-                    "border backdrop-blur-sm",
+                    "border backdrop-blur-xs",
                     isActive
                       ? `${scenario.activeBg} ${scenario.borderColor} ${scenario.color}`
                       : `${scenario.bgColor} border-slate-700 text-slate-400 hover:${scenario.color}`,

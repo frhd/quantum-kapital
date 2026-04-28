@@ -42,7 +42,7 @@ export function ConnectionStatus({ connectionStatus, loading, disconnecting, onC
         <Button
           onClick={onConnect}
           disabled={loading}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+          className="bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
         >
           <Wifi className="h-4 w-4 mr-2" />
           {loading ? "Connecting..." : "Connect"}

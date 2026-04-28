@@ -170,7 +170,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
           </TableRow>
 
           {/* Share Price Range Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30 bg-gradient-to-r from-blue-500/10">
+          <TableRow className="border-slate-700/50 hover:bg-slate-800/30 bg-linear-to-r from-blue-500/10">
             <TableCell className="font-medium text-slate-300 sticky left-0 bg-slate-900 z-10">
               Share Price Range
             </TableCell>

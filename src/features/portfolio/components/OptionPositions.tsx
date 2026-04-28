@@ -16,7 +16,7 @@ export function OptionPositions({ positions }: OptionPositionsProps) {
   }
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
       <CardHeader>
         <CardTitle className="text-white flex items-center gap-2">
           <Target className="h-5 w-5 text-orange-400" />

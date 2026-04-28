@@ -148,7 +148,7 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
 
                 // Determine sentiment
                 let icon = null
-                let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "secondary"
+                let badgeVariant: "default" | "secondary" | "destructive" | "outline-solid" = "secondary"
                 let badgeText = ""
 
                 if (Math.abs(diffPercent) < 5) {
@@ -195,7 +195,7 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
           </TableRow>
 
           {/* Share Price Range - Low */}
-          <TableRow className={`border-slate-700/50 bg-gradient-to-r ${scenarioColors[scenarioType]}`}>
+          <TableRow className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}>
             <TableCell className="font-medium text-slate-300">Share Price Low</TableCell>
             {projections.map((proj) => (
               <TableCell key={`spl-${proj.year}`} className={`text-center font-semibold ${textColors[scenarioType]}`}>
@@ -206,7 +206,7 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
           </TableRow>
 
           {/* Share Price Range - High */}
-          <TableRow className={`border-slate-700/50 bg-gradient-to-r ${scenarioColors[scenarioType]}`}>
+          <TableRow className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}>
             <TableCell className="font-medium text-slate-300">Share Price High</TableCell>
             {projections.map((proj) => (
               <TableCell key={`sph-${proj.year}`} className={`text-center font-semibold ${textColors[scenarioType]}`}>

@@ -1,7 +1,7 @@
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "../shared/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/components/ui/tabs"
-import { AlertCircle, BarChart3, Settings, LineChart } from "lucide-react"
+import { AlertCircle, BarChart3, Settings, LineChart, Search } from "lucide-react"
 
 import { PageHeader } from "../shared/components/layout/PageHeader"
 import { ConnectionSettings } from "../features/connection/components/ConnectionSettings"
@@ -10,11 +10,22 @@ import { StockPositions } from "../features/portfolio/components/StockPositions"
 import { OptionPositions } from "../features/portfolio/components/OptionPositions"
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
 import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
+import { MarketScanner } from "../features/scanner/components/MarketScanner"
 
 import { useConnection } from "../features/connection/hooks/useConnection"
 import { useAccountData } from "../features/portfolio/hooks/useAccountData"
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState("analysis")
+  const nonceRef = useRef(0)
+  const [pendingAnalysisSymbol, setPendingAnalysisSymbol] = useState<{ symbol: string; nonce: number } | null>(null)
+
+  const handleSelectFromScanner = (symbol: string) => {
+    nonceRef.current += 1
+    setPendingAnalysisSymbol({ symbol, nonce: nonceRef.current })
+    setActiveTab("analysis")
+  }
+
   const {
     connectionStatus,
     connectionSettings,
@@ -104,7 +115,7 @@ export default function App() {
           />
 
           {/* Main Content Tabs */}
-          <Tabs defaultValue="analysis" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="bg-slate-800/50 border border-slate-700">
               <TabsTrigger
                 value="analysis"
@@ -124,10 +135,14 @@ export default function App() {
                 <Settings className="h-4 w-4 mr-2" />
                 Account Details
               </TabsTrigger>
+              <TabsTrigger value="scanner" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
+                <Search className="h-4 w-4 mr-2" />
+                Scanner
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="analysis" className="space-y-4">
-              <TickerAnalysis />
+              <TickerAnalysis pendingSymbol={pendingAnalysisSymbol} />
             </TabsContent>
 
             <TabsContent value="positions" className="space-y-4">
@@ -135,7 +150,7 @@ export default function App() {
               <OptionPositions positions={positions} />
 
               {positions.length === 0 && (
-                <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+                <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
                   <CardContent className="text-center py-8">
                     <p className="text-slate-400">No positions found</p>
                   </CardContent>
@@ -149,6 +164,10 @@ export default function App() {
                 accountSummary={accountSummary}
                 connectionStatus={connectionStatus}
               />
+            </TabsContent>
+
+            <TabsContent value="scanner" className="space-y-4">
+              <MarketScanner onSelectSymbol={handleSelectFromScanner} />
             </TabsContent>
           </Tabs>
         </>

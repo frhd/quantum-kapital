@@ -11,7 +11,7 @@ interface ConnectionSettingsProps {
 
 export function ConnectionSettings({ connectionSettings, setConnectionSettings }: ConnectionSettingsProps) {
   return (
-    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <Settings className="h-5 w-5 text-blue-400" />

@@ -13,7 +13,7 @@ export function ProjectionView({ results, symbol, assumptions }: ProjectionViewP
   // Validate results data
   if (!results || !results.baseline || !results.projections || results.projections.length === 0) {
     return (
-      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
         <CardHeader>
           <CardTitle className="text-xl text-white">
             Forward Analysis - {symbol}
@@ -29,7 +29,7 @@ export function ProjectionView({ results, symbol, assumptions }: ProjectionViewP
   }
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
       <CardHeader>
         <CardTitle className="text-xl text-white">
           Forward Analysis - {symbol}

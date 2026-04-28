@@ -43,7 +43,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-xs">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-blue-400/60" />
@@ -60,7 +60,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-xs">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <Activity className="h-4 w-4 text-purple-400/60" />
@@ -75,7 +75,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-xs">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
             {(dailyValue ?? 0) >= 0 ? (
@@ -102,7 +102,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
+      <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-xs">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
             <PieChart className="h-4 w-4 text-orange-400/60" />
