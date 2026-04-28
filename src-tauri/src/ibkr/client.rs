@@ -1,15 +1,33 @@
 use ibapi::contracts::Contract;
 use ibapi::orders::Order;
 use ibapi::Client;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tokio::task::JoinHandle;
+use tracing::{error, info, warn};
 
+use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::{IbkrError, Result};
 use crate::ibkr::types::{
-    AccountSummary, ConnectionConfig, ConnectionStatus, OrderAction, OrderRequest, OrderType,
-    Position,
+    AccountSummary, ConnectionConfig, ConnectionStatus, MarketDataType, OrderAction, OrderRequest,
+    OrderType, Position,
 };
+
+pub struct DailyPnLHandle {
+    shutdown: Arc<AtomicBool>,
+    join: JoinHandle<()>,
+}
+
+impl DailyPnLHandle {
+    pub async fn stop(self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        if let Err(e) = self.join.await {
+            warn!("Daily PnL task join error: {e}");
+        }
+    }
+}
 
 pub struct IbkrClient {
     client: Arc<RwLock<Option<Arc<Client>>>>,
@@ -68,6 +86,7 @@ impl IbkrClient {
         let config = self.config.read().await;
         let connection_url = format!("{}:{}", config.host, config.port);
         let client_id = config.client_id;
+        let market_data_type = config.market_data_type;
         drop(config);
 
         info!(
@@ -87,8 +106,17 @@ impl IbkrClient {
                     "🟢 SUCCESSFULLY CONNECTED TO IBKR API GATEWAY WITH CLIENT ID {}",
                     client_id
                 );
+
+                let client = Arc::new(client);
+
+                // Apply the configured market data type so accounts without
+                // real-time subscriptions (paper trading, etc.) still get ticks
+                // instead of error 354. Failures here are non-fatal — the
+                // connection is still usable, just with the server's default.
+                Self::apply_market_data_type(&client, market_data_type).await;
+
                 let mut client_lock = self.client.write().await;
-                *client_lock = Some(Arc::new(client));
+                *client_lock = Some(client);
                 Ok(())
             }
             Err(e) => {
@@ -97,6 +125,34 @@ impl IbkrClient {
                     client_id, e
                 );
                 Err(IbkrError::ConnectionFailed(e.to_string()))
+            }
+        }
+    }
+
+    async fn apply_market_data_type(client: &Arc<Client>, market_data_type: MarketDataType) {
+        let client_clone = Arc::clone(client);
+        let mapped = market_data_type.into();
+        let result =
+            tokio::task::spawn_blocking(move || client_clone.switch_market_data_type(mapped)).await;
+
+        match result {
+            Ok(Ok(())) => {
+                info!(
+                    "🟢 MARKET DATA TYPE SET TO {:?} FOR THIS CONNECTION",
+                    market_data_type
+                );
+            }
+            Ok(Err(e)) => {
+                error!(
+                    "Failed to switch market data type to {:?}: {}",
+                    market_data_type, e
+                );
+            }
+            Err(e) => {
+                error!(
+                    "Join error while switching market data type to {:?}: {}",
+                    market_data_type, e
+                );
             }
         }
     }
@@ -342,6 +398,55 @@ impl IbkrClient {
         })
         .await
         .map_err(|e| IbkrError::Unknown(e.to_string()))?
+    }
+
+    pub async fn start_daily_pnl_stream(
+        &self,
+        account: &str,
+        emitter: Arc<EventEmitter>,
+    ) -> Result<DailyPnLHandle> {
+        let client_clone = {
+            let client = self.client.read().await;
+            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+            Arc::clone(client)
+        };
+
+        let account = account.to_string();
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let shutdown_task = Arc::clone(&shutdown);
+
+        let join = tokio::task::spawn_blocking(move || {
+            let subscription = match client_clone.pnl(&account, None) {
+                Ok(s) => s,
+                Err(e) => {
+                    error!("Failed to subscribe to daily PnL for {account}: {e}");
+                    return;
+                }
+            };
+
+            info!("Daily PnL subscription started for {account}");
+            while !shutdown_task.load(Ordering::Relaxed) {
+                if let Some(pnl) = subscription.next_timeout(Duration::from_millis(500)) {
+                    let event = AppEvent::DailyPnLUpdate {
+                        account: account.clone(),
+                        daily_pnl: pnl.daily_pnl,
+                        unrealized_pnl: pnl.unrealized_pnl,
+                        realized_pnl: pnl.realized_pnl,
+                    };
+                    let emitter = Arc::clone(&emitter);
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = emitter.emit(event).await {
+                            warn!("Failed to emit daily-pnl-update: {e}");
+                        }
+                    });
+                }
+            }
+
+            subscription.cancel();
+            info!("Daily PnL subscription stopped for {account}");
+        });
+
+        Ok(DailyPnLHandle { shutdown, join })
     }
 
     pub async fn place_order(&self, order_request: OrderRequest) -> Result<i32> {

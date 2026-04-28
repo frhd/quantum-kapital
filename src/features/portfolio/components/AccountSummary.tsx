@@ -7,6 +7,7 @@ import {
   PieChart
 } from "lucide-react"
 import { formatCurrency, anonymizeAccountNumber } from "../utils"
+import { useDailyPnL } from "../hooks/useDailyPnL"
 import type { AccountSummary as AccountSummaryType, Position } from "../../../shared/types"
 
 interface AccountSummaryProps {
@@ -16,6 +17,8 @@ interface AccountSummaryProps {
 }
 
 export function AccountSummary({ accounts, accountSummary, positions }: AccountSummaryProps) {
+  const dailyPnL = useDailyPnL(accounts[0])
+
   // Calculate account values from summary - check multiple possible tag names
   const getAccountValue = (tags: string[]): number => {
     for (const tag of tags) {
@@ -33,10 +36,10 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
   const availableFunds = getAccountValue(["AvailableFunds", "AvailableFunds-S", "AvailableFunds-C"])
   const buyingPower = getAccountValue(["BuyingPower", "BuyingPower-S"])
 
-  // Calculate P&L from positions
+  // Unrealized P&L from positions
   const unrealizedPnL = positions.reduce((sum, pos) => sum + pos.unrealized_pnl, 0)
-  const realizedPnL = positions.reduce((sum, pos) => sum + pos.realized_pnl, 0)
-  const totalPnL = unrealizedPnL + realizedPnL
+
+  const dailyValue = dailyPnL?.daily_pnl ?? null
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -75,20 +78,26 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
       <Card className="bg-slate-800/30 border-slate-700/50 backdrop-blur-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
-            {totalPnL >= 0 ? (
+            {(dailyValue ?? 0) >= 0 ? (
               <TrendingUp className="h-4 w-4 text-green-400/60" />
             ) : (
               <TrendingDown className="h-4 w-4 text-red-400/60" />
             )}
-            Total P&L
+            Daily P&L
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className={`text-3xl font-bold ${totalPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
-              {formatCurrency(totalPnL)}
+            {dailyValue === null ? (
+              <p className="text-3xl font-bold text-slate-500">—</p>
+            ) : (
+              <p className={`text-3xl font-bold ${dailyValue >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {formatCurrency(dailyValue)}
+              </p>
+            )}
+            <p className="text-sm text-slate-400">
+              {dailyValue === null ? "Awaiting first tick" : "Today's change"}
             </p>
-            <p className="text-sm text-slate-400">Unrealized + Realized</p>
           </div>
         </CardContent>
       </Card>

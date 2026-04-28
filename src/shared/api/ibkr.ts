@@ -36,6 +36,14 @@ export const ibkrApi = {
     return invoke<Position[]>("ibkr_get_positions")
   },
 
+  startDailyPnL: async (account: string) => {
+    return invoke<void>("ibkr_start_daily_pnl", { account })
+  },
+
+  stopDailyPnL: async () => {
+    return invoke<void>("ibkr_stop_daily_pnl")
+  },
+
   subscribeMarketData: async (symbol: string) => {
     return invoke("ibkr_subscribe_market_data", { symbol })
   },

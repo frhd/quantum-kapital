@@ -155,32 +155,3 @@ impl Default for ProjectionAssumptions {
         }
     }
 }
-
-/// Request to get fundamental data from IBKR
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FundamentalDataRequest {
-    pub symbol: String,
-    pub report_type: FundamentalReportType,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FundamentalReportType {
-    ReportsFinSummary,
-    ReportsFinStatements,
-    ReportsOwnership,
-    ReportSnapshot,
-    CalendarReport,
-}
-
-impl FundamentalReportType {
-    #[allow(dead_code)]
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::ReportsFinSummary => "ReportsFinSummary",
-            Self::ReportsFinStatements => "ReportsFinStatements",
-            Self::ReportsOwnership => "ReportsOwnership",
-            Self::ReportSnapshot => "ReportSnapshot",
-            Self::CalendarReport => "CalendarReport",
-        }
-    }
-}

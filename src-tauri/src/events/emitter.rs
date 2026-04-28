@@ -23,6 +23,12 @@ pub enum AppEvent {
     AccountsListChanged {
         accounts: Vec<String>,
     },
+    DailyPnLUpdate {
+        account: String,
+        daily_pnl: f64,
+        unrealized_pnl: Option<f64>,
+        realized_pnl: Option<f64>,
+    },
 
     // Market data events
     MarketDataUpdate {
@@ -95,6 +101,7 @@ impl EventEmitter {
                 AppEvent::ConnectionError { .. } => "connection-error",
                 AppEvent::AccountUpdate { .. } => "account-update",
                 AppEvent::AccountsListChanged { .. } => "accounts-list-changed",
+                AppEvent::DailyPnLUpdate { .. } => "daily-pnl-update",
                 AppEvent::MarketDataUpdate { .. } => "market-data-update",
                 AppEvent::MarketDataSubscribed { .. } => "market-data-subscribed",
                 AppEvent::MarketDataUnsubscribed { .. } => "market-data-unsubscribed",
@@ -128,6 +135,7 @@ impl EventEmitter {
                     AppEvent::ConnectionError { .. } => "connection-error",
                     AppEvent::AccountUpdate { .. } => "account-update",
                     AppEvent::AccountsListChanged { .. } => "accounts-list-changed",
+                    AppEvent::DailyPnLUpdate { .. } => "daily-pnl-update",
                     AppEvent::MarketDataUpdate { .. } => "market-data-update",
                     AppEvent::MarketDataSubscribed { .. } => "market-data-subscribed",
                     AppEvent::MarketDataUnsubscribed { .. } => "market-data-unsubscribed",

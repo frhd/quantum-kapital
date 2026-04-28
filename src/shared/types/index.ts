@@ -40,5 +40,12 @@ export interface OrderRequest {
   price?: number
 }
 
+export interface DailyPnL {
+  account: string
+  daily_pnl: number
+  unrealized_pnl: number | null
+  realized_pnl: number | null
+}
+
 // Re-export analysis types
 export * from "./analysis"

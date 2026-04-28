@@ -32,7 +32,7 @@ pub struct OrderStatus {
     pub average_fill_price: Option<f64>,
 }
 
-// Execution and Commission Types
+#[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
     pub exec_id: String,
@@ -48,14 +48,4 @@ pub struct Execution {
     pub liquidation: bool,
     pub cum_qty: f64,
     pub avg_price: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CommissionReport {
-    pub exec_id: String,
-    pub commission: f64,
-    pub currency: String,
-    pub realized_pnl: f64,
-    pub yield_val: f64,
-    pub yield_redemption_date: i32,
 }

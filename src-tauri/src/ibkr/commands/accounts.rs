@@ -27,3 +27,17 @@ pub async fn ibkr_get_positions(state: State<'_, IbkrState>) -> Result<Vec<Posit
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn ibkr_start_daily_pnl(
+    state: State<'_, IbkrState>,
+    account: String,
+) -> Result<(), String> {
+    state.start_daily_pnl(&account).await
+}
+
+#[tauri::command]
+pub async fn ibkr_stop_daily_pnl(state: State<'_, IbkrState>) -> Result<(), String> {
+    state.stop_daily_pnl().await;
+    Ok(())
+}

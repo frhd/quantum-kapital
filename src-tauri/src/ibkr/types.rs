@@ -4,20 +4,24 @@
 pub mod account;
 pub mod connection;
 pub mod fundamentals;
-pub mod historical;
 pub mod market_data;
 pub mod orders;
 pub mod positions;
+
+#[cfg(test)]
+pub mod historical;
+#[cfg(test)]
 pub mod scanner;
 
 // Re-export all types at the root level for backward compatibility
 pub use account::*;
 pub use connection::*;
 pub use fundamentals::*;
-#[allow(unused_imports)]
-pub use historical::*;
 pub use market_data::*;
 pub use orders::*;
 pub use positions::*;
-#[allow(unused_imports)]
+
+#[cfg(test)]
+pub use historical::*;
+#[cfg(test)]
 pub use scanner::*;

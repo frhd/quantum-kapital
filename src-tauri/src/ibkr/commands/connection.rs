@@ -38,6 +38,9 @@ pub async fn ibkr_connect(
 pub async fn ibkr_disconnect(state: State<'_, IbkrState>) -> Result<String, String> {
     tracing::info!("🔴 DISCONNECT COMMAND CALLED");
 
+    // Stop any in-flight streaming subscriptions before tearing down the client
+    state.stop_daily_pnl().await;
+
     let result = state.client.disconnect().await;
     tracing::info!("🔴 DISCONNECT RESULT: {:?}", result.is_ok());
 

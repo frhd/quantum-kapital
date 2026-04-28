@@ -16,19 +16,7 @@ pub struct Position {
     pub local_symbol: String, // For options, this includes strike and expiry
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PortfolioPosition {
-    pub contract: ContractDetails,
-    pub position: f64,
-    pub market_price: f64,
-    pub market_value: f64,
-    pub average_cost: f64,
-    pub unrealized_pnl: f64,
-    pub realized_pnl: f64,
-    pub account: String,
-}
-
-// Contract Types for different securities
+#[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractDetails {
     pub symbol: String,
@@ -44,6 +32,7 @@ pub struct ContractDetails {
     pub price_magnifier: i32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SecurityType {
     Stock,

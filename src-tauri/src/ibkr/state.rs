@@ -1,5 +1,5 @@
 use crate::events::{AppEvent, EventEmitter};
-use crate::ibkr::client::IbkrClient;
+use crate::ibkr::client::{DailyPnLHandle, IbkrClient};
 use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position};
 use crate::middleware::RateLimiter;
 use std::collections::HashMap;
@@ -38,6 +38,7 @@ pub struct IbkrState {
     pub market_data_cache: Arc<RwLock<MarketDataCache>>,
     pub position_cache: Arc<RwLock<PositionCache>>,
     pub config: Arc<RwLock<ConnectionConfig>>,
+    pub daily_pnl_handle: Arc<RwLock<Option<DailyPnLHandle>>>,
 }
 
 #[allow(dead_code)]
@@ -62,6 +63,27 @@ impl IbkrState {
                 last_refresh: None,
             })),
             config: config_arc,
+            daily_pnl_handle: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    pub async fn start_daily_pnl(&self, account: &str) -> Result<(), String> {
+        // Replace any existing subscription
+        self.stop_daily_pnl().await;
+
+        let handle = self
+            .client
+            .start_daily_pnl_stream(account, Arc::clone(&self.event_emitter))
+            .await
+            .map_err(|e| e.to_string())?;
+        *self.daily_pnl_handle.write().await = Some(handle);
+        Ok(())
+    }
+
+    pub async fn stop_daily_pnl(&self) {
+        let handle = self.daily_pnl_handle.write().await.take();
+        if let Some(handle) = handle {
+            handle.stop().await;
         }
     }
 
