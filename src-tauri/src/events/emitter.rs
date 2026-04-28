@@ -3,6 +3,8 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::RwLock;
 
+use crate::ibkr::types::ScannerData;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum AppEvent {
@@ -66,6 +68,11 @@ pub enum AppEvent {
     },
     PositionsRefreshed,
 
+    // Scanner events
+    ScannerUpdate {
+        results: Vec<ScannerData>,
+    },
+
     // System events
     RateLimitWarning {
         remaining: u32,
@@ -111,6 +118,7 @@ impl EventEmitter {
                 AppEvent::OrderError { .. } => "order-error",
                 AppEvent::PositionUpdate { .. } => "position-update",
                 AppEvent::PositionsRefreshed => "positions-refreshed",
+                AppEvent::ScannerUpdate { .. } => "scanner-update",
                 AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
                 AppEvent::SystemError { .. } => "system-error",
             };
@@ -145,6 +153,7 @@ impl EventEmitter {
                     AppEvent::OrderError { .. } => "order-error",
                     AppEvent::PositionUpdate { .. } => "position-update",
                     AppEvent::PositionsRefreshed => "positions-refreshed",
+                    AppEvent::ScannerUpdate { .. } => "scanner-update",
                     AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
                     AppEvent::SystemError { .. } => "system-error",
                 };

@@ -55,6 +55,8 @@ pub fn run() {
             ibkr::commands::ibkr_generate_projections,
             ibkr::commands::ibkr_generate_projection_results,
             ibkr::commands::ibkr_get_cached_tickers,
+            ibkr::commands::ibkr_start_scanner,
+            ibkr::commands::ibkr_stop_scanner,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,

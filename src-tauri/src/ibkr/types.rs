@@ -10,7 +10,6 @@ pub mod positions;
 
 #[cfg(test)]
 pub mod historical;
-#[cfg(test)]
 pub mod scanner;
 
 // Re-export all types at the root level for backward compatibility
@@ -23,5 +22,4 @@ pub use positions::*;
 
 #[cfg(test)]
 pub use historical::*;
-#[cfg(test)]
 pub use scanner::*;

@@ -8,7 +8,8 @@ import type {
   FundamentalData,
   ScenarioProjections,
   ProjectionResults,
-  ProjectionAssumptions
+  ProjectionAssumptions,
+  ScannerSubscription
 } from "../types"
 
 export const ibkrApi = {
@@ -66,5 +67,13 @@ export const ibkrApi = {
 
   getCachedTickers: async () => {
     return invoke<string[]>("ibkr_get_cached_tickers")
+  },
+
+  startScanner: async (subscription: ScannerSubscription) => {
+    return invoke<void>("ibkr_start_scanner", { subscription })
+  },
+
+  stopScanner: async () => {
+    return invoke<void>("ibkr_stop_scanner")
   }
 }

@@ -18,8 +18,5 @@ pub struct ScannerSubscription {
 pub struct ScannerData {
     pub rank: i32,
     pub contract: ContractDetails,
-    pub distance: String,
-    pub benchmark: String,
-    pub projection: String,
-    pub legs: String,
+    pub leg: String,
 }

@@ -47,5 +47,49 @@ export interface DailyPnL {
   realized_pnl: number | null
 }
 
+export type SecurityType =
+  | "Stock"
+  | "Option"
+  | "Future"
+  | "Forex"
+  | "Combo"
+  | "Warrant"
+  | "Bond"
+  | "Commodity"
+  | "News"
+  | "Fund"
+
+export interface ContractDetails {
+  symbol: string
+  sec_type: SecurityType
+  exchange: string
+  primary_exchange: string
+  currency: string
+  local_symbol: string
+  trading_class: string
+  contract_id: number
+  min_tick: number
+  multiplier: string
+  price_magnifier: number
+}
+
+export interface ScannerSubscription {
+  number_of_rows: number
+  instrument: string
+  location_code: string
+  scan_code: string
+  above_price?: number
+  below_price?: number
+  above_volume?: number
+  market_cap_above?: number
+  market_cap_below?: number
+}
+
+export interface ScannerData {
+  rank: number
+  contract: ContractDetails
+  leg: string
+}
+
 // Re-export analysis types
 export * from "./analysis"

@@ -297,10 +297,7 @@ impl IbkrClientTrait for MockIbkrClient {
                 multiplier: "".to_string(),
                 price_magnifier: 1,
             },
-            distance: "".to_string(),
-            benchmark: "".to_string(),
-            projection: "".to_string(),
-            legs: "".to_string(),
+            leg: "".to_string(),
         }])
     }
 }

@@ -16,7 +16,6 @@ pub struct Position {
     pub local_symbol: String, // For options, this includes strike and expiry
 }
 
-#[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractDetails {
     pub symbol: String,
@@ -32,8 +31,7 @@ pub struct ContractDetails {
     pub price_magnifier: i32,
 }
 
-#[cfg(test)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SecurityType {
     Stock,
     Option,

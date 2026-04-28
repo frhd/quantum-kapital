@@ -1,6 +1,6 @@
 use crate::events::{AppEvent, EventEmitter};
-use crate::ibkr::client::{DailyPnLHandle, IbkrClient};
-use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position};
+use crate::ibkr::client::{DailyPnLHandle, IbkrClient, ScannerHandle};
+use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position, ScannerSubscription};
 use crate::middleware::RateLimiter;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -39,6 +39,7 @@ pub struct IbkrState {
     pub position_cache: Arc<RwLock<PositionCache>>,
     pub config: Arc<RwLock<ConnectionConfig>>,
     pub daily_pnl_handle: Arc<RwLock<Option<DailyPnLHandle>>>,
+    pub scanner_handle: Arc<RwLock<Option<ScannerHandle>>>,
 }
 
 #[allow(dead_code)]
@@ -64,6 +65,7 @@ impl IbkrState {
             })),
             config: config_arc,
             daily_pnl_handle: Arc::new(RwLock::new(None)),
+            scanner_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -82,6 +84,26 @@ impl IbkrState {
 
     pub async fn stop_daily_pnl(&self) {
         let handle = self.daily_pnl_handle.write().await.take();
+        if let Some(handle) = handle {
+            handle.stop().await;
+        }
+    }
+
+    pub async fn start_scanner(&self, opts: ScannerSubscription) -> Result<(), String> {
+        // Replace any existing subscription
+        self.stop_scanner().await;
+
+        let handle = self
+            .client
+            .start_scanner_stream(opts, Arc::clone(&self.event_emitter))
+            .await
+            .map_err(|e| e.to_string())?;
+        *self.scanner_handle.write().await = Some(handle);
+        Ok(())
+    }
+
+    pub async fn stop_scanner(&self) {
+        let handle = self.scanner_handle.write().await.take();
         if let Some(handle) = handle {
             handle.stop().await;
         }
