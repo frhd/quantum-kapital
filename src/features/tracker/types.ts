@@ -29,6 +29,7 @@ export interface TrackedTicker {
   added_at: string
   last_checked_at: string | null
   in_play_until: string | null
+  cool_down_until: string | null
 }
 
 export interface AddToTrackerPrefill {

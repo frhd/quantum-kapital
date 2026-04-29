@@ -13,6 +13,7 @@ use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{StrategyTag, TrackerSource, TrackerStatus};
 use crate::services::historical_data_service::Lookback;
 use crate::services::tracker_service::TrackerService;
+use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
 use crate::strategies::{
     DetectorError, DetectorRegistry, Direction, MarketContext, SetupCandidate, StrategyDetector,
@@ -209,7 +210,9 @@ async fn add_ticker(svc: &TrackerService, symbol: &str, status: TrackerStatus) {
         .await
         .expect("add");
     if !matches!(status, TrackerStatus::Watching) {
-        svc.set_status(symbol, status, None).await.expect("status");
+        svc.set_status(symbol, status, None, None)
+            .await
+            .expect("status");
     }
 }
 
@@ -220,9 +223,14 @@ fn build_runner(
     registry: DetectorRegistry,
 ) -> (Arc<TrackerService>, TrackerRunner) {
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+    let state_machine = Arc::new(TrackerStateMachine::new(
+        Arc::clone(&db),
+        Arc::clone(&tracker),
+    ));
     let runner = TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&tracker),
+        state_machine,
         bars,
         news,
         Arc::new(registry),

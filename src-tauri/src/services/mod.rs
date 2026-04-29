@@ -6,4 +6,5 @@ pub mod market_service;
 pub mod projection_service;
 pub mod tracker_runner;
 pub mod tracker_service;
+pub mod tracker_state_machine;
 pub mod trading_service;

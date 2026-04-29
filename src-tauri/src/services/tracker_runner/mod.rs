@@ -22,6 +22,7 @@ use crate::ibkr::types::tracker::{Setup, TrackerStatus};
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
+use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
 use crate::strategies::{DetectorRegistry, MarketContext};
 
@@ -136,6 +137,7 @@ pub struct TrackerRunner {
     #[allow(dead_code)]
     db: Arc<Db>,
     tracker: Arc<TrackerService>,
+    state_machine: Arc<TrackerStateMachine>,
     bars: Arc<dyn BarsFetcher>,
     news: Arc<dyn NewsFetcher>,
     registry: Arc<DetectorRegistry>,
@@ -145,6 +147,7 @@ impl TrackerRunner {
     pub fn new(
         db: Arc<Db>,
         tracker: Arc<TrackerService>,
+        state_machine: Arc<TrackerStateMachine>,
         bars: Arc<dyn BarsFetcher>,
         news: Arc<dyn NewsFetcher>,
         registry: Arc<DetectorRegistry>,
@@ -152,6 +155,7 @@ impl TrackerRunner {
         Self {
             db,
             tracker,
+            state_machine,
             bars,
             news,
             registry,
@@ -213,7 +217,25 @@ impl TrackerRunner {
             match outcome.result {
                 Ok(Some(candidate)) => {
                     match self.persist_with_dedup(&ctx_owned.symbol, &candidate).await {
-                        Ok(Some(setup)) => persisted.push(setup),
+                        Ok(Some(setup)) => {
+                            // Phase 12: hand the persisted hit to the state
+                            // machine so the ticker flips into SetupActive
+                            // (and gets its in_play_until extended). Failures
+                            // here are surfaced as warnings — the setup row
+                            // is already persisted, so the caller still gets
+                            // the data back.
+                            if let Err(e) = self
+                                .state_machine
+                                .on_setup_detected(&ctx_owned.symbol, setup.id)
+                                .await
+                            {
+                                warn!(
+                                    "state-machine on_setup_detected failed for {}: {e}",
+                                    ctx_owned.symbol
+                                );
+                            }
+                            persisted.push(setup);
+                        }
                         Ok(None) => {
                             // Recent duplicate — silently skip.
                         }

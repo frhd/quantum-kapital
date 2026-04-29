@@ -49,11 +49,32 @@ pub async fn tracker_add(
     tags: Vec<StrategyTag>,
     notes: Option<String>,
 ) -> Result<TrackedTicker, String> {
-    state
+    let row = state
         .tracker
-        .add(&symbol, source, source_meta, tags, notes)
+        .add(&symbol, source, source_meta.clone(), tags, notes)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Phase 12: scanner-sourced rows promote straight to InPlay so the
+    // intraday scheduler picks them up. Manual / news rows stay Watching
+    // until a detector hit (or a manual flag) bumps them.
+    if matches!(source, TrackerSource::Scanner) {
+        if let Err(e) = state
+            .state_machine
+            .record_scanner_hit(&row.symbol, source_meta)
+            .await
+        {
+            tracing::warn!("record_scanner_hit failed for {}: {e}", row.symbol);
+        }
+        // Re-read the row so the caller sees the post-promotion state.
+        return state
+            .tracker
+            .get(&row.symbol)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "tracker row vanished after add".to_string());
+    }
+    Ok(row)
 }
 
 #[tauri::command]
@@ -100,10 +121,11 @@ pub async fn tracker_set_status(
     symbol: String,
     status: TrackerStatus,
     in_play_until: Option<DateTime<Utc>>,
+    cool_down_until: Option<DateTime<Utc>>,
 ) -> Result<TrackedTicker, String> {
     state
         .tracker
-        .set_status(&symbol, status, in_play_until)
+        .set_status(&symbol, status, in_play_until, cool_down_until)
         .await
         .map_err(|e| e.to_string())
 }

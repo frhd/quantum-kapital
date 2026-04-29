@@ -14,9 +14,9 @@ in_play    ──[TTL expires]────────────────�
 
 ## Depends on
 
-- [ ] Phase 04 — `TrackedTicker.status`, `in_play_until` columns.
-- [ ] Phase 10 — `Setup` rows are produced.
-- [ ] Phase 11 — for "X trading days" math.
+- [x] Phase 04 — `TrackedTicker.status`, `in_play_until` columns.
+- [x] Phase 10 — `Setup` rows are produced.
+- [x] Phase 11 — for "X trading days" math.
 
 ## Out of scope
 
@@ -27,21 +27,21 @@ in_play    ──[TTL expires]────────────────�
 
 `src-tauri/src/services/tracker_state_machine/tests.rs` — exercise the transitions over a controlled clock.
 
-- [ ] `watching_promoted_to_in_play_on_scanner_add` — `record_scanner_hit('AAPL', meta)` sets `status=in_play`, `in_play_until = now + 3 trading days`.
-- [ ] `watching_stays_when_setup_directly_active` — `on_setup_detected` from `Watching` directly promotes to `SetupActive`, sets `in_play_until` (still useful for downstream queries).
-- [ ] `in_play_promoted_to_setup_active_on_detector_hit` — `on_setup_detected('AAPL', setup_id)` flips status, leaves `in_play_until` advanced.
-- [ ] `setup_active_to_cool_down_on_invalidate` — `mark_invalidated(setup_id, reason)` updates the setup row + flips ticker status to `CoolDown` with cooldown TTL = 5 trading days.
-- [ ] `setup_active_to_cool_down_on_target_hit` — `mark_completed(setup_id)` does the same.
-- [ ] `cool_down_to_watching_on_ttl_expiry` — clock fixture rolls past `cool_down_until`; `expire_ttls(now)` flips the status back.
-- [ ] `in_play_to_watching_on_ttl_expiry` — same for in-play.
-- [ ] `expire_ttls_is_idempotent` — call twice with same clock; second call no-ops.
-- [ ] `expire_ttls_uses_trading_days_not_calendar_days` — set `in_play_until` to "3 trading days from Friday"; expects to land on Wed of the next week (skipping weekend).
-- [ ] `multiple_active_setups_only_one_invalidation_flips_status` — ticker has 2 active setups; invalidating one keeps `SetupActive` (other still active); invalidating the second flips to `CoolDown`.
+- [x] `watching_promoted_to_in_play_on_scanner_add` — `record_scanner_hit('AAPL', meta)` sets `status=in_play`, `in_play_until = now + 3 trading days`.
+- [x] `watching_stays_when_setup_directly_active` — `on_setup_detected` from `Watching` directly promotes to `SetupActive`, sets `in_play_until` (still useful for downstream queries).
+- [x] `in_play_promoted_to_setup_active_on_detector_hit` — `on_setup_detected('AAPL', setup_id)` flips status, leaves `in_play_until` advanced.
+- [x] `setup_active_to_cool_down_on_invalidate` — `mark_invalidated(setup_id, reason)` updates the setup row + flips ticker status to `CoolDown` with cooldown TTL = 5 trading days.
+- [x] `setup_active_to_cool_down_on_target_hit` — `mark_completed(setup_id)` does the same.
+- [x] `cool_down_to_watching_on_ttl_expiry` — clock fixture rolls past `cool_down_until`; `expire_ttls(now)` flips the status back.
+- [x] `in_play_to_watching_on_ttl_expiry` — same for in-play.
+- [x] `expire_ttls_is_idempotent` — call twice with same clock; second call no-ops.
+- [x] `expire_ttls_uses_trading_days_not_calendar_days` — set `in_play_until` to "3 trading days from Friday"; expects to land on Wed of the next week (skipping weekend).
+- [x] `multiple_active_setups_only_one_invalidation_flips_status` — ticker has 2 active setups; invalidating one keeps `SetupActive` (other still active); invalidating the second flips to `CoolDown`.
 
 ## Implementation tasks
 
-- [ ] Add `cool_down_until: Option<DateTime<Utc>>` to `tracked_tickers` if not already present. Decide: store separately from `in_play_until` or reuse the column? **Recommend separate** — different semantics, easier queries. Migration is additive (`ALTER TABLE`), log it in `schema-decisions.md`.
-- [ ] Create `src-tauri/src/services/tracker_state_machine.rs`:
+- [x] Add `cool_down_until: Option<DateTime<Utc>>` to `tracked_tickers` if not already present. Decide: store separately from `in_play_until` or reuse the column? **Recommend separate** — different semantics, easier queries. Migration is additive (`ALTER TABLE`), log it in `schema-decisions.md`.
+- [x] Create `src-tauri/src/services/tracker_state_machine.rs`:
   ```rust
   pub struct TrackerStateMachine { db, tracker }
   impl TrackerStateMachine {
@@ -54,16 +54,16 @@ in_play    ──[TTL expires]────────────────�
       pub async fn active_in_play_symbols(&self) -> Result<Vec<String>>;
   }
   ```
-- [ ] Use `utils::market_calendar` to compute "N trading days from X" (helper: `trading_days_after(date, n)`).
-- [ ] Wire `TrackerStateMachine` into `IbkrState`.
-- [ ] Update `TrackerRunner` (Phase 10) to call `state_machine.on_setup_detected(symbol, setup.id)` after persisting.
-- [ ] Update `TrackerService::add` (when source is `Scanner`) — actually no, keep `add` and state-machine separate. Phase 05's "Add to tracker" UI should call `tracker_add` followed by `tracker_record_scanner_hit` (new command) when source is scanner. Or: have the Phase 05 UI call a higher-level `tracker_add_with_state(...)` command that does both atomically. **Recommend the latter** — more ergonomic. Add a new command `tracker_add` (returns now invokes the state machine if source=scanner).
+- [x] Use `utils::market_calendar` to compute "N trading days from X" (helper: `trading_days_after(date, n)`).
+- [x] Wire `TrackerStateMachine` into `IbkrState`.
+- [x] Update `TrackerRunner` (Phase 10) to call `state_machine.on_setup_detected(symbol, setup.id)` after persisting.
+- [x] Update `TrackerService::add` (when source is `Scanner`) — actually no, keep `add` and state-machine separate. Phase 05's "Add to tracker" UI should call `tracker_add` followed by `tracker_record_scanner_hit` (new command) when source is scanner. Or: have the Phase 05 UI call a higher-level `tracker_add_with_state(...)` command that does both atomically. **Recommend the latter** — more ergonomic. Add a new command `tracker_add` (returns now invokes the state machine if source=scanner).
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml services::tracker_state_machine` — green.
-- [ ] Manual: in DB, set a row's `in_play_until` to past; call `expire_ttls`; verify status flips back.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml services::tracker_state_machine` — green.
+- [x] Manual: in DB, set a row's `in_play_until` to past; call `expire_ttls`; verify status flips back.
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 

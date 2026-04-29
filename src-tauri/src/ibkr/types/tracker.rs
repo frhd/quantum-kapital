@@ -118,6 +118,7 @@ pub struct TrackedTicker {
     pub added_at: DateTime<Utc>,
     pub last_checked_at: Option<DateTime<Utc>>,
     pub in_play_until: Option<DateTime<Utc>>,
+    pub cool_down_until: Option<DateTime<Utc>>,
 }
 
 /// Lifecycle of a persisted strategy setup. Phase 10 only writes
@@ -133,9 +134,6 @@ pub enum SetupStatus {
 }
 
 impl SetupStatus {
-    /// Stable wire form. Phase 12 (status state machine) will start
-    /// emitting `Invalidated` / `Completed`; Phase 10 only stores
-    /// `Active`, hence the `dead_code` allow.
     #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {

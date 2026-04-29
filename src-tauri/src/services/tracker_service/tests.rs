@@ -97,10 +97,10 @@ async fn list_filters_by_status() {
         .await
         .unwrap();
 
-    svc.set_status("MSFT", TrackerStatus::InPlay, None)
+    svc.set_status("MSFT", TrackerStatus::InPlay, None, None)
         .await
         .unwrap();
-    svc.set_status("NVDA", TrackerStatus::SetupActive, None)
+    svc.set_status("NVDA", TrackerStatus::SetupActive, None, None)
         .await
         .unwrap();
 
@@ -168,7 +168,7 @@ async fn set_status_updates_status_and_in_play_until() {
 
     let until = Utc::now() + ChronoDuration::days(3);
     let updated = svc
-        .set_status("AAPL", TrackerStatus::InPlay, Some(until))
+        .set_status("AAPL", TrackerStatus::InPlay, Some(until), None)
         .await
         .unwrap();
     assert_eq!(updated.status, TrackerStatus::InPlay);

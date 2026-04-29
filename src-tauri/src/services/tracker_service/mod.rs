@@ -66,6 +66,7 @@ impl TrackerService {
             added_at,
             last_checked_at: None,
             in_play_until: None,
+            cool_down_until: None,
         };
 
         let source_str = source.as_str().to_string();
@@ -82,8 +83,8 @@ impl TrackerService {
             .with_conn(move |conn| {
                 let result = conn.execute(
                     "INSERT INTO tracked_tickers \
-                     (symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until) \
-                     VALUES (?1, ?2, ?3, 'watching', ?4, ?5, ?6, NULL, NULL)",
+                     (symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until) \
+                     VALUES (?1, ?2, ?3, 'watching', ?4, ?5, ?6, NULL, NULL, NULL)",
                     rusqlite::params![
                         symbol_for_db,
                         source_str,
@@ -137,7 +138,7 @@ impl TrackerService {
                 let iter = match &filter {
                     Some(s) => {
                         stmt = conn.prepare(
-                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until \
+                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until \
                              FROM tracked_tickers WHERE status = ?1 ORDER BY added_at DESC",
                         )?;
                         stmt.query_map(rusqlite::params![s], row_to_raw)?
@@ -145,7 +146,7 @@ impl TrackerService {
                     }
                     None => {
                         stmt = conn.prepare(
-                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until \
+                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until \
                              FROM tracked_tickers ORDER BY added_at DESC",
                         )?;
                         stmt.query_map([], row_to_raw)?
@@ -165,7 +166,7 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 conn.query_row(
-                    "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until \
+                    "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until \
                      FROM tracked_tickers WHERE symbol = ?1",
                     rusqlite::params![symbol],
                     row_to_raw,
@@ -208,17 +209,19 @@ impl TrackerService {
         symbol: &str,
         status: TrackerStatus,
         in_play_until: Option<DateTime<Utc>>,
+        cool_down_until: Option<DateTime<Utc>>,
     ) -> Result<TrackedTicker> {
         let symbol_norm = symbol.to_uppercase();
         let status_str = status.as_str().to_string();
         let in_play_unix = in_play_until.map(|d| d.timestamp());
+        let cool_down_unix = cool_down_until.map(|d| d.timestamp());
         let symbol_for_db = symbol_norm.clone();
         let updated = self
             .db
             .with_conn(move |conn| {
                 let n = conn.execute(
-                    "UPDATE tracked_tickers SET status = ?1, in_play_until = ?2 WHERE symbol = ?3",
-                    rusqlite::params![status_str, in_play_unix, symbol_for_db],
+                    "UPDATE tracked_tickers SET status = ?1, in_play_until = ?2, cool_down_until = ?3 WHERE symbol = ?4",
+                    rusqlite::params![status_str, in_play_unix, cool_down_unix, symbol_for_db],
                 )?;
                 Ok(n)
             })
@@ -229,6 +232,59 @@ impl TrackerService {
         self.get(&symbol_norm)
             .await?
             .ok_or(TrackerError::NotFound(symbol_norm))
+    }
+
+    /// Count `Active` setups for `symbol`. Used by the state machine to
+    /// decide whether invalidating one setup should flip the ticker to
+    /// `CoolDown` (only when no other active setups remain).
+    #[allow(dead_code)]
+    pub async fn count_active_setups(&self, symbol: &str) -> Result<usize> {
+        let symbol = symbol.to_uppercase();
+        let count = self
+            .db
+            .with_conn(move |conn| {
+                let n: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM setups WHERE symbol = ?1 AND status = 'active'",
+                    rusqlite::params![symbol],
+                    |row| row.get(0),
+                )?;
+                Ok(n)
+            })
+            .await?;
+        Ok(count.max(0) as usize)
+    }
+
+    /// Update a `setups` row's lifecycle status. When transitioning to
+    /// `Invalidated`, callers pass the reason and the timestamp; for
+    /// `Completed`, only the timestamp. Returns the persisted row, or
+    /// `NotFound` if the id doesn't exist.
+    #[allow(dead_code)]
+    pub async fn update_setup_status(
+        &self,
+        id: i64,
+        status: SetupStatus,
+        reason: Option<String>,
+        invalidated_at: Option<DateTime<Utc>>,
+    ) -> Result<Setup> {
+        let status_str = status.as_str().to_string();
+        let reason_for_db = reason.clone();
+        let invalidated_unix = invalidated_at.map(|d| d.timestamp());
+        let updated = self
+            .db
+            .with_conn(move |conn| {
+                let n = conn.execute(
+                    "UPDATE setups SET status = ?1, invalidation_reason = ?2, invalidated_at = ?3 WHERE id = ?4",
+                    rusqlite::params![status_str, reason_for_db, invalidated_unix, id],
+                )?;
+                Ok(n)
+            })
+            .await?;
+        if updated == 0 {
+            return Err(TrackerError::NotFound(format!("setup#{id}")));
+        }
+        self.get_setup(id)
+            .await?
+            .ok_or_else(|| TrackerError::NotFound(format!("setup#{id}")))
     }
 
     /// Stamp `last_checked_at = now`. Phase 13/14 schedulers will call
@@ -371,9 +427,6 @@ impl TrackerService {
         raws.into_iter().map(decode_setup_raw).collect()
     }
 
-    /// Phase 10 surfaces this through the unit test that round-trips
-    /// `insert_setup`; Phase 17 (LLM thesis) will be the first runtime
-    /// caller, so the `dead_code` allow is intentional here.
     #[allow(dead_code)]
     pub async fn get_setup(&self, id: i64) -> Result<Option<Setup>> {
         let raw = self
@@ -448,6 +501,7 @@ type RawRow = (
     i64,            // added_at unix
     Option<i64>,    // last_checked_at unix
     Option<i64>,    // in_play_until unix
+    Option<i64>,    // cool_down_until unix
 );
 
 fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -461,12 +515,23 @@ fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         row.get(6)?,
         row.get(7)?,
         row.get(8)?,
+        row.get(9)?,
     ))
 }
 
 fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
-    let (symbol, source_s, source_meta_s, status_s, tags_s, notes, added_at, last_checked, in_play) =
-        r;
+    let (
+        symbol,
+        source_s,
+        source_meta_s,
+        status_s,
+        tags_s,
+        notes,
+        added_at,
+        last_checked,
+        in_play,
+        cool_down,
+    ) = r;
     let source = TrackerSource::parse(&source_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
             "unknown tracker source '{source_s}' for {symbol}"
@@ -492,6 +557,7 @@ fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
         added_at: unix_to_utc(added_at),
         last_checked_at: last_checked.map(unix_to_utc),
         in_play_until: in_play.map(unix_to_utc),
+        cool_down_until: cool_down.map(unix_to_utc),
     })
 }
 

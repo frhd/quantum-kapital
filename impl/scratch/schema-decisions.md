@@ -9,6 +9,15 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 12 — Tracker status state machine
+
+**Change:** Added `tracked_tickers.cool_down_until INTEGER` (nullable). Stored separately from `in_play_until` rather than reusing the column — different semantics (cool-down rules out re-entry, in-play accelerates intraday checks) and easier queries (`expire_ttls` checks both with a single `OR` filter).
+**Why separate column:** A single `ttl_until` would force every read to also know which state we're in to interpret it; with two columns the SQL is self-describing and the state machine's reset path can `SET in_play_until = NULL, cool_down_until = NULL` unconditionally.
+**Migration impact:** additive. `schema.sql` updated for fresh DBs; `migrations.rs` runs an idempotent `add_column_if_missing` (inspects `PRAGMA table_info`) so existing `tracker.sqlite` files pick up the column on next launch.
+**Cross-references:** `src-tauri/src/storage/schema.sql`, `src-tauri/src/storage/migrations.rs`, `src-tauri/src/services/tracker_state_machine/{mod,tests}.rs` (12 tests, all green).
+
+---
+
 ### 2026-04-29 — Phase 02 — Historical bars service landed
 
 **Change:** `bars_cache` writes/reads now go through `services::historical_data_service::HistoricalDataService`. No schema changes — composite PK `(symbol, bar_size, bar_time)` proved sufficient. Service uses `INSERT OR REPLACE` for idempotent writes.

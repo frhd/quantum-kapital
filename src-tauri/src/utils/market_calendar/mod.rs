@@ -102,3 +102,27 @@ pub fn next_close_at(now: DateTime<Utc>) -> DateTime<Utc> {
 pub fn eod_sweep_target(date: NaiveDate) -> DateTime<Utc> {
     et_local_to_utc(date, EOD_SWEEP.0, EOD_SWEEP.1)
 }
+
+/// Walk forward `n` business days from `date` (skipping weekends + holidays)
+/// and return the resulting `NaiveDate`. `n = 0` returns `date` unchanged.
+pub fn trading_days_after(date: NaiveDate, n: u32) -> NaiveDate {
+    let mut d = date;
+    let mut remaining = n;
+    while remaining > 0 {
+        d = d.succ_opt().expect("date arithmetic does not overflow");
+        if is_business_day(d) {
+            remaining -= 1;
+        }
+    }
+    d
+}
+
+/// Convenience wrapper used by the tracker state machine — anchored to
+/// the *current* `now`'s ET date, advance `n` trading days, and return
+/// the 16:00 ET RTH close as a UTC `DateTime`. This is what `in_play_until`
+/// and `cool_down_until` get stamped to.
+pub fn trading_days_after_close(now: DateTime<Utc>, n: u32) -> DateTime<Utc> {
+    let today_et = now.with_timezone(&et_offset()).date_naive();
+    let target = trading_days_after(today_et, n);
+    et_local_to_utc(target, RTH_CLOSE.0, RTH_CLOSE.1)
+}

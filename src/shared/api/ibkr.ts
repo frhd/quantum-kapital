@@ -119,11 +119,17 @@ export const ibkrApi = {
       return invoke<TrackedTicker>("tracker_set_tags", { symbol, tags })
     },
 
-    setStatus: async (symbol: string, status: TrackerStatus, inPlayUntil?: string | null) => {
+    setStatus: async (
+      symbol: string,
+      status: TrackerStatus,
+      inPlayUntil?: string | null,
+      coolDownUntil?: string | null,
+    ) => {
       return invoke<TrackedTicker>("tracker_set_status", {
         symbol,
         status,
         inPlayUntil: inPlayUntil ?? null,
+        coolDownUntil: coolDownUntil ?? null,
       })
     },
 

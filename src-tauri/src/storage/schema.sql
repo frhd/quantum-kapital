@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS tracked_tickers (
     notes          TEXT,
     added_at       INTEGER NOT NULL,
     last_checked_at INTEGER,
-    in_play_until  INTEGER
+    in_play_until  INTEGER,
+    cool_down_until INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS setups (

@@ -126,3 +126,43 @@ fn eod_sweep_target_is_1605_et() {
     let expected = et_dt(TUE_2026_04_28, 16, 5);
     assert_eq!(target, expected);
 }
+
+#[test]
+fn trading_days_after_zero_is_identity() {
+    assert_eq!(trading_days_after(MON_2026_04_27, 0), MON_2026_04_27);
+}
+
+#[test]
+fn trading_days_after_one_business_day() {
+    // Mon → Tue
+    assert_eq!(trading_days_after(MON_2026_04_27, 1), TUE_2026_04_28);
+}
+
+#[test]
+fn trading_days_after_skips_weekend() {
+    // Fri 2026-05-01 + 1 trading day → Mon 2026-05-04
+    assert_eq!(trading_days_after(FRI_2026_05_01, 1), MON_2026_05_04);
+}
+
+#[test]
+fn trading_days_after_three_from_friday_lands_on_wednesday() {
+    // Fri 2026-05-01 + 3 trading days → Wed 2026-05-06 (Mon, Tue, Wed).
+    let expected = NaiveDate::from_ymd_opt(2026, 5, 6).unwrap();
+    assert_eq!(trading_days_after(FRI_2026_05_01, 3), expected);
+}
+
+#[test]
+fn trading_days_after_skips_holiday() {
+    // Thu 2026-07-02 + 1 trading day skips Fri 2026-07-03 (Independence Day
+    // observed) and the weekend → Mon 2026-07-06.
+    assert_eq!(trading_days_after(THU_2026_07_02, 1), MON_2026_07_06);
+}
+
+#[test]
+fn trading_days_after_close_returns_1600_et_on_target_date() {
+    // Anchor at Fri 2026-05-01 10:00 ET; +3 trading days → Wed 2026-05-06
+    // 16:00 ET as UTC.
+    let now = et_dt(FRI_2026_05_01, 10, 0);
+    let expected = et_dt(NaiveDate::from_ymd_opt(2026, 5, 6).unwrap(), 16, 0);
+    assert_eq!(trading_days_after_close(now, 3), expected);
+}

@@ -86,6 +86,7 @@ pub fn run() {
             let tracker_runner = Arc::new(TrackerRunner::new(
                 Arc::clone(&db),
                 Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&ibkr_state.state_machine),
                 bars,
                 news,
                 Arc::new(default_registry()),
