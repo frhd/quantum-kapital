@@ -332,7 +332,7 @@ run_once() {
         # Tool start - show with tree branch and iteration prefix (special icon for Task/subagent)
         elif ($line.type=="stream_event" and $line.event.type=="content_block_start" and $line.event.content_block.type=="tool_use") then
           $line.event.content_block.name as $name |
-          (now | strftime("%H:%M:%S")) as $ts |
+          (now | strflocaltime("%H:%M:%S")) as $ts |
           if $name == "Task" then
             .output = "\n\u001b[36m├─ [\($ts)] 🤖 Agent spawning...\u001b[0m"
           else
@@ -342,7 +342,7 @@ run_once() {
         # Subagent (Task) result - show summary with model from tracked map
         elif ($line.type=="user" and $line.tool_use_result.agentId?) then
           $line.tool_use_result as $r |
-          (now | strftime("%H:%M:%S")) as $ts |
+          (now | strflocaltime("%H:%M:%S")) as $ts |
           (($r.totalDurationMs // 0) / 1000) as $secs |
           (($r.totalTokens // 0) / 1000) as $tok_k |
           ($r.totalToolUseCount // 0) as $tools |
@@ -370,7 +370,7 @@ run_once() {
 
         # New text block - add speech bubble with timestamp
         elif ($line.type=="stream_event" and $line.event.type=="content_block_start" and $line.event.content_block.type=="text") then
-          (now | strftime("%H:%M:%S")) as $ts |
+          (now | strflocaltime("%H:%M:%S")) as $ts |
           .output = "\n\u001b[90m[\($ts)]\u001b[0m 💬 "
 
         # Skip all other event types

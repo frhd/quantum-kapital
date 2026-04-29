@@ -39,14 +39,20 @@ Use this when:
 
 | Parameter | Initial value | Source / rationale | Notes |
 |---|---|---|---|
-| Consecutive up days | ≥ 3 | "Parabolic" minimum sequence | _to fill_ |
-| Per-day move floor | ≥ 5% | Filters out grinders | _to fill_ |
-| Cumulative 5-day move | ≥ 40% | "Blow-off" threshold | _to fill_ |
-| Distance above 20MA | ≥ 2× 20-day ATR | Stretched-rubber-band confirmation | _to fill_ |
-| RSI(14) floor | ≥ 80 | Overbought confirmation | _to fill_ |
-| Trigger | first red 15-min bar after sequence | Avoid catching falling knife pre-rollover | _to fill_ |
-| Stop | day's high | Tight short stop | _to fill_ |
-| Direction | Short-only | _to fill_ |
+| Consecutive up days | ≥ 3, strict-greater (`close[i] > close[i-1]`); equal closes break the streak | "Parabolic" minimum sequence; strict-greater keeps flat-baseline fixtures clean | Implemented Phase 09 |
+| Per-day move floor | min `(close[i] − close[i-1]) / close[i-1] ≥ 5%` across the streak | Filters out single-day grinders embedded in a larger move | _to fill_ |
+| Cumulative move | `(today.close − prior_close) / prior_close ≥ 40%`, where `prior_close` = bar just before the streak | "Blow-off" threshold; measured from streak entry, not a fixed 5-day window | _to fill_ |
+| MA period | 20 (simple mean of last 20 closes) | Standard 1-month MA | _to fill_ |
+| ATR period | 20, Wilder smoothing seeded with SMA of first 20 TRs | Match MA window so distance is in self-consistent units | _to fill_ |
+| Distance above MA | `(close − ma_20) / atr_20 ≥ 2.0` | Stretched-rubber-band confirmation; rejects names that are up 40%+ but inside their own volatility cone | _to fill_ |
+| RSI(14) floor | `≥ 80` (Wilder smoothing) | Overbought confirmation; flat-input convention `RSI = 50` cannot accidentally trigger | _to fill_ |
+| Trigger | close of first 15-min intraday bar where `close < open` | Avoid catching falling knife pre-rollover; demands actual rejection candle | _to fill_ |
+| Stop | `max(high)` of today's intraday bars so far (session high) | Tight short stop; invalidates if price reclaims the session top | _to fill_ |
+| Targets | 2R / 3R below trigger via `targets_for_risk_profile(Short, …)` | Risk profile (disciplined swing) | _to fill_ |
+| Direction | Short-only | Bear-side counterpart to long breakouts | _to fill_ |
+| `min_lookback_days` | 25 (recommended fetch window); internal gate is 21 (ATR(20) needs 21 bars) | Mirror episodic_pivot's split between scheduler-hint and strict-required | _to fill_ |
+| Conviction signal | `0.3·norm(consec, 3..6) + 0.3·norm(cumul, 0.40..0.80) + 0.2·norm(atr_dist, 2..4) + 0.2·norm(rsi, 80..95)`, clamped `[0,1]` | Equal weight on persistence + extension; lighter weight on overextension to avoid double-counting RSI/ATR distance | Tweak weights if backtest skews toward shallow setups |
+| Degenerate-input guards | `Ok(None)` when `prior_close ≤ 0`, `atr_20 == 0`, or `stop_price ≤ trigger_price` | Prevents divide-by-zero and zero-risk candidates | Mirrors breakout detector pattern |
 
 ---
 

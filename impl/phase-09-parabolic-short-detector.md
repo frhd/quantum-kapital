@@ -6,9 +6,9 @@ A working `ParabolicShortDetector` that identifies blow-off-top names ready to f
 
 ## Depends on
 
-- [ ] Phase 06 — detector framework.
-- [ ] Phase 02 — intraday bars fetchable.
-- [ ] Phase 07 — indicators module (`atr`, `rsi`).
+- [x] Phase 06 — detector framework.
+- [x] Phase 02 — intraday bars fetchable.
+- [x] Phase 07 — indicators module (`atr`, `rsi`).
 
 ## Out of scope
 
@@ -19,22 +19,22 @@ A working `ParabolicShortDetector` that identifies blow-off-top names ready to f
 
 `src-tauri/src/strategies/parabolic_short/tests.rs`.
 
-- [ ] `fires_on_classic_blow_off_with_first_red_15m` — daily bars: 4 consecutive up days at +6%, +8%, +5%, +12% with cumulative move > 40%; price ≥ 2× 20d ATR above 20d MA; RSI(14) = 84; intraday: first red 15-min bar after the open → `Some` with `direction = Short`.
-- [ ] `does_not_fire_without_first_red_bar` — same daily setup but no intraday red bar yet → `None` (waiting for trigger).
-- [ ] `does_not_fire_below_consec_minimum` — only 2 consecutive up days → `None`.
-- [ ] `does_not_fire_below_per_day_minimum` — 4 days but one is +3% (below 5% floor) → `None`.
-- [ ] `does_not_fire_below_cumulative_move` — 5 consecutive up days but total only +18% (below 40%) → `None`.
-- [ ] `does_not_fire_when_not_extended_above_ma` — price within 1×ATR of 20d MA despite consecutive ups → `None`.
-- [ ] `does_not_fire_with_low_rsi` — sequence qualifies but RSI(14) = 65 → `None`.
-- [ ] `stop_is_session_high` — short stop equals max(high) of today's intraday bars.
-- [ ] `raw_signals_includes_consec_days_cumulative_move_atr_distance_rsi` — JSON has those keys.
-- [ ] `targets_are_2r_3r_below_trigger_for_short` — given trigger=100, stop=104 → `2R = 92`, `3R = 88`.
-- [ ] `requires_intraday_bars` — `intraday_bars = None` → `Err(DetectorError::IntradayBarsRequired)`.
+- [x] `fires_on_classic_blow_off_with_first_red_15m` — daily bars: 4 consecutive up days at +6%, +8%, +5%, +12% with cumulative move > 40%; price ≥ 2× 20d ATR above 20d MA; RSI(14) = 84; intraday: first red 15-min bar after the open → `Some` with `direction = Short`.
+- [x] `does_not_fire_without_first_red_bar` — same daily setup but no intraday red bar yet → `None` (waiting for trigger).
+- [x] `does_not_fire_below_consec_minimum` — only 2 consecutive up days → `None`.
+- [x] `does_not_fire_below_per_day_minimum` — 4 days but one is +3% (below 5% floor) → `None`.
+- [x] `does_not_fire_below_cumulative_move` — 5 consecutive up days but total only +18% (below 40%) → `None`.
+- [x] `does_not_fire_when_not_extended_above_ma` — price within 1×ATR of 20d MA despite consecutive ups → `None`.
+- [x] `does_not_fire_with_low_rsi` — sequence qualifies but RSI(14) = 65 → `None`.
+- [x] `stop_is_session_high` — short stop equals max(high) of today's intraday bars.
+- [x] `raw_signals_includes_consec_days_cumulative_move_atr_distance_rsi` — JSON has those keys.
+- [x] `targets_are_2r_3r_below_trigger_for_short` — given trigger=100, stop=104 → `2R = 92`, `3R = 88`.
+- [x] `requires_intraday_bars` — `intraday_bars = None` → `Err(DetectorError::IntradayBarsRequired)`.
 
 ## Implementation tasks
 
-- [ ] Create `src-tauri/src/strategies/parabolic_short/mod.rs` exposing `ParabolicShortDetector`.
-- [ ] Create `src-tauri/src/strategies/parabolic_short/detector.rs`:
+- [x] Create `src-tauri/src/strategies/parabolic_short/mod.rs` exposing `ParabolicShortDetector`.
+- [x] Create `src-tauri/src/strategies/parabolic_short/detector.rs`:
   - `name() = "parabolic_short"`, `tag() = StrategyTag::ParabolicShort`, `timeframe() = BarSize::Min15`, `min_lookback_days() = 25`.
   - `evaluate`:
     1. Require ≥ 25 daily bars + intraday bars.
@@ -46,13 +46,13 @@ A working `ParabolicShortDetector` that identifies blow-off-top names ready to f
     7. `trigger_price = close` of that red bar (or current close if past the red bar).
     8. `stop_price = max(high)` of today's intraday bars so far.
     9. Targets via `targets_for_risk_profile(Short, trigger, stop)`.
-- [ ] `conviction_signal = 0.3 * normalize(consec_days, 3..6) + 0.3 * normalize(cumulative_move, 0.4..0.8) + 0.2 * normalize(distance_above_ma, 2..4) + 0.2 * normalize(rsi_14, 80..95)`.
-- [ ] Register in `DetectorRegistry::default()`.
+- [x] `conviction_signal = 0.3 * normalize(consec_days, 3..6) + 0.3 * normalize(cumulative_move, 0.4..0.8) + 0.2 * normalize(distance_above_ma, 2..4) + 0.2 * normalize(rsi_14, 80..95)`.
+- [x] Register in `DetectorRegistry::default()`.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml strategies::parabolic_short` — all green.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml strategies::parabolic_short` — all green.
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 
