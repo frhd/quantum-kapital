@@ -116,6 +116,13 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - PRAGMAs (`journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`) applied per pooled connection via `SqliteConnectionManager::with_init`
     - DB lives at `app_local_data_dir()/tracker.sqlite`; `Arc<Db>` is both `app.manage`d in `lib.rs::run` and held on `IbkrState` (Phase 04 wired `IbkrState::db` + `IbkrState::tracker: Arc<TrackerService>`)
     - `bars_cache` (Phase 02) is read/written exclusively through `HistoricalDataService` — composite PK `(symbol, bar_size, bar_time)` is the only index; writes use `INSERT OR REPLACE` for idempotency
+  - `strategies/`: Strategy detector framework (added Phase 06). Pure types + trait + registry — concrete detectors land in Phases 07–09.
+    - `trait_def.rs`: `StrategyDetector` async trait (`Send + Sync`) with `name`, `tag`, `timeframe`, `min_lookback_days`, `evaluate(&MarketContext) -> Result<Option<SetupCandidate>, DetectorError>`. `DetectorError` (thiserror): `InsufficientBars { needed, available }`, `InvalidInput`, `Internal`.
+    - `context.rs`: `MarketContext<'a>` envelope holding `&[HistoricalBar]` (daily + optional intraday), `Option<&FundamentalData>`, `&[NewsItem]`, `Option<&MarketDataSnapshot>`, `now: DateTime<Utc>`. Borrows everything — caller owns the data.
+    - `candidate.rs`: `SetupCandidate`, `Direction { Long, Short }` (snake_case serde), `TargetLevel { label, price }`, and `targets_for_risk_profile(direction, trigger, stop) -> Result<Vec<TargetLevel>, &'static str>` helper that emits 2R/3R targets (errors on `trigger == stop`).
+    - `registry.rs`: `DetectorRegistry` stores `Vec<Arc<dyn StrategyDetector>>`. `evaluate_all(ctx)` and `evaluate_for_tags(ctx, &[StrategyTag])` run detectors sequentially in registration order, returning `Vec<DetectorOutcome>` (each holds detector name + `Result`) — errors are collected, never short-circuit. Phase 10 will instantiate and register concrete detectors.
+    - `tests.rs`: 5 unit tests covering registry ordering, tag filtering, error collection, and target math.
+    - Module-level `#![allow(dead_code, unused_imports)]` is intentional: the framework's public surface is consumed by Phase 07+ detectors and Phase 13/14 schedulers.
   - `utils/`: Shared utilities
 - **Entry Points**:
   - `main.rs`: Application entry

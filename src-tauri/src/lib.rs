@@ -4,6 +4,7 @@ mod ibkr;
 mod middleware;
 mod services;
 mod storage;
+mod strategies;
 mod utils;
 
 use std::sync::Arc;

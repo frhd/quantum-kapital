@@ -6,9 +6,9 @@ Land the abstract types — `StrategyDetector` trait, `MarketContext`, `SetupCan
 
 ## Depends on
 
-- [ ] Phase 02 — `HistoricalBar` is fetchable.
-- [ ] Phase 03 — `NewsItem` exists.
-- [ ] Phase 04 — `TrackedTicker`, `StrategyTag` exist.
+- [x] Phase 02 — `HistoricalBar` is fetchable.
+- [x] Phase 03 — `NewsItem` exists.
+- [x] Phase 04 — `TrackedTicker`, `StrategyTag` exist.
 
 ## Out of scope
 
@@ -19,22 +19,22 @@ Land the abstract types — `StrategyDetector` trait, `MarketContext`, `SetupCan
 
 `src-tauri/src/strategies/tests.rs`. The framework itself is mostly types, but the registry has behavior worth testing:
 
-- [ ] `registry_evaluate_all_runs_each_detector_once` — register 3 mock detectors; `evaluate_all(&ctx)` returns 3 results in deterministic order.
-- [ ] `registry_evaluate_filters_by_tag` — `evaluate_for_tags(&ctx, &[StrategyTag::Breakout])` only invokes the breakout detector.
-- [ ] `registry_collects_errors_without_short_circuiting` — one mock returns `Err(...)`; the others still run; aggregate is `Vec<Result<...>>`.
-- [ ] `setup_candidate_targets_at_2r_3r_match_risk_profile` — given trigger=100, stop=98, helper `targets_for_risk_profile(direction, trigger, stop)` returns `[2R=104, 3R=106]` for long; mirror for short.
-- [ ] `targets_helper_handles_zero_risk_distance` — degenerate case (trigger == stop) returns `Err(...)` rather than `inf`.
+- [x] `registry_evaluate_all_runs_each_detector_once` — register 3 mock detectors; `evaluate_all(&ctx)` returns 3 results in deterministic order.
+- [x] `registry_evaluate_filters_by_tag` — `evaluate_for_tags(&ctx, &[StrategyTag::Breakout])` only invokes the breakout detector.
+- [x] `registry_collects_errors_without_short_circuiting` — one mock returns `Err(...)`; the others still run; aggregate is `Vec<Result<...>>`.
+- [x] `setup_candidate_targets_at_2r_3r_match_risk_profile` — given trigger=100, stop=98, helper `targets_for_risk_profile(direction, trigger, stop)` returns `[2R=104, 3R=106]` for long; mirror for short.
+- [x] `targets_helper_handles_zero_risk_distance` — degenerate case (trigger == stop) returns `Err(...)` rather than `inf`.
 
 ## Implementation tasks
 
-- [ ] Create `src-tauri/src/strategies/mod.rs`:
+- [x] Create `src-tauri/src/strategies/mod.rs`:
   ```rust
   pub use trait_def::{StrategyDetector, DetectorError};
   pub use context::MarketContext;
   pub use candidate::{SetupCandidate, Direction, TargetLevel};
   pub use registry::DetectorRegistry;
   ```
-- [ ] `src-tauri/src/strategies/trait_def.rs`:
+- [x] `src-tauri/src/strategies/trait_def.rs`:
   ```rust
   #[async_trait]
   pub trait StrategyDetector: Send + Sync {
@@ -46,7 +46,7 @@ Land the abstract types — `StrategyDetector` trait, `MarketContext`, `SetupCan
           -> Result<Option<SetupCandidate>, DetectorError>;
   }
   ```
-- [ ] `src-tauri/src/strategies/context.rs`:
+- [x] `src-tauri/src/strategies/context.rs`:
   ```rust
   pub struct MarketContext<'a> {
       pub symbol: &'a str,
@@ -58,7 +58,7 @@ Land the abstract types — `StrategyDetector` trait, `MarketContext`, `SetupCan
       pub now: DateTime<Utc>,
   }
   ```
-- [ ] `src-tauri/src/strategies/candidate.rs`:
+- [x] `src-tauri/src/strategies/candidate.rs`:
   ```rust
   pub enum Direction { Long, Short }
   pub struct TargetLevel { pub label: String, pub price: f64 }
@@ -78,7 +78,7 @@ Land the abstract types — `StrategyDetector` trait, `MarketContext`, `SetupCan
       direction: Direction, trigger: f64, stop: f64,
   ) -> Result<Vec<TargetLevel>, &'static str> { /* 2R, 3R */ }
   ```
-- [ ] `src-tauri/src/strategies/registry.rs`:
+- [x] `src-tauri/src/strategies/registry.rs`:
   ```rust
   pub struct DetectorRegistry { detectors: Vec<Arc<dyn StrategyDetector>> }
   impl DetectorRegistry {
@@ -92,14 +92,14 @@ Land the abstract types — `StrategyDetector` trait, `MarketContext`, `SetupCan
       pub result: Result<Option<SetupCandidate>, DetectorError>,
   }
   ```
-- [ ] Add `mod strategies;` to `src-tauri/src/lib.rs`.
-- [ ] Optionally expose `DetectorRegistry` on `IbkrState` (skip if unused this phase; Phase 10 will wire it).
+- [x] Add `mod strategies;` to `src-tauri/src/lib.rs`.
+- [x] Optionally expose `DetectorRegistry` on `IbkrState` (skip if unused this phase; Phase 10 will wire it). _Skipped — deferred to Phase 10._
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml strategies::` — green.
-- [ ] `cargo clippy ... -D warnings` — no warnings on the new module (the trait must be `Send + Sync` for use across threads — confirm this compiles when stored in `Arc<dyn StrategyDetector>`).
-- [ ] `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml strategies::` — green.
+- [x] `cargo clippy ... -D warnings` — no warnings on the new module (the trait must be `Send + Sync` for use across threads — confirm this compiles when stored in `Arc<dyn StrategyDetector>`).
+- [x] `cargo fmt --check`.
 
 ## Files
 
