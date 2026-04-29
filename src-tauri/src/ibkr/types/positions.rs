@@ -31,7 +31,7 @@ pub struct ContractDetails {
     pub price_magnifier: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SecurityType {
     Stock,
     Option,

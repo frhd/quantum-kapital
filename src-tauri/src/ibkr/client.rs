@@ -16,30 +16,17 @@ use crate::ibkr::types::{
     OrderAction, OrderRequest, OrderType, Position, ScannerData, ScannerSubscription, SecurityType,
 };
 
-pub struct DailyPnLHandle {
+pub struct StreamHandle {
+    name: &'static str,
     shutdown: Arc<AtomicBool>,
     join: JoinHandle<()>,
 }
 
-impl DailyPnLHandle {
+impl StreamHandle {
     pub async fn stop(self) {
         self.shutdown.store(true, Ordering::SeqCst);
         if let Err(e) = self.join.await {
-            warn!("Daily PnL task join error: {e}");
-        }
-    }
-}
-
-pub struct ScannerHandle {
-    shutdown: Arc<AtomicBool>,
-    join: JoinHandle<()>,
-}
-
-impl ScannerHandle {
-    pub async fn stop(self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-        if let Err(e) = self.join.await {
-            warn!("Scanner task join error: {e}");
+            warn!("{} task join error: {e}", self.name);
         }
     }
 }
@@ -438,7 +425,7 @@ impl IbkrClient {
         &self,
         account: &str,
         emitter: Arc<EventEmitter>,
-    ) -> Result<DailyPnLHandle> {
+    ) -> Result<StreamHandle> {
         let client_clone = {
             let client = self.client.read().await;
             let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
@@ -461,7 +448,7 @@ impl IbkrClient {
 
             info!("Daily PnL subscription started for {account}");
             while !shutdown_task.load(Ordering::Relaxed) {
-                if let Some(pnl) = subscription.next_timeout(Duration::from_millis(500)) {
+                if let Some(pnl) = subscription.next_timeout(Duration::from_secs(1)) {
                     let event = AppEvent::DailyPnLUpdate {
                         account: account.clone(),
                         daily_pnl: pnl.daily_pnl,
@@ -481,14 +468,18 @@ impl IbkrClient {
             info!("Daily PnL subscription stopped for {account}");
         });
 
-        Ok(DailyPnLHandle { shutdown, join })
+        Ok(StreamHandle {
+            name: "Daily PnL",
+            shutdown,
+            join,
+        })
     }
 
     pub async fn start_scanner_stream(
         &self,
         opts: ScannerSubscription,
         emitter: Arc<EventEmitter>,
-    ) -> Result<ScannerHandle> {
+    ) -> Result<StreamHandle> {
         let client_clone = {
             let client = self.client.read().await;
             let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
@@ -516,7 +507,7 @@ impl IbkrClient {
             info!("Scanner subscription started: scan_code={scan_code}, location={location_code}");
 
             while !shutdown_task.load(Ordering::Relaxed) {
-                if let Some(rows) = subscription.next_timeout(Duration::from_millis(500)) {
+                if let Some(rows) = subscription.next_timeout(Duration::from_secs(1)) {
                     let results: Vec<ScannerData> =
                         rows.iter().map(from_ibapi_scanner_data).collect();
                     let event = AppEvent::ScannerUpdate { results };
@@ -533,7 +524,11 @@ impl IbkrClient {
             info!("Scanner subscription stopped");
         });
 
-        Ok(ScannerHandle { shutdown, join })
+        Ok(StreamHandle {
+            name: "Scanner",
+            shutdown,
+            join,
+        })
     }
 
     pub async fn place_order(&self, order_request: OrderRequest) -> Result<i32> {

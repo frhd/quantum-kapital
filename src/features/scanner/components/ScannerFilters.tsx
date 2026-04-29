@@ -6,7 +6,7 @@ import { Label } from "../../../shared/components/ui/label"
 import { Search, Square } from "lucide-react"
 import type { ScannerSubscription } from "../../../shared/types"
 
-const SCAN_CODES: { value: string; label: string }[] = [
+const SCAN_CODES = [
   { value: "TOP_PERC_GAIN", label: "Top % Gainers" },
   { value: "TOP_PERC_LOSE", label: "Top % Losers" },
   { value: "MOST_ACTIVE", label: "Most Active" },
@@ -17,15 +17,18 @@ const SCAN_CODES: { value: string; label: string }[] = [
   { value: "LOW_OPT_IMP_VOLAT", label: "Low Implied Volatility" },
   { value: "TOP_OPEN_PERC_GAIN", label: "Top % Gain From Open" },
   { value: "HIGH_DIVIDEND_YIELD", label: "High Dividend Yield" },
-]
+] as const
 
-const LOCATION_CODES: { value: string; label: string }[] = [
+const LOCATION_CODES = [
   { value: "STK.US.MAJOR", label: "US Major Exchanges" },
   { value: "STK.US", label: "All US Stocks" },
   { value: "STK.NASDAQ", label: "NASDAQ" },
   { value: "STK.NYSE", label: "NYSE" },
   { value: "STK.HK", label: "Hong Kong" },
-]
+] as const
+
+type ScanCode = (typeof SCAN_CODES)[number]["value"]
+type LocationCode = (typeof LOCATION_CODES)[number]["value"]
 
 interface ScannerFiltersProps {
   isRunning: boolean
@@ -37,9 +40,9 @@ const selectClass =
   "h-9 w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 text-sm text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
 
 export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersProps) {
-  const [scanCode, setScanCode] = useState("TOP_PERC_GAIN")
-  const [locationCode, setLocationCode] = useState("STK.US.MAJOR")
-  const [numberOfRows, setNumberOfRows] = useState(25)
+  const [scanCode, setScanCode] = useState<ScanCode>("TOP_PERC_GAIN")
+  const [locationCode, setLocationCode] = useState<LocationCode>("STK.US.MAJOR")
+  const [numberOfRows, setNumberOfRows] = useState<string>("25")
   const [abovePrice, setAbovePrice] = useState<string>("")
   const [belowPrice, setBelowPrice] = useState<string>("")
   const [aboveVolume, setAboveVolume] = useState<string>("")
@@ -54,8 +57,9 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
   }
 
   const handleStart = () => {
+    const rows = parseInt(numberOfRows, 10)
     onStart({
-      number_of_rows: numberOfRows,
+      number_of_rows: Number.isFinite(rows) && rows > 0 ? Math.min(rows, 50) : 25,
       instrument: "STK",
       location_code: locationCode,
       scan_code: scanCode,
@@ -86,7 +90,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               id="scan-code"
               className={selectClass}
               value={scanCode}
-              onChange={(e) => setScanCode(e.target.value)}
+              onChange={(e) => setScanCode(e.target.value as ScanCode)}
               disabled={isRunning}
             >
               {SCAN_CODES.map((s) => (
@@ -100,7 +104,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               id="location-code"
               className={selectClass}
               value={locationCode}
-              onChange={(e) => setLocationCode(e.target.value)}
+              onChange={(e) => setLocationCode(e.target.value as LocationCode)}
               disabled={isRunning}
             >
               {LOCATION_CODES.map((l) => (
@@ -116,7 +120,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               min={1}
               max={50}
               value={numberOfRows}
-              onChange={(e) => setNumberOfRows(parseInt(e.target.value) || 25)}
+              onChange={(e) => setNumberOfRows(e.target.value)}
               disabled={isRunning}
             />
           </div>

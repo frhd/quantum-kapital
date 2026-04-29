@@ -82,6 +82,30 @@ pub enum AppEvent {
     },
 }
 
+impl AppEvent {
+    fn name(&self) -> &'static str {
+        match self {
+            AppEvent::ConnectionStatusChanged { .. } => "connection-status-changed",
+            AppEvent::ConnectionError { .. } => "connection-error",
+            AppEvent::AccountUpdate { .. } => "account-update",
+            AppEvent::AccountsListChanged { .. } => "accounts-list-changed",
+            AppEvent::DailyPnLUpdate { .. } => "daily-pnl-update",
+            AppEvent::MarketDataUpdate { .. } => "market-data-update",
+            AppEvent::MarketDataSubscribed { .. } => "market-data-subscribed",
+            AppEvent::MarketDataUnsubscribed { .. } => "market-data-unsubscribed",
+            AppEvent::OrderPlaced { .. } => "order-placed",
+            AppEvent::OrderFilled { .. } => "order-filled",
+            AppEvent::OrderCancelled { .. } => "order-cancelled",
+            AppEvent::OrderError { .. } => "order-error",
+            AppEvent::PositionUpdate { .. } => "position-update",
+            AppEvent::PositionsRefreshed => "positions-refreshed",
+            AppEvent::ScannerUpdate { .. } => "scanner-update",
+            AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
+            AppEvent::SystemError { .. } => "system-error",
+        }
+    }
+}
+
 pub struct EventEmitter {
     app_handle: Arc<RwLock<Option<AppHandle>>>,
 }
@@ -103,28 +127,8 @@ impl EventEmitter {
         let app_handle = self.app_handle.read().await;
 
         if let Some(handle) = app_handle.as_ref() {
-            let event_name = match &event {
-                AppEvent::ConnectionStatusChanged { .. } => "connection-status-changed",
-                AppEvent::ConnectionError { .. } => "connection-error",
-                AppEvent::AccountUpdate { .. } => "account-update",
-                AppEvent::AccountsListChanged { .. } => "accounts-list-changed",
-                AppEvent::DailyPnLUpdate { .. } => "daily-pnl-update",
-                AppEvent::MarketDataUpdate { .. } => "market-data-update",
-                AppEvent::MarketDataSubscribed { .. } => "market-data-subscribed",
-                AppEvent::MarketDataUnsubscribed { .. } => "market-data-unsubscribed",
-                AppEvent::OrderPlaced { .. } => "order-placed",
-                AppEvent::OrderFilled { .. } => "order-filled",
-                AppEvent::OrderCancelled { .. } => "order-cancelled",
-                AppEvent::OrderError { .. } => "order-error",
-                AppEvent::PositionUpdate { .. } => "position-update",
-                AppEvent::PositionsRefreshed => "positions-refreshed",
-                AppEvent::ScannerUpdate { .. } => "scanner-update",
-                AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
-                AppEvent::SystemError { .. } => "system-error",
-            };
-
             handle
-                .emit(event_name, &event)
+                .emit(event.name(), &event)
                 .map_err(|e| format!("Failed to emit event: {e}"))?;
 
             Ok(())
@@ -138,28 +142,8 @@ impl EventEmitter {
 
         if let Some(handle) = app_handle.as_ref() {
             if let Some(window) = handle.get_webview_window(window) {
-                let event_name = match &event {
-                    AppEvent::ConnectionStatusChanged { .. } => "connection-status-changed",
-                    AppEvent::ConnectionError { .. } => "connection-error",
-                    AppEvent::AccountUpdate { .. } => "account-update",
-                    AppEvent::AccountsListChanged { .. } => "accounts-list-changed",
-                    AppEvent::DailyPnLUpdate { .. } => "daily-pnl-update",
-                    AppEvent::MarketDataUpdate { .. } => "market-data-update",
-                    AppEvent::MarketDataSubscribed { .. } => "market-data-subscribed",
-                    AppEvent::MarketDataUnsubscribed { .. } => "market-data-unsubscribed",
-                    AppEvent::OrderPlaced { .. } => "order-placed",
-                    AppEvent::OrderFilled { .. } => "order-filled",
-                    AppEvent::OrderCancelled { .. } => "order-cancelled",
-                    AppEvent::OrderError { .. } => "order-error",
-                    AppEvent::PositionUpdate { .. } => "position-update",
-                    AppEvent::PositionsRefreshed => "positions-refreshed",
-                    AppEvent::ScannerUpdate { .. } => "scanner-update",
-                    AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
-                    AppEvent::SystemError { .. } => "system-error",
-                };
-
                 window
-                    .emit(event_name, &event)
+                    .emit(event.name(), &event)
                     .map_err(|e| format!("Failed to emit event to window: {e}"))?;
 
                 Ok(())

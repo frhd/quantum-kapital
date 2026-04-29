@@ -1,5 +1,5 @@
 use crate::events::{AppEvent, EventEmitter};
-use crate::ibkr::client::{DailyPnLHandle, IbkrClient, ScannerHandle};
+use crate::ibkr::client::{IbkrClient, StreamHandle};
 use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position, ScannerSubscription};
 use crate::middleware::RateLimiter;
 use std::collections::HashMap;
@@ -38,8 +38,8 @@ pub struct IbkrState {
     pub market_data_cache: Arc<RwLock<MarketDataCache>>,
     pub position_cache: Arc<RwLock<PositionCache>>,
     pub config: Arc<RwLock<ConnectionConfig>>,
-    pub daily_pnl_handle: Arc<RwLock<Option<DailyPnLHandle>>>,
-    pub scanner_handle: Arc<RwLock<Option<ScannerHandle>>>,
+    pub daily_pnl_handle: Arc<RwLock<Option<StreamHandle>>>,
+    pub scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
 }
 
 #[allow(dead_code)]
