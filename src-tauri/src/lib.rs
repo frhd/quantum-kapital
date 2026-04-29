@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
+use middleware::HistoricalRateLimiter;
+use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use storage::Db;
 use tauri::Manager;
 
@@ -52,9 +54,22 @@ pub fn run() {
                 state_clone.event_emitter.set_app_handle(app_handle).await;
             });
 
+            // Construct the historical-bars service. The IBKR client is
+            // shared with `IbkrState`; the rate limiter is per-service so
+            // different feature areas can carry their own budgets later.
+            let hist_rate_limit = Arc::new(HistoricalRateLimiter::new(6));
+            let fetcher: Arc<dyn HistoricalDataFetcher> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn HistoricalDataFetcher>;
+            let hist_service = Arc::new(HistoricalDataService::new(
+                Arc::clone(&db),
+                fetcher,
+                hist_rate_limit,
+            ));
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
+            app.manage(hist_service);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -74,6 +89,7 @@ pub fn run() {
             ibkr::commands::ibkr_get_cached_tickers,
             ibkr::commands::ibkr_start_scanner,
             ibkr::commands::ibkr_stop_scanner,
+            ibkr::commands::tracker_fetch_bars,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,

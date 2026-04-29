@@ -8,7 +8,6 @@ pub mod market_data;
 pub mod orders;
 pub mod positions;
 
-#[cfg(test)]
 pub mod historical;
 pub mod scanner;
 
@@ -20,6 +19,6 @@ pub use market_data::*;
 pub use orders::*;
 pub use positions::*;
 
-#[cfg(test)]
+#[allow(unused_imports)]
 pub use historical::*;
 pub use scanner::*;

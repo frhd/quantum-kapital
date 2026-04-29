@@ -2,6 +2,19 @@
 
 set -eu
 
+# Re-exec under systemd-inhibit so the host doesn't idle-suspend mid-loop.
+# GNOME/KDE measure idleness by user input, not CPU, so a busy claude loop
+# still hits the inactivity timer otherwise. Falls through if systemd-inhibit
+# is unavailable (non-systemd hosts).
+if [ -z "${LOOP_INHIBITED:-}" ] && command -v systemd-inhibit >/dev/null 2>&1; then
+  export LOOP_INHIBITED=1
+  exec systemd-inhibit \
+    --who="loop.sh" \
+    --why="long-running claude loop" \
+    --what="idle:sleep:handle-lid-switch" \
+    -- "$0" "$@"
+fi
+
 # Determine script directory (where loop.sh lives, i.e., the loop folder)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
