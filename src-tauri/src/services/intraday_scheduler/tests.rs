@@ -554,7 +554,12 @@ async fn start_replaces_existing_handle() {
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let cfg = AppConfig::default().ibkr.into();
-    let state = IbkrState::new(cfg, Arc::clone(&db));
+    let llm = Arc::new(crate::services::llm_service::LlmService::new(
+        String::new(),
+        Arc::clone(&db),
+        0.0,
+    ));
+    let state = IbkrState::new(cfg, Arc::clone(&db), llm);
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(RecordingBars::new());
     let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
@@ -602,7 +607,12 @@ async fn stop_drops_handle() {
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let cfg = AppConfig::default().ibkr.into();
-    let state = IbkrState::new(cfg, Arc::clone(&db));
+    let llm = Arc::new(crate::services::llm_service::LlmService::new(
+        String::new(),
+        Arc::clone(&db),
+        0.0,
+    ));
+    let state = IbkrState::new(cfg, Arc::clone(&db), llm);
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(RecordingBars::new());
     let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);

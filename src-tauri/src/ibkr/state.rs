@@ -4,6 +4,7 @@ use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position, Scanner
 use crate::middleware::RateLimiter;
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::intraday_scheduler::IntradayScheduler;
+use crate::services::llm_service::LlmService;
 use crate::services::tracker_service::TrackerService;
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
@@ -50,11 +51,12 @@ pub struct IbkrState {
     pub db: Arc<Db>,
     pub tracker: Arc<TrackerService>,
     pub state_machine: Arc<TrackerStateMachine>,
+    pub llm: Arc<LlmService>,
 }
 
 #[allow(dead_code)]
 impl IbkrState {
-    pub fn new(config: ConnectionConfig, db: Arc<Db>) -> Self {
+    pub fn new(config: ConnectionConfig, db: Arc<Db>, llm: Arc<LlmService>) -> Self {
         let config_arc = Arc::new(RwLock::new(config));
         let event_emitter = Arc::new(EventEmitter::new());
         let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
@@ -88,6 +90,7 @@ impl IbkrState {
             db,
             tracker,
             state_machine,
+            llm,
         }
     }
 

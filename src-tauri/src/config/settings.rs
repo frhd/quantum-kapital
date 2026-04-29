@@ -43,6 +43,14 @@ pub struct UiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     pub alpha_vantage_api_key: Option<String>, // Alpha Vantage API key
+    #[serde(default)]
+    pub anthropic_api_key: Option<String>, // Anthropic API key
+    #[serde(default = "default_daily_llm_budget_usd")]
+    pub daily_llm_budget_usd: f64,
+}
+
+pub fn default_daily_llm_budget_usd() -> f64 {
+    5.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +101,8 @@ impl Default for ApiConfig {
     fn default() -> Self {
         Self {
             alpha_vantage_api_key: std::env::var("ALPHA_VANTAGE_API_KEY").ok(),
+            anthropic_api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
+            daily_llm_budget_usd: default_daily_llm_budget_usd(),
         }
     }
 }

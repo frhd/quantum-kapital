@@ -12,6 +12,8 @@ use crate::services::eod_scheduler::EodScheduler;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::intraday_scheduler::IntradayScheduler;
+#[cfg(debug_assertions)]
+use crate::services::llm_service::{LlmKind, LlmRequest, LlmService, Message, Role};
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
 use crate::storage::Db;
 
@@ -198,4 +200,28 @@ pub async fn tracker_stop_scheduler(state: State<'_, IbkrState>) -> Result<(), S
     state.stop_eod_scheduler().await;
     state.stop_intraday_scheduler().await;
     Ok(())
+}
+
+/// Phase 16 — debug-only Anthropic smoke test. Sends a tiny prompt to
+/// Sonnet 4.6 and returns the assistant's reply, which lets a developer
+/// confirm an `ANTHROPIC_API_KEY` is wired correctly and that a row
+/// lands in the `llm_calls` ledger. Compiled out of release builds.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub async fn tracker_llm_smoke_test(llm: State<'_, Arc<LlmService>>) -> Result<String, String> {
+    let req = LlmRequest {
+        kind: LlmKind::Thesis,
+        model: "claude-sonnet-4-6",
+        max_tokens: 64,
+        system: Vec::new(),
+        messages: vec![Message {
+            role: Role::User,
+            content: "Reply with the single word: pong".to_string(),
+        }],
+        tools: None,
+        tool_choice: None,
+        setup_id: None,
+    };
+    let resp = llm.message(req).await.map_err(|e| e.to_string())?;
+    Ok(resp.text.unwrap_or_default())
 }

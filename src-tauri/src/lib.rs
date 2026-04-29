@@ -19,6 +19,7 @@ use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::intraday_scheduler::IntradayScheduler;
+use services::llm_service::LlmService;
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
 use strategies::default_registry;
@@ -55,8 +56,21 @@ pub fn run() {
                 Db::open(&db_path).map_err(|e| format!("open tracker db at {db_path:?}: {e}"))?;
             let db = Arc::new(db);
 
+            // Phase 16: LLM service. API key read from config (which sources
+            // from the ANTHROPIC_API_KEY env var via Default for ApiConfig).
+            let anthropic_api_key = config.api.anthropic_api_key.clone().unwrap_or_default();
+            let llm_service = Arc::new(LlmService::new(
+                anthropic_api_key,
+                Arc::clone(&db),
+                config.api.daily_llm_budget_usd,
+            ));
+
             // Initialize IBKR state with configuration + shared DB.
-            let ibkr_state = IbkrState::new(config.ibkr.clone().into(), Arc::clone(&db));
+            let ibkr_state = IbkrState::new(
+                config.ibkr.clone().into(),
+                Arc::clone(&db),
+                Arc::clone(&llm_service),
+            );
 
             // Set app handle for event emitter
             let app_handle = app.handle().clone();
@@ -129,6 +143,7 @@ pub fn run() {
             app.manage(tracker_runner);
             app.manage(eod_scheduler);
             app.manage(intraday_scheduler);
+            app.manage(llm_service);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -160,6 +175,8 @@ pub fn run() {
             ibkr::commands::tracker_get_setups,
             ibkr::commands::tracker_start_scheduler,
             ibkr::commands::tracker_stop_scheduler,
+            #[cfg(debug_assertions)]
+            ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,
