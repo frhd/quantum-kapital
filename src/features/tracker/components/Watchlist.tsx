@@ -11,8 +11,7 @@ import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
 import { Badge } from "../../../shared/components/ui/badge"
 import { Button } from "../../../shared/components/ui/button"
-import { Input } from "../../../shared/components/ui/input"
-import { AlertCircle, ExternalLink, Tag, Trash2, X } from "lucide-react"
+import { AlertCircle, ExternalLink, Tag, Trash2 } from "lucide-react"
 import {
   BUILT_IN_TAGS,
   STATUS_LABELS,
@@ -21,6 +20,7 @@ import {
   type TrackedTicker,
 } from "../types"
 import { SetupBadge } from "./SetupBadge"
+import { TagEditor } from "./TagEditor"
 
 interface WatchlistProps {
   tickers: TrackedTicker[]
@@ -67,48 +67,25 @@ export function Watchlist({
   activeSetupBySymbol,
 }: WatchlistProps) {
   const [editingSymbol, setEditingSymbol] = useState<string | null>(null)
-  const [draftTags, setDraftTags] = useState<StrategyTag[]>([])
-  const [draftCustom, setDraftCustom] = useState("")
-  const [savingSymbol, setSavingSymbol] = useState<string | null>(null)
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null)
   const [rowError, setRowError] = useState<string | null>(null)
 
   const startEditing = (ticker: TrackedTicker) => {
     setEditingSymbol(ticker.symbol)
-    setDraftTags([...ticker.tags])
-    setDraftCustom("")
     setRowError(null)
   }
 
   const cancelEditing = () => {
     setEditingSymbol(null)
-    setDraftTags([])
-    setDraftCustom("")
   }
 
-  const toggleDraftTag = (tag: StrategyTag) => {
-    setDraftTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
-  }
-
-  const addCustomDraft = () => {
-    const t = draftCustom.trim()
-    if (!t) return
-    if (!draftTags.includes(t)) {
-      setDraftTags([...draftTags, t])
-    }
-    setDraftCustom("")
-  }
-
-  const saveTags = async (symbol: string) => {
-    setSavingSymbol(symbol)
+  const saveTags = async (symbol: string, next: StrategyTag[]) => {
     setRowError(null)
     try {
-      await onSaveTags(symbol, draftTags)
+      await onSaveTags(symbol, next)
       setEditingSymbol(null)
     } catch (err) {
       setRowError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSavingSymbol(null)
     }
   }
 
@@ -175,7 +152,6 @@ export function Watchlist({
           <TableBody>
             {tickers.map((t) => {
               const isEditing = editingSymbol === t.symbol
-              const isSaving = savingSymbol === t.symbol
               const isRemoving = removingSymbol === t.symbol
               const activeSetup = activeSetupBySymbol?.[t.symbol]
               return (
@@ -196,65 +172,11 @@ export function Watchlist({
                   </TableCell>
                   <TableCell>
                     {isEditing ? (
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                          {BUILT_IN_TAGS.map((opt) => {
-                            const active = draftTags.includes(opt.value)
-                            return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => toggleDraftTag(opt.value)}
-                                className={
-                                  "rounded-full border px-2 py-0.5 text-xs transition-colors " +
-                                  (active
-                                    ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                                    : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
-                                }
-                              >
-                                {opt.label}
-                              </button>
-                            )
-                          })}
-                          {draftTags
-                            .filter((tag) => !BUILT_IN_TAGS.some((b) => b.value === tag))
-                            .map((tag) => (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => toggleDraftTag(tag)}
-                                className="flex items-center gap-1 rounded-full border border-blue-400 bg-blue-500/20 px-2 py-0.5 text-xs text-blue-100"
-                              >
-                                {tag}
-                                <X className="h-3 w-3" />
-                              </button>
-                            ))}
-                        </div>
-                        <div className="flex gap-1">
-                          <Input
-                            value={draftCustom}
-                            onChange={(e) => setDraftCustom(e.target.value)}
-                            placeholder="Custom tag…"
-                            className="h-7 bg-slate-900 text-xs"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault()
-                                addCustomDraft()
-                              }
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            onClick={addCustomDraft}
-                            disabled={!draftCustom.trim()}
-                          >
-                            Add
-                          </Button>
-                        </div>
-                      </div>
+                      <TagEditor
+                        tags={t.tags}
+                        onSave={(next) => saveTags(t.symbol, next)}
+                        onCancel={cancelEditing}
+                      />
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {t.tags.length === 0 ? (
@@ -281,21 +203,7 @@ export function Watchlist({
                     {formatRelativeTime(t.added_at)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {isEditing ? (
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={cancelEditing}
-                          disabled={isSaving}
-                        >
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={() => saveTags(t.symbol)} disabled={isSaving}>
-                          {isSaving ? "Saving…" : "Save"}
-                        </Button>
-                      </div>
-                    ) : (
+                    {!isEditing && (
                       <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"

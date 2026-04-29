@@ -13,7 +13,11 @@ use chrono::NaiveDate;
 const fn d(y: i32, m: u32, day: u32) -> NaiveDate {
     match NaiveDate::from_ymd_opt(y, m, day) {
         Some(date) => date,
-        None => panic!("invalid hardcoded holiday date"),
+        // Unreachable — every entry below is hand-checked against the NYSE calendar.
+        // If this fires, a maintainer typo'd a date in the HOLIDAYS table.
+        None => {
+            panic!("invalid hardcoded holiday date — check the most recent entry added to HOLIDAYS")
+        }
     }
 }
 

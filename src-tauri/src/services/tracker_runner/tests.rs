@@ -1,3 +1,6 @@
+// allow-large-file: end-to-end test suite for the tracker pipeline (mock fetchers,
+// fixture market contexts, dedup + state-machine transitions). Splitting would
+// require duplicating the test harness across files; the file is read sequentially.
 use std::collections::HashMap;
 use std::sync::Arc;
 

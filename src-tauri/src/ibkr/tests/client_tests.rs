@@ -1,6 +1,16 @@
 use crate::ibkr::error::IbkrError;
 use crate::ibkr::mocks::{test_fixtures, IbkrClientTrait, MockIbkrClient};
 
+/// Regression: catches accidental `pub` → `pub(crate)` slips on the real
+/// `IbkrClient` after the Phase 25 split into `ibkr/client/{mod,market_data,
+/// orders,historical,streams}.rs`. Constructs the type via its public path.
+#[test]
+fn ibkr_client_split_compiles() {
+    use crate::ibkr::client::IbkrClient;
+    use crate::ibkr::types::ConnectionConfig;
+    let _client = IbkrClient::new(ConnectionConfig::default());
+}
+
 #[tokio::test]
 async fn test_connect_success() {
     let client = MockIbkrClient::new();

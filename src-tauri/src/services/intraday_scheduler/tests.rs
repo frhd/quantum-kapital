@@ -1,3 +1,6 @@
+// allow-large-file: integration tests for the 5-minute intraday scheduler covering
+// calendar-aware ticking, in-play subscription churn, and concurrency. The mock
+// scaffolding is shared across cases; splitting forks the harness.
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;

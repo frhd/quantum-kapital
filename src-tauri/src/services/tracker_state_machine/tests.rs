@@ -1,3 +1,6 @@
+// allow-large-file: state-machine transition matrix (watching → in_play → cool_down)
+// needs many fixture scenarios to cover every edge; one shared test DB harness
+// powers them all.
 use std::sync::Arc;
 
 use chrono::{Duration as ChronoDuration, FixedOffset, NaiveDate, NaiveTime, TimeZone, Utc};

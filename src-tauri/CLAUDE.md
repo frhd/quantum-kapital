@@ -21,7 +21,10 @@ cargo clippy --all-targets --all-features -- -D warnings
 config/        AppConfig + SettingsState (JSON persisted to OS app-data dir)
 events/        EventEmitter → Tauri events; AppEvent enum is the contract with the UI
 storage/       SQLite via rusqlite + r2d2 pool, embedded schema.sql + migrations runner
-ibkr/          IBKR adapter: client.rs (TWS/Gateway), commands/ (Tauri handlers),
+ibkr/          IBKR adapter: client/ (TWS/Gateway — directory module split by domain:
+                 mod.rs struct + connection lifecycle, market_data.rs, orders.rs,
+                 historical.rs, streams.rs + StreamHandle),
+               commands/ (Tauri handlers),
                types/ (domain types per concern), state.rs (IbkrState — the shared root),
                mocks.rs (MockIbkrClient — the IbkrClientTrait test seam)
 strategies/    StrategyDetector trait + MarketContext + SetupCandidate + DetectorRegistry,

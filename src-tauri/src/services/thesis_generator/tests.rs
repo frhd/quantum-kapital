@@ -1,3 +1,6 @@
+// allow-large-file: covers thesis prompt construction, tool-choice forcing,
+// JSON parsing, persistence to setups, and budget-error fallback paths. The
+// MockHttp queue scaffolding and DB seeding are shared across all cases.
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 

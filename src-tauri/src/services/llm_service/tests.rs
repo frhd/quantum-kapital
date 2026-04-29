@@ -1,3 +1,6 @@
+// allow-large-file: LLM-service tests cover request body shape, response parsing,
+// budget enforcement, retry/cost ledger integration, and error mapping. All cases
+// share one MockHttp fixture; splitting forks the queue scaffolding.
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};

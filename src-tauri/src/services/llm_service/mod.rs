@@ -304,14 +304,14 @@ pub fn build_request_body(req: &LlmRequest) -> Value {
                 if b.cache {
                     block
                         .as_object_mut()
-                        .unwrap()
+                        .expect("json!({...}) always produces a JSON object")
                         .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
                 }
                 block
             })
             .collect();
         body.as_object_mut()
-            .unwrap()
+            .expect("json!({...}) always produces a JSON object")
             .insert("system".to_string(), Value::Array(blocks));
     }
 
@@ -327,7 +327,7 @@ pub fn build_request_body(req: &LlmRequest) -> Value {
             })
             .collect();
         body.as_object_mut()
-            .unwrap()
+            .expect("json!({...}) always produces a JSON object")
             .insert("tools".to_string(), Value::Array(serialized));
     }
 
@@ -337,7 +337,7 @@ pub fn build_request_body(req: &LlmRequest) -> Value {
             ToolChoice::ForceTool(name) => json!({ "type": "tool", "name": name }),
         };
         body.as_object_mut()
-            .unwrap()
+            .expect("json!({...}) always produces a JSON object")
             .insert("tool_choice".to_string(), v);
     }
 

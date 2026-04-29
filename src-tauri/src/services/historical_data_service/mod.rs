@@ -308,13 +308,21 @@ fn lookback_key(lb: &Lookback) -> String {
 }
 
 fn day_to_midnight_unix(date: NaiveDate) -> i64 {
-    Utc.from_utc_datetime(&date.and_hms_opt(0, 0, 0).unwrap())
-        .timestamp()
+    Utc.from_utc_datetime(
+        &date
+            .and_hms_opt(0, 0, 0)
+            .expect("00:00:00 is a valid time on every NaiveDate"),
+    )
+    .timestamp()
 }
 
 fn day_to_eod_unix(date: NaiveDate) -> i64 {
-    Utc.from_utc_datetime(&date.and_hms_opt(23, 59, 59).unwrap())
-        .timestamp()
+    Utc.from_utc_datetime(
+        &date
+            .and_hms_opt(23, 59, 59)
+            .expect("23:59:59 is a valid time on every NaiveDate"),
+    )
+    .timestamp()
 }
 
 fn window_bounds(today: NaiveDate, lookback: &Lookback) -> (i64, i64) {

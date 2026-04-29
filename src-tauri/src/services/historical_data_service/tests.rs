@@ -1,3 +1,6 @@
+// allow-large-file: bars-cache integration tests covering Db round-trips, in-flight
+// dedup, lookback expansion, and IBKR-fallback paths. The mock fetcher + temp Db
+// scaffolding is shared across every case.
 use std::sync::Arc;
 use std::time::Duration;
 
