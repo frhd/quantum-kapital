@@ -34,6 +34,9 @@ regex = "1.10"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 dotenv = "0.15"
 dirs = "6"
+rusqlite = { version = "0.34", features = ["bundled", "chrono"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.27"
 
 [dev-dependencies]
 tokio-test = "0.4"

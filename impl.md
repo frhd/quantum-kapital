@@ -67,7 +67,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 
 ### Foundation (1–5)
 
-- [ ] **Phase 01** — SQLite foundation (Db, migrations, full schema upfront) — `impl/phase-01-sqlite-foundation.md`
+- [x] **Phase 01** — SQLite foundation (Db, migrations, full schema upfront) — `impl/phase-01-sqlite-foundation.md`
 - [ ] **Phase 02** — Historical bars service (`IbkrClient::historical_data` + cache) — `impl/phase-02-historical-bars.md`
 - [ ] **Phase 03** — Alpha Vantage news service + cache — `impl/phase-03-news-service.md`
 - [ ] **Phase 04** — Tracker persistence (types, service, Tauri commands) — `impl/phase-04-tracker-persistence.md`

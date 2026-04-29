@@ -3,10 +3,14 @@ mod events;
 mod ibkr;
 mod middleware;
 mod services;
+mod storage;
 mod utils;
+
+use std::sync::Arc;
 
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
+use storage::Db;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -29,6 +33,18 @@ pub fn run() {
             // Initialize IBKR state with configuration
             let ibkr_state = IbkrState::new(config.ibkr.clone().into());
 
+            // Open SQLite tracker database in app local data dir.
+            let db_dir = app
+                .path()
+                .app_local_data_dir()
+                .map_err(|e| format!("resolve app_local_data_dir: {e}"))?;
+            std::fs::create_dir_all(&db_dir)
+                .map_err(|e| format!("create app data dir {db_dir:?}: {e}"))?;
+            let db_path = db_dir.join("tracker.sqlite");
+            let db =
+                Db::open(&db_path).map_err(|e| format!("open tracker db at {db_path:?}: {e}"))?;
+            let db = Arc::new(db);
+
             // Set app handle for event emitter
             let app_handle = app.handle().clone();
             let state_clone = ibkr_state.clone();
@@ -38,6 +54,7 @@ pub fn run() {
 
             app.manage(settings_state);
             app.manage(ibkr_state);
+            app.manage(db);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

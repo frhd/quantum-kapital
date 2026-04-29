@@ -9,6 +9,18 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 01 — SQLite foundation landed
+
+**Change:** `src-tauri/src/storage/` (Db + r2d2 pool + embedded `schema.sql` + migrations runner). All six baseline tables + two indexes created up front. PRAGMAs set: `journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`, applied via `SqliteConnectionManager::with_init` so every pooled connection enforces them (per-connection, not just one-shot).
+**Why WAL:** Better concurrent reader/writer behavior for the tracker (intraday writer + UI reader). `synchronous=NORMAL` is the recommended pair with WAL — durable enough for surveillance data, fewer fsyncs than FULL.
+**Why per-connection PRAGMA init:** `foreign_keys` is connection-local in SQLite; setting it once on the migrating connection is not enough for pool checkouts. `with_init` makes it idempotent and ubiquitous.
+**Deviations from baseline:** none. Schema copied verbatim from design doc (lines 117–189).
+**Deferred indexes:** still none on `news_cache.fetched_at` or `llm_calls.called_at` — Phase 03 / Phase 16 to decide.
+**Migration impact:** none (additive, first-time creation).
+**Cross-references:** `src-tauri/src/storage/schema.sql`, `src-tauri/src/storage/mod.rs`, `src-tauri/src/storage/tests.rs` (9 tests, all green).
+
+---
+
 ## Template for new entries
 
 ```

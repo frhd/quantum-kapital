@@ -101,6 +101,13 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `emitter.rs`: Event emitter for frontend notifications
   - `config/`: Application configuration
     - `settings.rs`: Configuration management
+  - `storage/`: SQLite layer for the Tracker subsystem (added Phase 01)
+    - `mod.rs`: `Db` (r2d2 pool wrapper) + async `with_conn` helper around `tokio::task::spawn_blocking`
+    - `schema.sql`: Embedded baseline schema (`tracked_tickers`, `setups`, `alerts`, `bars_cache`, `news_cache`, `llm_calls` + `idx_setups_symbol`, `idx_setups_status_detected`)
+    - `migrations.rs`: Idempotent `CREATE TABLE IF NOT EXISTS` runner invoked at startup
+    - `error.rs`: `StorageError` (`Sqlite`, `Pool`, `Migration`, `Serde`, `Join`)
+    - PRAGMAs (`journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`) applied per pooled connection via `SqliteConnectionManager::with_init`
+    - DB lives at `app_local_data_dir()/tracker.sqlite`; `Arc<Db>` is `app.manage`d in `lib.rs::run` (Phase 04+ will wire it through `IbkrState`)
   - `utils/`: Shared utilities
 - **Entry Points**:
   - `main.rs`: Application entry
