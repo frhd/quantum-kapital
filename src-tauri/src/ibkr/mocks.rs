@@ -33,6 +33,7 @@ pub struct MockIbkrClient {
     accounts: Arc<RwLock<Vec<String>>>,
     positions: Arc<RwLock<Vec<Position>>>,
     account_summary: Arc<RwLock<Vec<AccountSummary>>>,
+    executions: Arc<RwLock<Vec<IbkrExecution>>>,
     error_mode: Arc<RwLock<Option<IbkrError>>>,
 }
 
@@ -43,6 +44,7 @@ impl MockIbkrClient {
             accounts: Arc::new(RwLock::new(vec!["DU123456".to_string()])),
             positions: Arc::new(RwLock::new(Vec::new())),
             account_summary: Arc::new(RwLock::new(Vec::new())),
+            executions: Arc::new(RwLock::new(Vec::new())),
             error_mode: Arc::new(RwLock::new(None)),
         }
     }
@@ -67,6 +69,30 @@ impl MockIbkrClient {
 
     pub async fn set_account_summary(&self, summary: Vec<AccountSummary>) {
         *self.account_summary.write().await = summary;
+    }
+
+    pub async fn set_executions(&self, executions: Vec<IbkrExecution>) {
+        *self.executions.write().await = executions;
+    }
+
+    /// Returns injected fills filtered to the requested ET trading date.
+    ///
+    /// Mirrors `IbkrClient::executions` so tracker/journal code can share a
+    /// signature across the real and mock clients without going through the
+    /// `IbkrClientTrait` (which still carries the legacy `get_executions`).
+    pub async fn executions(&self, date: chrono::NaiveDate) -> Result<Vec<IbkrExecution>> {
+        use chrono_tz::America::New_York;
+
+        self.check_error().await?;
+        if !self.is_connected().await {
+            return Err(IbkrError::NotConnected);
+        }
+
+        let all = self.executions.read().await.clone();
+        Ok(all
+            .into_iter()
+            .filter(|e| e.exec_time.with_timezone(&New_York).date_naive() == date)
+            .collect())
     }
 
     pub async fn set_error(&self, error: Option<IbkrError>) {

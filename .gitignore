@@ -27,3 +27,6 @@ src-tauri/cache/
 *.sln
 *.sw?
 loop.log
+
+# Daily journal output (rendered by /journal skill)
+journal/

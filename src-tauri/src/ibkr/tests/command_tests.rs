@@ -1,6 +1,9 @@
+use crate::ibkr::commands::trading::parse_date_arg;
 use crate::ibkr::error::IbkrError;
 use crate::ibkr::mocks::{test_fixtures, IbkrClientTrait, MockIbkrClient};
 use crate::ibkr::types::*;
+use chrono::{NaiveDate, TimeZone, Utc};
+use chrono_tz::America::New_York;
 
 // Note: These tests demonstrate how to test Tauri commands.
 // In a real implementation, you would need to refactor the commands
@@ -175,4 +178,155 @@ async fn test_command_concurrent_operations() {
     assert_eq!(positions.unwrap().len(), 1);
     assert!(!summary.unwrap().is_empty());
     assert_eq!(accounts.unwrap().len(), 1);
+}
+
+// ---- ibkr_get_executions / Phase 24 ----
+
+fn et_datetime(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> chrono::DateTime<Utc> {
+    let naive = NaiveDate::from_ymd_opt(year, month, day)
+        .unwrap()
+        .and_hms_opt(hour, minute, 0)
+        .unwrap();
+    New_York
+        .from_local_datetime(&naive)
+        .single()
+        .unwrap()
+        .with_timezone(&Utc)
+}
+
+fn sample_execution(
+    symbol: &str,
+    side: ExecutionSide,
+    qty: f64,
+    avg_price: f64,
+    exec_time: chrono::DateTime<Utc>,
+    exec_id: &str,
+) -> IbkrExecution {
+    IbkrExecution {
+        symbol: symbol.to_string(),
+        side,
+        qty,
+        avg_price,
+        exec_time,
+        order_id: 1001,
+        exec_id: exec_id.to_string(),
+    }
+}
+
+#[tokio::test]
+async fn executions_filters_to_requested_date() {
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap();
+
+    let target_date = NaiveDate::from_ymd_opt(2026, 4, 29).unwrap();
+    client
+        .set_executions(vec![
+            sample_execution(
+                "AAPL",
+                ExecutionSide::Bought,
+                100.0,
+                150.25,
+                et_datetime(2026, 4, 29, 10, 30),
+                "0001",
+            ),
+            sample_execution(
+                "MSFT",
+                ExecutionSide::Sold,
+                50.0,
+                420.0,
+                et_datetime(2026, 4, 28, 15, 45),
+                "0002",
+            ),
+            sample_execution(
+                "TSLA",
+                ExecutionSide::Bought,
+                25.0,
+                275.5,
+                et_datetime(2026, 4, 30, 9, 35),
+                "0003",
+            ),
+        ])
+        .await;
+
+    let result = client.executions(target_date).await.unwrap();
+
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].symbol, "AAPL");
+    assert_eq!(result[0].exec_id, "0001");
+}
+
+#[tokio::test]
+async fn executions_serializes_for_frontend() {
+    let exec = sample_execution(
+        "AAPL",
+        ExecutionSide::Bought,
+        100.0,
+        150.25,
+        et_datetime(2026, 4, 29, 10, 30),
+        "0001",
+    );
+
+    let json = serde_json::to_value(&exec).unwrap();
+
+    // Field names must be snake_case to match the rest of the IBKR types.
+    assert!(json.get("symbol").is_some());
+    assert!(json.get("side").is_some());
+    assert!(json.get("qty").is_some());
+    assert!(json.get("avg_price").is_some());
+    assert!(json.get("exec_time").is_some());
+    assert!(json.get("order_id").is_some());
+    assert!(json.get("exec_id").is_some());
+
+    // ExecutionSide serializes as lowercase "bought" / "sold".
+    assert_eq!(json.get("side").unwrap().as_str().unwrap(), "bought");
+
+    // Round-trip preserves all fields.
+    let round_tripped: IbkrExecution = serde_json::from_value(json).unwrap();
+    assert_eq!(round_tripped.symbol, exec.symbol);
+    assert_eq!(round_tripped.qty, exec.qty);
+    assert_eq!(round_tripped.avg_price, exec.avg_price);
+    assert_eq!(round_tripped.order_id, exec.order_id);
+    assert_eq!(round_tripped.exec_id, exec.exec_id);
+}
+
+#[tokio::test]
+async fn executions_empty_when_no_fills() {
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap();
+
+    let date = NaiveDate::from_ymd_opt(2026, 4, 29).unwrap();
+    let result = client.executions(date).await.unwrap();
+
+    assert!(result.is_empty());
+}
+
+#[tokio::test]
+async fn executions_disconnected_returns_not_connected() {
+    let client = MockIbkrClient::new();
+
+    let date = NaiveDate::from_ymd_opt(2026, 4, 29).unwrap();
+    let result = client.executions(date).await;
+
+    assert!(matches!(result, Err(IbkrError::NotConnected)));
+}
+
+#[test]
+fn command_parses_correct_date() {
+    let parsed = parse_date_arg("2026-04-29").unwrap();
+    assert_eq!(parsed, NaiveDate::from_ymd_opt(2026, 4, 29).unwrap());
+}
+
+#[test]
+fn command_rejects_malformed_date() {
+    // Wrong separator
+    let err = parse_date_arg("2026/04/29").unwrap_err();
+    assert!(err.contains("invalid date"));
+
+    // Out-of-range month
+    let err = parse_date_arg("2026-13-01").unwrap_err();
+    assert!(err.contains("invalid date"));
+
+    // Empty string
+    let err = parse_date_arg("").unwrap_err();
+    assert!(err.contains("invalid date"));
 }

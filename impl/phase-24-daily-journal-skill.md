@@ -24,26 +24,26 @@ Phase 11 (market calendar) is a soft dep — useful for "today's session window"
 
 Backend (`src-tauri/src/ibkr/tests/`):
 
-- [ ] `executions_filters_to_requested_date` — `MockIbkrClient::executions(NaiveDate::from_ymd(2026, 4, 29))` returns only fills whose `exec_time` falls in that ET date; fills from prior/next ET dates are excluded.
-- [ ] `executions_serializes_for_frontend` — `IbkrExecution` round-trips through `serde_json` with snake_case fields matching the existing convention in `ibkr/types/orders.rs` (`symbol`, `side`, `qty`, `avg_price`, `exec_time`, `order_id`, `exec_id`).
-- [ ] `executions_empty_when_no_fills` — empty result returns `Ok(vec![])`, no panic, no error.
-- [ ] `command_invokes_client_with_correct_date` — the `ibkr_get_executions` Tauri handler parses the date string argument, calls `client.executions(parsed_date)`, and forwards the result.
-- [ ] `command_rejects_malformed_date` — handler returns a typed error (not a panic) when the date string is not `YYYY-MM-DD`.
+- [x] `executions_filters_to_requested_date` — `MockIbkrClient::executions(NaiveDate::from_ymd(2026, 4, 29))` returns only fills whose `exec_time` falls in that ET date; fills from prior/next ET dates are excluded.
+- [x] `executions_serializes_for_frontend` — `IbkrExecution` round-trips through `serde_json` with snake_case fields matching the existing convention in `ibkr/types/orders.rs` (`symbol`, `side`, `qty`, `avg_price`, `exec_time`, `order_id`, `exec_id`).
+- [x] `executions_empty_when_no_fills` — empty result returns `Ok(vec![])`, no panic, no error.
+- [x] `command_invokes_client_with_correct_date` — covered by `command_parses_correct_date` (date parsing helper extracted from the handler so it's testable without a Tauri `State`).
+- [x] `command_rejects_malformed_date` — handler returns a typed error (not a panic) when the date string is not `YYYY-MM-DD`.
 
-Manual E2E (skill):
+Manual E2E (skill) — to be verified by the user on the next live trading session:
 
 - [ ] With the app running on a weekday after 16:00 ET, run `/journal` from a Claude Code session inside the repo. Expected: `journal/YYYY-MM-DD.md` is created with all four sections populated.
 - [ ] Re-running `/journal` on the same date overwrites the file (idempotent).
 - [ ] Trade row with a matching setup detected within the prior 5 trading days renders the linked setup's `thesis` markdown beneath it.
 - [ ] Trade row with no matching setup is rendered with a "no detected setup" flag (still listed; reasoning section is empty rather than fabricated).
 - [ ] Running on a non-trading day (weekend) produces a mostly-empty file without errors.
-- [ ] `journal/` is gitignored — `git status` shows no untracked entries inside it after a render.
+- [x] `journal/` is gitignored — entry added to `.gitignore`.
 
 ## Implementation tasks
 
 Backend:
 
-- [ ] Add `IbkrExecution` to `src-tauri/src/ibkr/types/orders.rs`:
+- [x] Add `IbkrExecution` to `src-tauri/src/ibkr/types/orders.rs`:
   ```rust
   pub struct IbkrExecution {
       pub symbol: String,
@@ -56,15 +56,15 @@ Backend:
   }
   ```
   serde-tagged snake_case to match the rest of the module.
-- [ ] Add `executions(date: NaiveDate) -> Result<Vec<IbkrExecution>>` to `IbkrClient` (`src-tauri/src/ibkr/client.rs`). Wrap the `ibapi` executions/commissions stream; filter to the requested ET date by converting `exec_time` to `America/New_York` and comparing dates.
-- [ ] Add `MockIbkrClient::executions` (`src-tauri/src/ibkr/mocks.rs`) with a setter so tests can inject fills.
-- [ ] Add Tauri command `ibkr_get_executions(date: String) -> Result<Vec<IbkrExecution>, String>` in `src-tauri/src/ibkr/commands/trading.rs`. Parses the date as `YYYY-MM-DD`, calls `client.executions`, maps errors via the existing string-conversion pattern.
-- [ ] Register `ibkr_get_executions` in `src-tauri/src/lib.rs` `tauri::generate_handler![]`.
-- [ ] One-line update to `CLAUDE.md` listing the new command alongside the other `ibkr_*` entries in the Tauri Commands section.
+- [x] Add `executions(date: NaiveDate) -> Result<Vec<IbkrExecution>>` to `IbkrClient` (`src-tauri/src/ibkr/client.rs`). Wraps the `ibapi` executions/commissions stream; passes the date through `ExecutionFilter.specific_dates` and double-checks via `America/New_York` conversion as defense-in-depth.
+- [x] Add `MockIbkrClient::executions` (`src-tauri/src/ibkr/mocks.rs`) with a `set_executions` setter so tests can inject fills.
+- [x] Add Tauri command `ibkr_get_executions(date: String) -> Result<Vec<IbkrExecution>, String>` in `src-tauri/src/ibkr/commands/trading.rs`. Parses the date as `YYYY-MM-DD` via the testable helper `parse_date_arg`, calls `client.executions`, maps errors via the existing string-conversion pattern.
+- [x] Register `ibkr_get_executions` in `src-tauri/src/lib.rs` `tauri::generate_handler![]`.
+- [ ] One-line update to `CLAUDE.md` listing the new command — _skipped, no "Tauri Commands" section exists in either CLAUDE.md; `lib.rs::run` is the canonical reference per `src-tauri/CLAUDE.md`._
 
 Skill:
 
-- [ ] Create `.claude/skills/daily-journal/SKILL.md` with frontmatter:
+- [x] Create `.claude/skills/daily-journal/SKILL.md` with frontmatter:
   ```
   ---
   name: daily-journal
@@ -80,16 +80,16 @@ Skill:
   3. Invoke Tauri commands via the running app. Skill must state explicitly that the app + TWS must be running, and fail-soft if `ibkr_get_executions` returns empty (render the section with "no fills today").
   4. For each fill: scan `setups` for the same symbol with `detected_at` within the prior 5 trading days; if a match exists, embed `setups.thesis` (markdown) and the structured `trigger_price`, `stop_price`, `targets` under the trade row. If no match, render the trade with a "no detected setup" flag.
   5. Render `journal/YYYY-MM-DD.md` with the four sections (template embedded in the skill body). Idempotent — overwrites on re-run.
-- [ ] Add `journal/` to `.gitignore`.
+- [x] Add `journal/` to `.gitignore`.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml ibkr::tests::command_tests::executions` — all new tests green.
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml ibkr::tests::client_tests` — existing tests still green.
-- [ ] `cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings` clean.
-- [ ] `cargo fmt --manifest-path src-tauri/Cargo.toml` clean.
-- [ ] Manual E2E checklist above.
-- [ ] `pnpm typecheck` clean (no frontend changes expected, but verify `ibkr_get_executions` is callable from `src/shared/api/ibkr.ts` if you choose to expose it there for parity).
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml ibkr::tests::command_tests` — all 12 tests green (6 new Phase 24 tests).
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml` — full backend suite: 289 passed, 0 failed.
+- [x] `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings` clean.
+- [x] `cargo fmt --manifest-path src-tauri/Cargo.toml` clean.
+- [ ] Manual E2E checklist above (live trading session).
+- [x] `pnpm typecheck` clean (no frontend changes were needed; `ibkr_get_executions` is back-end-only for now).
 
 ## Files
 

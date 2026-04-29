@@ -1,4 +1,23 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExecutionSide {
+    Bought,
+    Sold,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IbkrExecution {
+    pub symbol: String,
+    pub side: ExecutionSide,
+    pub qty: f64,
+    pub avg_price: f64,
+    pub exec_time: DateTime<Utc>,
+    pub order_id: i32,
+    pub exec_id: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderRequest {
