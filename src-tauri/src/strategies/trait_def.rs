@@ -10,6 +10,8 @@ use super::context::MarketContext;
 pub enum DetectorError {
     #[error("insufficient bars: need at least {needed}, got {available}")]
     InsufficientBars { needed: usize, available: usize },
+    #[error("intraday bars required but not provided")]
+    IntradayBarsRequired,
     #[error("invalid input: {0}")]
     InvalidInput(String),
     #[error("internal detector error: {0}")]

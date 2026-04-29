@@ -75,7 +75,7 @@ fn breakout_fixture(today_close: f64, today_volume: i64) -> Vec<HistoricalBar> {
 #[tokio::test]
 async fn fires_on_new_20d_high_with_volume_confirmation() {
     let bars = breakout_fixture(52.0, 2_000_000);
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
 
     let candidate = detector
         .evaluate(&ctx("AAPL", &bars))
@@ -96,7 +96,7 @@ async fn fires_on_new_20d_high_with_volume_confirmation() {
 #[tokio::test]
 async fn does_not_fire_without_volume() {
     let bars = breakout_fixture(52.0, 700_000);
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let result = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -111,7 +111,7 @@ async fn does_not_fire_without_volume() {
 async fn does_not_fire_when_not_a_new_high() {
     // Today's close ~= bars[33].close, no breakout
     let bars = breakout_fixture(51.0, 2_000_000);
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let result = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -140,7 +140,7 @@ async fn does_not_fire_when_rsi_above_80() {
         last_close - 0.5,
     ));
 
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let result = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -157,7 +157,7 @@ async fn requires_min_lookback() {
     let bars: Vec<HistoricalBar> = (0..15)
         .map(|i| sym_bar(50.0 + i as f64, 1_000_000, 0.5))
         .collect();
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let err = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -172,7 +172,7 @@ async fn stop_uses_swing_low_when_tighter_than_atr_distance() {
     // phase. swing_low_10 should land *above* trigger − ATR, so stop =
     // swing_low_10.
     let bars = breakout_fixture(52.0, 2_000_000);
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let cand = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -212,7 +212,7 @@ async fn stop_uses_atr_distance_when_swing_low_too_far() {
     let close = bars[deep_idx].close;
     bars[deep_idx] = make_bar(close, 1_000_000, close + 0.05, 30.0);
 
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let cand = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -235,7 +235,7 @@ async fn stop_uses_atr_distance_when_swing_low_too_far() {
 #[tokio::test]
 async fn targets_are_2r_and_3r_above_trigger_for_long() {
     let bars = breakout_fixture(52.0, 2_000_000);
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let cand = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -251,7 +251,7 @@ async fn targets_are_2r_and_3r_above_trigger_for_long() {
 #[tokio::test]
 async fn raw_signals_includes_required_keys() {
     let bars = breakout_fixture(52.0, 2_000_000);
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let cand = detector
         .evaluate(&ctx("AAPL", &bars))
         .await
@@ -275,7 +275,7 @@ async fn raw_signals_includes_required_keys() {
 
 #[tokio::test]
 async fn conviction_signal_scales_with_volume_multiple() {
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
 
     let bars_15 = breakout_fixture(52.0, 1_500_000); // mult 1.5
     let bars_30 = breakout_fixture(52.0, 3_000_000); // mult 3.0
@@ -312,7 +312,7 @@ async fn degenerate_zero_atr_does_not_panic() {
     let mut bars: Vec<HistoricalBar> = (0..34).map(|_| sym_bar(100.0, 1_000_000, 0.0)).collect();
     bars.push(sym_bar(100.0, 2_000_000, 0.0));
 
-    let detector = BreakoutDetector::default();
+    let detector = BreakoutDetector;
     let res = detector.evaluate(&ctx("AAPL", &bars)).await;
     match res {
         Ok(None) => {}

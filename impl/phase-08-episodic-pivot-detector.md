@@ -6,9 +6,9 @@ A working `EpisodicPivotDetector` that fires bidirectionally on news-driven gaps
 
 ## Depends on
 
-- [ ] Phase 06 — detector framework.
-- [ ] Phase 03 — `NewsItem` + sentiment fields available in `MarketContext`.
-- [ ] Phase 02 — intraday bars fetchable (needed for first-30-min volume).
+- [x] Phase 06 — detector framework.
+- [x] Phase 03 — `NewsItem` + sentiment fields available in `MarketContext`.
+- [x] Phase 02 — intraday bars fetchable (needed for first-30-min volume).
 
 ## Out of scope
 
@@ -19,23 +19,23 @@ A working `EpisodicPivotDetector` that fires bidirectionally on news-driven gaps
 
 `src-tauri/src/strategies/episodic_pivot/tests.rs`. Fixtures combine daily bars + intraday bars + news items.
 
-- [ ] `fires_long_on_gap_up_with_bullish_news` — gap = +6%, news with `overall_sentiment_score = 0.4` published in last 18h, first-30-min volume ≥ prior day total → `Some` with `direction = Long`.
-- [ ] `fires_short_on_gap_up_with_bearish_news` — gap = +6%, news sentiment = -0.3, first-30-min volume ≥ prior day total → `Some` with `direction = Short` (suspect rally; common EP-short setup).
-- [ ] `fires_short_on_gap_down_with_bearish_news` — gap = -5%, sentiment = -0.4 → `direction = Short`.
-- [ ] `does_not_fire_without_news` — gap = +6% but `recent_news` is empty → `None`.
-- [ ] `does_not_fire_with_neutral_sentiment` — sentiment score within ±0.15 → `None`.
-- [ ] `does_not_fire_below_min_gap` — gap = 2% (below 4% threshold) → `None`.
-- [ ] `does_not_fire_without_volume_confirmation` — first-30-min volume < prior day total → `None`.
-- [ ] `requires_intraday_bars` — `intraday_bars = None` and gap qualifies → `Err(DetectorError::IntradayBarsRequired)`.
-- [ ] `stop_for_long_is_pre_gap_close` — long EP, stop = previous day's close.
-- [ ] `stop_for_short_is_gap_day_high` — short EP, stop = today's high so far.
-- [ ] `raw_signals_includes_gap_pct_sentiment_volume_ratio` — JSON has those keys.
-- [ ] `most_relevant_news_item_drives_sentiment` — when multiple news items exist, the one with highest `relevance_score` for the symbol determines polarity.
+- [x] `fires_long_on_gap_up_with_bullish_news` — gap = +6%, news with `overall_sentiment_score = 0.4` published in last 18h, first-30-min volume ≥ prior day total → `Some` with `direction = Long`.
+- [x] `fires_short_on_gap_up_with_bearish_news` — gap = +6%, news sentiment = -0.3, first-30-min volume ≥ prior day total → `Some` with `direction = Short` (suspect rally; common EP-short setup).
+- [x] `fires_short_on_gap_down_with_bearish_news` — gap = -5%, sentiment = -0.4 → `direction = Short`.
+- [x] `does_not_fire_without_news` — gap = +6% but `recent_news` is empty → `None`.
+- [x] `does_not_fire_with_neutral_sentiment` — sentiment score within ±0.15 → `None`.
+- [x] `does_not_fire_below_min_gap` — gap = 2% (below 4% threshold) → `None`.
+- [x] `does_not_fire_without_volume_confirmation` — first-30-min volume < prior day total → `None`.
+- [x] `requires_intraday_bars` — `intraday_bars = None` and gap qualifies → `Err(DetectorError::IntradayBarsRequired)`.
+- [x] `stop_for_long_is_pre_gap_close` — long EP, stop = previous day's close.
+- [x] `stop_for_short_is_gap_day_high` — short EP, stop = today's high so far.
+- [x] `raw_signals_includes_gap_pct_sentiment_volume_ratio` — JSON has those keys.
+- [x] `most_relevant_news_item_drives_sentiment` — when multiple news items exist, the one with highest `relevance_score` for the symbol determines polarity.
 
 ## Implementation tasks
 
-- [ ] Create `src-tauri/src/strategies/episodic_pivot/mod.rs` exposing `EpisodicPivotDetector`.
-- [ ] Create `src-tauri/src/strategies/episodic_pivot/detector.rs`:
+- [x] Create `src-tauri/src/strategies/episodic_pivot/mod.rs` exposing `EpisodicPivotDetector`.
+- [x] Create `src-tauri/src/strategies/episodic_pivot/detector.rs`:
   - `name() = "episodic_pivot"`, `tag() = StrategyTag::EpisodicPivot`, `timeframe() = BarSize::Min15`, `min_lookback_days() = 5`.
   - `evaluate`:
     1. Require `intraday_bars`.
@@ -46,13 +46,13 @@ A working `EpisodicPivotDetector` that fires bidirectionally on news-driven gaps
     6. Volume confirmation: sum of first-30-min intraday volume vs `prior_day_volume` (from daily bars). Require `>=` parity.
     7. Stops: long → `close_yesterday`; short → `max(high) of intraday_bars so far`.
     8. Targets: 2R, 3R via helper.
-- [ ] Compute `conviction_signal` from a blend: `0.4 * normalize(|gap|, 0.04..0.10) + 0.4 * normalize(|sentiment|, 0.15..0.5) + 0.2 * normalize(volume_ratio, 1..3)` — clamp to [0, 1].
-- [ ] Register in `DetectorRegistry::default()`.
+- [x] Compute `conviction_signal` from a blend: `0.4 * normalize(|gap|, 0.04..0.10) + 0.4 * normalize(|sentiment|, 0.15..0.5) + 0.2 * normalize(volume_ratio, 1..3)` — clamp to [0, 1].
+- [x] Register in `DetectorRegistry::default()`.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml strategies::episodic_pivot` — all green.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml strategies::episodic_pivot` — all green.
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 
