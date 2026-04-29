@@ -100,6 +100,7 @@ fn ctx<'a>(daily: &'a [HistoricalBar], intraday: Option<&'a [HistoricalBar]>) ->
         intraday_bars: intraday,
         fundamentals: None,
         recent_news: &[],
+        news_verdict: None,
         current_quote: None,
         now: Utc::now(),
     }

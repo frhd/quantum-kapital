@@ -20,6 +20,7 @@ use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
+use services::news_interpreter::NewsInterpreter;
 use services::thesis_generator::ThesisGenerator;
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
@@ -98,8 +99,19 @@ pub fn run() {
             // runner lifts bars + news + the detector registry into a
             // single command-callable surface.
             let api_key = std::env::var("ALPHA_VANTAGE_API_KEY").unwrap_or_default();
-            let financial_service =
-                Arc::new(FinancialDataService::new(api_key).with_db(Arc::clone(&db)));
+            // Phase 19: news interpreter runs after each successful AV
+            // news fetch and lands a structured NewsVerdict in
+            // news_cache.news_verdict_json. Best-effort — interpreter
+            // failures never propagate.
+            let news_interpreter = Arc::new(NewsInterpreter::new(
+                Arc::clone(&llm_service),
+                Arc::clone(&db),
+            ));
+            let financial_service = Arc::new(
+                FinancialDataService::new(api_key)
+                    .with_db(Arc::clone(&db))
+                    .with_news_interpreter(Arc::clone(&news_interpreter)),
+            );
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
             let decay_bars: Arc<dyn BarsFetcher> =
@@ -161,6 +173,7 @@ pub fn run() {
             app.manage(intraday_scheduler);
             app.manage(llm_service);
             app.manage(thesis_generator);
+            app.manage(news_interpreter);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

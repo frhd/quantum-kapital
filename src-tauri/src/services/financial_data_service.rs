@@ -3,6 +3,7 @@ use crate::ibkr::types::fundamentals::{
 };
 use crate::ibkr::types::news::NewsItem;
 use crate::services::cache_service::CacheService;
+use crate::services::news_interpreter::NewsInterpreter;
 use crate::storage::Db;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,7 @@ pub struct FinancialDataService {
     base_url: String,
     cache: Option<CacheService>,
     db: Option<Arc<Db>>,
+    news_interpreter: Option<Arc<NewsInterpreter>>,
 }
 
 // Alpha Vantage API response structures
@@ -144,6 +146,7 @@ impl FinancialDataService {
             base_url: "https://www.alphavantage.co/query".to_string(),
             cache,
             db: None,
+            news_interpreter: None,
         }
     }
 
@@ -153,11 +156,28 @@ impl FinancialDataService {
         self
     }
 
+    /// Attach an LLM-backed news interpreter (Phase 19). When wired,
+    /// each successful `fetch_news_sentiment` triggers a best-effort
+    /// `interpret(symbol)` that lands a `NewsVerdict` in
+    /// `news_cache.news_verdict_json`. Interpreter failures are logged
+    /// but never propagate — the news fetch itself stays unaffected.
+    pub fn with_news_interpreter(mut self, interpreter: Arc<NewsInterpreter>) -> Self {
+        self.news_interpreter = Some(interpreter);
+        self
+    }
+
     /// Fetch ticker-tagged news + sentiment from Alpha Vantage NEWS_SENTIMENT,
     /// using the SQLite news cache (1-hour default TTL). Falls back to cached
     /// or empty data on rate-limit / no-key / transport failures so the
     /// surrounding flow never crashes on news. Requires a `Db` previously
     /// attached via [`FinancialDataService::with_db`].
+    ///
+    /// When a [`NewsInterpreter`] has been attached via
+    /// [`with_news_interpreter`](Self::with_news_interpreter), this call
+    /// also kicks off a best-effort verdict pass after a successful
+    /// fetch. The interpreter short-circuits if the cache row already
+    /// has a non-NULL `news_verdict_json`, so no LLM tokens are burned
+    /// when the AV cache returns a fresh hit.
     pub async fn fetch_news_sentiment(
         &self,
         symbol: &str,
@@ -167,14 +187,22 @@ impl FinancialDataService {
             .db
             .as_ref()
             .ok_or("News fetching requires a Db; call FinancialDataService::with_db first")?;
-        news::fetch_news_sentiment_default(
+        let items = news::fetch_news_sentiment_default(
             Arc::clone(db),
             &self.api_key,
             &self.base_url,
             symbol,
             lookback_hours,
         )
-        .await
+        .await?;
+
+        if let Some(interpreter) = self.news_interpreter.as_ref() {
+            if let Err(e) = interpreter.interpret(symbol).await {
+                warn!("news interpreter failed for {symbol} (best-effort, continuing): {e}");
+            }
+        }
+
+        Ok(items)
     }
 
     /// Fetches fundamental data for a given symbol

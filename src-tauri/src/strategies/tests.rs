@@ -45,6 +45,7 @@ fn empty_ctx<'a>(symbol: &'a str) -> MarketContext<'a> {
         intraday_bars: None,
         fundamentals: None,
         recent_news: &[],
+        news_verdict: None,
         current_quote: None,
         now: Utc::now(),
     }

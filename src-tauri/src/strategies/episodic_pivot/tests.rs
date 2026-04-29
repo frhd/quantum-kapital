@@ -2,7 +2,7 @@
 
 use chrono::{Duration, Utc};
 
-use crate::ibkr::types::{HistoricalBar, NewsItem, TickerSentiment};
+use crate::ibkr::types::{HistoricalBar, NewsItem, NewsTone, NewsVerdict, TickerSentiment};
 use crate::strategies::trait_def::DetectorError;
 use crate::strategies::{Direction, MarketContext, StrategyDetector};
 
@@ -106,6 +106,7 @@ fn ctx<'a>(
         intraday_bars: intraday,
         fundamentals: None,
         recent_news: news,
+        news_verdict: None,
         current_quote: None,
         now: Utc::now(),
     }
@@ -308,4 +309,79 @@ async fn most_relevant_news_item_drives_sentiment() {
         Direction::Short,
         "more-relevant bearish item should override bullish lower-relevance item"
     );
+}
+
+fn ctx_with_verdict<'a>(
+    symbol: &'a str,
+    daily: &'a [HistoricalBar],
+    intraday: Option<&'a [HistoricalBar]>,
+    news: &'a [NewsItem],
+    verdict: &'a NewsVerdict,
+) -> MarketContext<'a> {
+    let mut c = ctx(symbol, daily, intraday, news);
+    c.news_verdict = Some(verdict);
+    c
+}
+
+#[tokio::test]
+async fn prefers_news_verdict_over_av_sentiment_when_present() {
+    // Gap-up day with intraday volume confirmation. AV sentiment is
+    // bullish (would normally produce a long), but the LLM verdict says
+    // bearish — the verdict must win, producing a fade-short.
+    let daily = daily_series(50.0, 53.0, 1_000_000);
+    let intraday = intraday_series(&[700_000, 500_000, 100_000], &[53.4, 53.8, 53.5]);
+    let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
+    let verdict = NewsVerdict {
+        tone: NewsTone::Bearish,
+        ep_worthy: true,
+        parabolic_risk: false,
+        summary: "Guidance cut despite headline beat.".to_string(),
+    };
+
+    let cand = EpisodicPivotDetector
+        .evaluate(&ctx_with_verdict(
+            SYMBOL,
+            &daily,
+            Some(&intraday),
+            &news,
+            &verdict,
+        ))
+        .await
+        .expect("evaluate")
+        .expect("candidate");
+
+    assert_eq!(
+        cand.direction,
+        Direction::Short,
+        "verdict polarity (bearish) must override AV bullish sentiment"
+    );
+}
+
+#[tokio::test]
+async fn neutral_verdict_does_not_short_circuit_av_fallback() {
+    // A neutral verdict should fall through to AV sentiment so we don't
+    // lose pre-existing detection capability when the LLM is uncertain.
+    let daily = daily_series(50.0, 53.0, 1_000_000);
+    let intraday = intraday_series(&[600_000, 600_000, 200_000], &[53.4, 53.6, 53.5]);
+    let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
+    let verdict = NewsVerdict {
+        tone: NewsTone::Neutral,
+        ep_worthy: false,
+        parabolic_risk: false,
+        summary: "Mixed signals.".to_string(),
+    };
+
+    let cand = EpisodicPivotDetector
+        .evaluate(&ctx_with_verdict(
+            SYMBOL,
+            &daily,
+            Some(&intraday),
+            &news,
+            &verdict,
+        ))
+        .await
+        .expect("evaluate")
+        .expect("candidate (AV fallback path)");
+
+    assert_eq!(cand.direction, Direction::Long);
 }

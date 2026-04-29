@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::json;
 
-use crate::ibkr::types::{BarSize, NewsItem, StrategyTag};
+use crate::ibkr::types::{BarSize, NewsItem, NewsTone, NewsVerdict, StrategyTag};
 use crate::strategies::{
     targets_for_risk_profile, DetectorError, Direction, MarketContext, SetupCandidate,
     StrategyDetector,
@@ -33,6 +33,11 @@ const MIN_VOLUME_RATIO: f64 = 1.0;
 const MAX_VOLUME_RATIO: f64 = 3.0;
 /// First 30 minutes of session @ 15-min resolution = 2 bars.
 const FIRST_30_MIN_BARS: usize = 2;
+/// Sentiment magnitude assigned when polarity comes from a [`NewsVerdict`]
+/// rather than per-item AV scores. Solidly inside the
+/// `MIN_SENTIMENT..MAX_SENTIMENT` band so the conviction blend stays
+/// well-defined.
+const VERDICT_SENTIMENT_MAGNITUDE: f64 = 0.325;
 
 #[derive(Debug, Default)]
 pub struct EpisodicPivotDetector;
@@ -51,6 +56,19 @@ impl EpisodicPivotDetector {
                 Some((ts.ticker_sentiment_score, ts.relevance_score))
             })
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+    }
+
+    /// Polarity-only signal derived from a [`NewsVerdict`]. Bullish /
+    /// bearish map to a fixed magnitude inside the conviction band so
+    /// the rest of the pipeline can keep treating sentiment as a
+    /// signed scalar; neutral collapses to `None` so the caller
+    /// short-circuits before falling through to AV.
+    fn sentiment_from_verdict(verdict: &NewsVerdict) -> Option<f64> {
+        match verdict.tone {
+            NewsTone::Bullish => Some(VERDICT_SENTIMENT_MAGNITUDE),
+            NewsTone::Bearish => Some(-VERDICT_SENTIMENT_MAGNITUDE),
+            NewsTone::Neutral => None,
+        }
     }
 
     fn normalize(x: f64, lo: f64, hi: f64) -> f64 {
@@ -112,14 +130,24 @@ impl StrategyDetector for EpisodicPivotDetector {
             .intraday_bars
             .ok_or(DetectorError::IntradayBarsRequired)?;
 
-        // Pick the most-relevant news item for this symbol.
-        let (sentiment, _relevance) = match Self::pick_sentiment(ctx.symbol, ctx.recent_news) {
-            Some(v) => v,
-            None => return Ok(None),
+        // Prefer the LLM-derived NewsVerdict (Phase 19) when present; it
+        // reasons over the full headline set instead of one max-relevance
+        // AV item. Fall back to per-item AV sentiment when no verdict
+        // exists (LLM disabled, budget exhausted, or first pass before
+        // the interpreter has run).
+        let sentiment = match ctx.news_verdict.and_then(Self::sentiment_from_verdict) {
+            Some(s) => s,
+            None => {
+                let (s, _relevance) = match Self::pick_sentiment(ctx.symbol, ctx.recent_news) {
+                    Some(v) => v,
+                    None => return Ok(None),
+                };
+                if s.abs() < MIN_SENTIMENT {
+                    return Ok(None);
+                }
+                s
+            }
         };
-        if sentiment.abs() < MIN_SENTIMENT {
-            return Ok(None);
-        }
 
         // Direction decision: continuation up, continuation down, or gap-up
         // fade. Gap-down with bullish sentiment is intentionally not modeled.

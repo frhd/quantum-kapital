@@ -75,37 +75,3 @@ SQLite tables (see `src-tauri/src/storage/schema.sql`): `tracked_tickers`, `setu
 Feature-based React 19 + TypeScript + Tailwind 4. Each `src/features/<area>/` is self-contained: `components/`, `hooks/`, `types/`. Cross-feature code lives in `src/shared/` (`api/` for Tauri command wrappers, `components/ui/` for shadcn-style primitives). Path alias `@/* → src/*` is configured in `tsconfig.json` and `vite.config.ts`.
 
 All backend access goes through `src/shared/api/*.ts` — never call `invoke()` directly from a component.
-
-## TDD discipline
-
-Every phase in `impl/` follows red → green → refactor:
-
-1. Write the listed tests first; confirm they fail.
-2. Implement until green.
-3. Run clippy + fmt; tick the phase checkboxes; commit.
-
-The IBKR adapter has a trait-based seam: `IbkrClientTrait` in `ibkr/mocks.rs` plus `MockIbkrClient`. **All service-layer tests use `MockIbkrClient`** rather than touching live TWS — required, not optional. The same pattern applies to `BarsFetcher` / `NewsFetcher` / `HistoricalDataFetcher` / `AnthropicHttp` traits — each external dependency has a narrow trait so tests can inject canned data.
-
-Don't start a phase whose dependencies (listed in each `impl/phase-*.md`) are unchecked.
-
-## Configuration & secrets
-
-Settings persist as JSON via `config::AppConfig` to the OS app-data dir (`~/.config/quantum-kapital/settings.json` on Linux; see `SETTINGS_GUIDE.md` for other platforms and the full schema). Secrets are read from `src-tauri/.env` via `dotenv`:
-
-- `ALPHA_VANTAGE_API_KEY` — fundamental + news data (free tier: 25 calls/day; service falls back gracefully when absent).
-- `ANTHROPIC_API_KEY` — Claude API for thesis / decay-watcher / news-interpreter / ranker. `LlmService` enforces `daily_llm_budget_usd` from settings; over-budget calls return `LlmError::BudgetExhausted` rather than billing.
-
-Default IBKR connection is `127.0.0.1:4004` (live) with client ID 100. Use `7497` for paper trading.
-
-## Conventions that affect code shape
-
-See `CONTRIBUTING.md` for the full file-size policy. Summary: Rust soft cap **500 lines** / hard cap **800**; TS/TSX soft cap **300** / hard cap **500**. Files that exceed the hard cap need a top-of-file `// allow-large-file: <reason>` comment with a follow-up issue. The pre-Phase-25 offenders listed in `CONTRIBUTING.md` are exempt for unrelated changes; new files always follow the cap.
-
-## Reference docs
-
-- `impl.md` + `impl/phase-*.md` — phased plan with dependency graph; the source of truth for what to build next.
-- `impl/scratch/` — cross-phase notes (schema decisions, detector calibration, prompt versions, backtest results) that don't belong in code.
-- `IBKR_API_INTERFACES.md` — IBKR API surface used by `ibkr/client.rs`.
-- `ALPHA_VANTAGE_SETUP.md`, `FUNDAMENTAL_DATA_API.md` — Alpha Vantage integration.
-- `SETTINGS_GUIDE.md` — settings JSON schema, frontend/backend access patterns.
-- `CONTRIBUTING.md` — file-size limits and escalation rules.

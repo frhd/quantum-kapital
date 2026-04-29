@@ -94,7 +94,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 - [x] **Phase 16** — Anthropic client foundation + budget kill-switch — `impl/phase-16-anthropic-client.md`
 - [x] **Phase 17** — Thesis prompt (Sonnet 4.6, tool-use forced JSON) — `impl/phase-17-thesis-prompt.md`
 - [x] **Phase 18** — Decay-watcher prompt (Haiku 4.5, intraday) — `impl/phase-18-decay-watcher.md`
-- [ ] **Phase 19** — News interpreter prompt (Haiku 4.5) — `impl/phase-19-news-interpreter.md`
+- [x] **Phase 19** — News interpreter prompt (Haiku 4.5) — `impl/phase-19-news-interpreter.md`
 - [ ] **Phase 20** — Daily ranker (Sonnet 4.6) + MorningPack UI — `impl/phase-20-daily-ranker.md`
 
 ### Polish (21–24)

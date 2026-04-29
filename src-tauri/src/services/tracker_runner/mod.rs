@@ -18,7 +18,7 @@ use tracing::warn;
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::Result as IbkrResult;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
-use crate::ibkr::types::news::NewsItem;
+use crate::ibkr::types::news::{NewsItem, NewsVerdict};
 use crate::ibkr::types::tracker::{Setup, TrackerStatus};
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
@@ -104,6 +104,7 @@ pub struct OwnedMarketContext {
     pub daily_bars: Vec<HistoricalBar>,
     pub intraday_bars: Option<Vec<HistoricalBar>>,
     pub recent_news: Vec<NewsItem>,
+    pub news_verdict: Option<NewsVerdict>,
     pub now: DateTime<Utc>,
 }
 
@@ -115,6 +116,7 @@ impl OwnedMarketContext {
             intraday_bars: self.intraday_bars.as_deref(),
             fundamentals: None,
             recent_news: &self.recent_news,
+            news_verdict: self.news_verdict.as_ref(),
             current_quote: None,
             now: self.now,
         }
@@ -217,6 +219,7 @@ impl TrackerRunner {
             daily_bars,
             intraday_bars,
             recent_news,
+            news_verdict: None,
             now: Utc::now(),
         })
     }

@@ -60,9 +60,20 @@ If switching models, bump the prompt version and log here.
 - **Expected cost (per call, Haiku 4.5):** input ~600 tokens (persona + thesis + 12 bars), output ~80 tokens, cache reads after first tick ~500 tokens. Pricing: `(0.0006 × 1) + (0.00008 × 5) + (0.0005 × 0.10) ≈ $0.0011 per cached call` — well under the plan's ~$0.005/call ceiling.
 - **Observed:** _to fill in after first real-data run; full end-to-end pass requires `ANTHROPIC_API_KEY` + IBKR TWS + a seeded SetupActive row, all of which are user-driven manual steps_.
 
-### News interpreter — v1 (Phase 19)
+### News interpreter — v1 (Phase 19 — landed 2026-04-29)
 
-_to fill_
+- **Status:** shipped. Source of truth: `src-tauri/src/services/news_interpreter/mod.rs` (`SYSTEM_PROMPT`, `tool_schema()`).
+- **Model:** `claude-haiku-4-5`, `max_tokens = 384`. Triggered after each successful AV news fetch (read-through cache hit short-circuits before reaching the LLM).
+- **System prompt summary:** "You read 1–10 news items about one stock. Output ONLY through the `emit_news_verdict` tool. Be terse, neutral, evidence-grounded." Spells out the four output fields and explicitly tells the model to flag `parabolic_risk` even on bullish-tone short-squeeze chatter.
+- **Input shape:** one cached system block (persona) + one user message `{ symbol, news: [{ title, summary, source, time_published, overall_sentiment_label, overall_sentiment_score }] (≤ 10 items) }`. The full per-item AV sentiment is included so the model has a numeric prior.
+- **Output schema (forced tool-use `emit_news_verdict`):** `{ tone: bullish|bearish|neutral, ep_worthy: bool, parabolic_risk: bool, summary: string }`. All four fields required.
+- **Prompt cache TTL:** ephemeral. The single system block is `cache_control: { type: "ephemeral" }`. Cache key is the persona block — every symbol's first interpret call within the 5-min Anthropic ephemeral TTL warms the cache for subsequent symbols.
+- **Persistence:** the verdict lands in `news_cache.news_verdict_json` (additive column) on the same row as the AV payload. `INSERT OR REPLACE` semantics on the news fetch path means a fresh payload always clears the prior verdict, so the interpreter re-runs only when the underlying news block changed.
+- **Idempotency:** `cached.verdict_json.is_some()` short-circuits the LLM call entirely. A second `interpret(symbol)` within the AV TTL is a no-op.
+- **Failure handling:** every transient / config / parse problem (`BudgetExhausted`, `Auth`, `Upstream`, `Network`, `NoApiKey`, `Malformed`, `UnknownModel`, missing tool call) collapses to `Ok(None)` with a `warn!`. The cache row stays verdict-less and the EP detector falls back to AV's per-ticker sentiment score.
+- **EP detector consumption:** `EpisodicPivotDetector` prefers the verdict when present — bullish/bearish map to `±VERDICT_SENTIMENT_MAGNITUDE = 0.325` (mid-band of `MIN_SENTIMENT..MAX_SENTIMENT`); neutral falls through to the AV path. The neutral fall-through preserves pre-existing detection capability when the LLM is uncertain.
+- **Expected cost (per call, Haiku 4.5):** input ~250 tokens (persona + ≤10 headlines), output ~80 tokens, cache reads after the first call within TTL ~200 tokens. Pricing: `(0.00025 × 1) + (0.00008 × 5) + (0.0002 × 0.10) ≈ $0.0007 per cached call` — well under the plan's ~$0.005/call ceiling.
+- **Observed:** _to fill in after first real-data run; manual verification (`tracker_get_news` against a tracked symbol) requires `ANTHROPIC_API_KEY` + `ALPHA_VANTAGE_API_KEY`_.
 
 ### Daily ranker — v1 (Phase 20)
 

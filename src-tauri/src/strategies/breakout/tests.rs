@@ -19,6 +19,7 @@ fn ctx<'a>(symbol: &'a str, bars: &'a [HistoricalBar]) -> MarketContext<'a> {
         intraday_bars: None,
         fundamentals: None,
         recent_news: &[],
+        news_verdict: None,
         current_quote: None,
         now: Utc::now(),
     }

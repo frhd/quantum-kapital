@@ -7,6 +7,7 @@ pub fn run_migrations(conn: &mut rusqlite::Connection) -> Result<()> {
     tx.execute_batch(SCHEMA_SQL)?;
     add_column_if_missing(&tx, "tracked_tickers", "cool_down_until", "INTEGER")?;
     add_column_if_missing(&tx, "setups", "thesis_json", "TEXT")?;
+    add_column_if_missing(&tx, "news_cache", "news_verdict_json", "TEXT")?;
     tx.commit()?;
     Ok(())
 }

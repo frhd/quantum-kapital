@@ -9,6 +9,15 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 19 — News interpreter verdict persistence
+
+**Change:** Added `news_cache.news_verdict_json TEXT` (nullable). Stores the full `NewsVerdict` struct (`tone`, `ep_worthy`, `parabolic_risk`, `summary`) as a serialized JSON object on the same row as the cached news payload.
+**Why a sibling column on `news_cache`:** keeps verdict + raw items co-located and write-coherent — a fresh news fetch and its interpretation belong in one row keyed by symbol. Avoids a second per-symbol table that would always be joined back. Verdict-less rows (LLM disabled, budget exhausted, fresh row before interpreter has run) simply leave the column NULL; the EP detector falls back to AV's per-ticker sentiment in that case.
+**Migration impact:** additive. `schema.sql` updated for fresh DBs; `migrations.rs` runs an idempotent `add_column_if_missing(&tx, "news_cache", "news_verdict_json", "TEXT")` so existing `tracker.sqlite` files pick up the column on next launch. No data backfill needed — verdicts populate on the next news refresh.
+**Cross-references:** `src-tauri/src/storage/{schema.sql, migrations.rs}`, `src-tauri/src/services/news_interpreter/{mod,tests}.rs`, `src-tauri/src/services/financial_data_service/news.rs` (read/write helpers extended with verdict column), `src-tauri/src/strategies/episodic_pivot/detector.rs` (consumes verdict tone when present).
+
+---
+
 ### 2026-04-29 — Phase 17 — Thesis generator persistence
 
 **Change:** Added `setups.thesis_json TEXT` (nullable) to hold the full structured `Thesis` (markdown + conviction + invalidation_levels[] + risk_notes) as a serialized JSON object. Markdown still lives in `setups.thesis` for backwards-compatibility and for the existing `Setup.thesis: Option<String>` wire surface.

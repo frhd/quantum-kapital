@@ -6,8 +6,8 @@ When `news_cache` is refreshed for a tracked symbol, ask Haiku 4.5 to classify t
 
 ## Depends on
 
-- [ ] Phase 03 — news fetch + cache.
-- [ ] Phase 16 — LlmService.
+- [x] Phase 03 — news fetch + cache.
+- [x] Phase 16 — LlmService.
 
 ## Out of scope
 
@@ -19,20 +19,20 @@ When `news_cache` is refreshed for a tracked symbol, ask Haiku 4.5 to classify t
 
 `src-tauri/src/services/news_interpreter/tests.rs`.
 
-- [ ] `interprets_bullish_earnings_beat` — fixture news set with positive earnings → mock returns `{tone: "bullish", ep_worthy: true, parabolic_risk: false, summary: ...}`; service stores it.
-- [ ] `interprets_bearish_guidance_cut` — mock returns `{tone: "bearish", ep_worthy: true, ...}`.
-- [ ] `interprets_neutral_routine_filing` — neutral 10-K filing → `{tone: "neutral", ep_worthy: false, ...}`.
-- [ ] `flags_parabolic_risk_on_short_squeeze_chatter` — fixture with "short squeeze" headlines → `parabolic_risk: true`.
-- [ ] `persists_to_news_cache_payload` — verdict stored as a sibling JSON column or as part of the cached payload (decide and log in scratchpad).
-- [ ] `does_not_call_llm_when_no_new_news` — second call within TTL with no new items → no LLM call.
-- [ ] `respects_budget_kill_switch` — `BudgetExhausted` → returns `Ok(NewsVerdict::skip())`; service logs and proceeds.
-- [ ] `caches_news_block_per_symbol` — cache_control on the news block.
-- [ ] `verdict_drives_ep_detector_in_phase_08_revisit` — Phase 08's EP detector reads the verdict (when present) instead of raw sentiment scores. (This phase adds the data; the EP detector update is also in this phase or in a follow-on tweak — see Implementation tasks.)
+- [x] `interprets_bullish_earnings_beat` — fixture news set with positive earnings → mock returns `{tone: "bullish", ep_worthy: true, parabolic_risk: false, summary: ...}`; service stores it.
+- [x] `interprets_bearish_guidance_cut` — mock returns `{tone: "bearish", ep_worthy: true, ...}`.
+- [x] `interprets_neutral_routine_filing` — neutral 10-K filing → `{tone: "neutral", ep_worthy: false, ...}`.
+- [x] `flags_parabolic_risk_on_short_squeeze_chatter` — fixture with "short squeeze" headlines → `parabolic_risk: true`.
+- [x] `persists_to_news_cache_payload` — verdict stored as a sibling JSON column or as part of the cached payload (decide and log in scratchpad).
+- [x] `does_not_call_llm_when_no_new_news` — second call within TTL with no new items → no LLM call.
+- [x] `respects_budget_kill_switch` — `BudgetExhausted` → returns `Ok(NewsVerdict::skip())`; service logs and proceeds.
+- [x] `caches_news_block_per_symbol` — cache_control on the news block.
+- [x] `verdict_drives_ep_detector_in_phase_08_revisit` — Phase 08's EP detector reads the verdict (when present) instead of raw sentiment scores. (This phase adds the data; the EP detector update is also in this phase or in a follow-on tweak — see Implementation tasks.)
 
 ## Implementation tasks
 
-- [ ] Decide storage. **Recommendation:** add a `news_verdict_json TEXT` column to `news_cache` (additive). Log in `schema-decisions.md`.
-- [ ] Create `src-tauri/src/services/news_interpreter/mod.rs`:
+- [x] Decide storage. **Recommendation:** add a `news_verdict_json TEXT` column to `news_cache` (additive). Log in `schema-decisions.md`.
+- [x] Create `src-tauri/src/services/news_interpreter/mod.rs`:
   ```rust
   pub struct NewsInterpreter { llm, db }
   pub struct NewsVerdict {
@@ -45,8 +45,8 @@ When `news_cache` is refreshed for a tracked symbol, ask Haiku 4.5 to classify t
       pub async fn interpret(&self, symbol: &str) -> Result<NewsVerdict>;
   }
   ```
-- [ ] System prompt (`prompts/news_v1.md`): "You read 1–10 news items about one stock. Output ONLY through the `emit_news_verdict` tool. Be terse, neutral, evidence-grounded."
-- [ ] Tool schema (`prompts/news_tool.json`):
+- [x] System prompt (inline `SYSTEM_PROMPT` const in `news_interpreter/mod.rs`, mirroring the inline-const pattern used by Phase 17 thesis and Phase 18 decay-watcher): "You read 1–10 news items about one stock. Output ONLY through the `emit_news_verdict` tool. Be terse, neutral, evidence-grounded."
+- [x] Tool schema (inline `tool_schema()` in `news_interpreter/mod.rs`):
   ```json
   { "name": "emit_news_verdict",
     "input_schema": { "type": "object",
@@ -57,15 +57,15 @@ When `news_cache` is refreshed for a tracked symbol, ask Haiku 4.5 to classify t
         "summary": {"type": "string"}
       }, "required": ["tone","ep_worthy","parabolic_risk","summary"] } }
   ```
-- [ ] Hook into the news refresh path in `financial_data_service.rs` — after a fresh fetch from AV, kick off `news_interpreter.interpret(symbol)` (best-effort; log on error).
-- [ ] Update `EpisodicPivotDetector` (Phase 08) to prefer `NewsVerdict` when present (use `verdict.tone` to disambiguate sentiment polarity, fall back to AV's `overall_sentiment_score` otherwise). Tests added: detector picks up verdict when present.
+- [x] Hook into the news refresh path in `financial_data_service.rs` — after a fresh fetch from AV, kick off `news_interpreter.interpret(symbol)` (best-effort; log on error).
+- [x] Update `EpisodicPivotDetector` (Phase 08) to prefer `NewsVerdict` when present (use `verdict.tone` to disambiguate sentiment polarity, fall back to AV's `overall_sentiment_score` otherwise). Tests added: detector picks up verdict when present.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml services::news_interpreter` — green.
-- [ ] Manual: `tracker_get_news('NVDA', 24)` → triggers refresh → `news_cache.news_verdict_json` populated.
-- [ ] Manual: trigger an EP setup against a ticker with a verdict and confirm the EP detector uses the verdict.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml services::news_interpreter` — green (12 tests).
+- [ ] Manual: `tracker_get_news('NVDA', 24)` → triggers refresh → `news_cache.news_verdict_json` populated. _Pending live `ANTHROPIC_API_KEY` + `ALPHA_VANTAGE_API_KEY` walk-through._
+- [ ] Manual: trigger an EP setup against a ticker with a verdict and confirm the EP detector uses the verdict. _Pending live walk-through; covered in unit tests `prefers_news_verdict_over_av_sentiment_when_present` + `neutral_verdict_does_not_short_circuit_av_fallback`._
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 

@@ -55,9 +55,10 @@ CREATE TABLE IF NOT EXISTS bars_cache (
 );
 
 CREATE TABLE IF NOT EXISTS news_cache (
-    symbol      TEXT NOT NULL,
-    fetched_at  INTEGER NOT NULL,
-    payload     TEXT NOT NULL,
+    symbol            TEXT NOT NULL,
+    fetched_at        INTEGER NOT NULL,
+    payload           TEXT NOT NULL,
+    news_verdict_json TEXT,
     PRIMARY KEY(symbol)
 );
 
