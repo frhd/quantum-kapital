@@ -46,9 +46,19 @@ If switching models, bump the prompt version and log here.
 - **Idempotency:** `setup.thesis.is_some()` short-circuits the LLM call entirely, so the EOD/intraday schedulers can re-evaluate a setup without burning tokens.
 - **Observed:** _to fill in after first real-data run; `tracker_llm_smoke_test` + Phase 17 manual verification still pending the user's `ANTHROPIC_API_KEY` walk-through_.
 
-### Decay-watcher — v1 (Phase 18)
+### Decay-watcher — v1 (Phase 18 — landed 2026-04-29)
 
-_to fill_
+- **Status:** shipped. Source of truth: `src-tauri/src/services/decay_watcher/mod.rs` (`SYSTEM_PROMPT`, `tool_schema()`).
+- **Model:** `claude-haiku-4-5`, `max_tokens = 512`. Hot path: every `IntradayScheduler` tick × every `Active` setup on a `SetupActive` ticker (default cadence 5 min during RTH).
+- **System prompt summary:** "You watch a single trade setup. Given the original thesis and the most recent bars, decide if it is still valid. Output ONLY through the `emit_decay` tool. Be terse." Spells out the four allowed outcome labels (`still_valid`, `invalidated`, `target_hit`, `thesis_changed`) and requires `reason` to cite a numeric level / bar.
+- **Input shape:** two cached system blocks + one user message. System block 0 = persona prompt. System block 1 = per-setup thesis context `{ setup_id, symbol, strategy, direction, trigger_price, stop_price, targets, thesis_md, invalidation_levels[] }` (drawn from `setups.thesis_json`). User message = `{ recent_bars: [{ time, open, high, low, close, volume }] (last 12 Min15 bars), current_quote: f64? }`.
+- **Output schema (forced tool-use `emit_decay`):** `{ still_valid: bool, outcome: still_valid|invalidated|target_hit|thesis_changed, reason: string, suggested_action?: string }`. `still_valid` + `outcome` + `reason` required; `suggested_action` is informational only — the system never places orders.
+- **Prompt cache TTL:** ephemeral. Both system blocks request `cache_control: { type: "ephemeral" }`. The persona block hits across every setup; the thesis block hits across successive ticks for the same setup (the block embeds `setup_id` so the cache is keyed per-setup). Expected cache-hit rate after the first tick of a setup: ~95% on subsequent ticks within the 5-min Anthropic ephemeral TTL.
+- **Freshness grace:** [`FRESHNESS_GRACE = 30 min`](../../src-tauri/src/services/decay_watcher/mod.rs). A setup detected < 30 min ago short-circuits to `DecayDecision::skipped()` without an HTTP call — the first few intraday bars after detection routinely whipsaw and would cause spurious invalidations.
+- **Failure handling:** every transient / configuration / parse problem (`BudgetExhausted`, `Auth`, `Upstream`, `Network`, `NoApiKey`, `Malformed`, `UnknownModel`, bars-fetch failure, missing tool call, malformed tool input) collapses to `DecayDecision::skipped()` with a `warn!`. The scheduler treats `Skipped` and `StillValid` identically (no state change), so the budget kill-switch never snowballs into spurious invalidations.
+- **Outcome dispatch (intraday scheduler):** `Invalidated | ThesisChanged → state_machine.mark_invalidated(setup_id, reason)`; `TargetHit → state_machine.mark_completed(setup_id)`; `StillValid | Skipped → continue`. `IntradayTickOutcome` gained a `completed_setup_ids: Vec<i64>` field alongside the existing `invalidated_setup_ids` so observers can distinguish the two.
+- **Expected cost (per call, Haiku 4.5):** input ~600 tokens (persona + thesis + 12 bars), output ~80 tokens, cache reads after first tick ~500 tokens. Pricing: `(0.0006 × 1) + (0.00008 × 5) + (0.0005 × 0.10) ≈ $0.0011 per cached call` — well under the plan's ~$0.005/call ceiling.
+- **Observed:** _to fill in after first real-data run; full end-to-end pass requires `ANTHROPIC_API_KEY` + IBKR TWS + a seeded SetupActive row, all of which are user-driven manual steps_.
 
 ### News interpreter — v1 (Phase 19)
 

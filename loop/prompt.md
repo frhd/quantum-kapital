@@ -1,4 +1,4 @@
-lets start or continue with the next phase of @IMPL.md. mark completed when done, update CLAUDE.MD, then write a short and concise commit message for staged and unstaged changes, and untracked files and commit and push. after each phase, wait for further instructions.
+lets start or continue with the next phase of @IMPL.md. mark completed when done, then write a short and concise commit message for staged and unstaged changes, and untracked files and commit and push. after each phase, wait for further instructions.
 
 use subagents whenever possible to speed things up and save context.
 when spawning subagents, select the appropriate model:

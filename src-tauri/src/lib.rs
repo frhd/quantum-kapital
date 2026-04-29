@@ -14,7 +14,7 @@ use std::time::Duration;
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::HistoricalRateLimiter;
-use services::decay_watcher::{DecayWatcher, DecayWatcherStub};
+use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
@@ -102,6 +102,8 @@ pub fn run() {
                 Arc::new(FinancialDataService::new(api_key).with_db(Arc::clone(&db)));
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
+            let decay_bars: Arc<dyn BarsFetcher> =
+                Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
             let news: Arc<dyn NewsFetcher> = Arc::clone(&financial_service) as Arc<dyn NewsFetcher>;
 
             // Phase 17: thesis generator runs after each persisted setup
@@ -137,9 +139,10 @@ pub fn run() {
             ));
 
             // Phase 14: intraday scheduler. Same start/stop command pair
-            // as the EOD scheduler. Phase 18 swaps `DecayWatcherStub` for
-            // a real Anthropic-backed implementation.
-            let decay_watcher: Arc<dyn DecayWatcher> = Arc::new(DecayWatcherStub);
+            // as the EOD scheduler. Phase 18 swapped the stub for a real
+            // Anthropic-backed `LlmDecayWatcher` (Haiku 4.5).
+            let decay_watcher: Arc<dyn DecayWatcher> =
+                Arc::new(LlmDecayWatcher::new(Arc::clone(&llm_service), decay_bars));
             let intraday_scheduler = Arc::new(IntradayScheduler::new(
                 Arc::clone(&tracker_runner),
                 Arc::clone(&ibkr_state.state_machine),

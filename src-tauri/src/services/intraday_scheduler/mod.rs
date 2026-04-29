@@ -40,7 +40,7 @@ use tracing::{info, warn};
 
 use crate::ibkr::client::StreamHandle;
 use crate::ibkr::types::tracker::{SetupStatus, TrackerStatus};
-use crate::services::decay_watcher::DecayWatcher;
+use crate::services::decay_watcher::{DecayOutcome, DecayWatcher};
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
 use crate::services::tracker_service::TrackerService;
 use crate::services::tracker_state_machine::TrackerStateMachine;
@@ -84,6 +84,8 @@ pub struct IntradayTickOutcome {
     pub run_results: Vec<RunResult>,
     /// Setup ids the decay-watcher flagged as invalid this tick.
     pub invalidated_setup_ids: Vec<i64>,
+    /// Setup ids the decay-watcher reported a target hit on this tick.
+    pub completed_setup_ids: Vec<i64>,
 }
 
 #[derive(Clone)]
@@ -177,6 +179,7 @@ impl IntradayScheduler {
 
         let mut run_results = Vec::with_capacity(symbols.len());
         let mut invalidated_setup_ids = Vec::new();
+        let mut completed_setup_ids = Vec::new();
 
         for symbol in &symbols {
             // Step 1: re-run detectors against fresh bars/news. Errors
@@ -227,33 +230,45 @@ impl IntradayScheduler {
             {
                 let setup_id = setup.id;
                 let decision = self.decay_watcher.check(&setup).await;
-                if decision.still_valid {
-                    continue;
+                match decision.outcome {
+                    DecayOutcome::StillValid | DecayOutcome::Skipped => continue,
+                    DecayOutcome::Invalidated | DecayOutcome::ThesisChanged => {
+                        let reason = decision
+                            .reason
+                            .as_deref()
+                            .unwrap_or("decay-watcher invalidation");
+                        if let Err(e) = self.state_machine.mark_invalidated(setup_id, reason).await
+                        {
+                            warn!("mark_invalidated failed for setup#{setup_id}: {e}");
+                            continue;
+                        }
+                        invalidated_setup_ids.push(setup_id);
+                    }
+                    DecayOutcome::TargetHit => {
+                        if let Err(e) = self.state_machine.mark_completed(setup_id).await {
+                            warn!("mark_completed failed for setup#{setup_id}: {e}");
+                            continue;
+                        }
+                        completed_setup_ids.push(setup_id);
+                    }
                 }
-                let reason = decision
-                    .reason
-                    .as_deref()
-                    .unwrap_or("decay-watcher invalidation");
-                if let Err(e) = self.state_machine.mark_invalidated(setup_id, reason).await {
-                    warn!("mark_invalidated failed for setup#{setup_id}: {e}");
-                    continue;
-                }
-                invalidated_setup_ids.push(setup_id);
             }
         }
 
         *self.last_tick_at.write().await = Some(now);
 
         info!(
-            "intraday tick processed {} symbol(s), invalidated {} setup(s)",
+            "intraday tick processed {} symbol(s), invalidated {} setup(s), completed {} setup(s)",
             symbols.len(),
-            invalidated_setup_ids.len()
+            invalidated_setup_ids.len(),
+            completed_setup_ids.len()
         );
 
         Ok(Some(IntradayTickOutcome {
             processed_symbols: symbols,
             run_results,
             invalidated_setup_ids,
+            completed_setup_ids,
         }))
     }
 
