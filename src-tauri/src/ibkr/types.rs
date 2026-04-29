@@ -11,6 +11,7 @@ pub mod positions;
 pub mod historical;
 pub mod news;
 pub mod scanner;
+pub mod tracker;
 
 // Re-export all types at the root level for backward compatibility
 pub use account::*;
@@ -25,3 +26,5 @@ pub use historical::*;
 #[allow(unused_imports)]
 pub use news::*;
 pub use scanner::*;
+#[allow(unused_imports)]
+pub use tracker::*;

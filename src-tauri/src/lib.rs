@@ -32,10 +32,9 @@ pub fn run() {
             // Initialize settings state
             let settings_state = SettingsState::new(config.clone());
 
-            // Initialize IBKR state with configuration
-            let ibkr_state = IbkrState::new(config.ibkr.clone().into());
-
-            // Open SQLite tracker database in app local data dir.
+            // Open SQLite tracker database in app local data dir. The DB
+            // is shared with `IbkrState` (for the tracker service) and
+            // with the historical-bars service constructed below.
             let db_dir = app
                 .path()
                 .app_local_data_dir()
@@ -46,6 +45,9 @@ pub fn run() {
             let db =
                 Db::open(&db_path).map_err(|e| format!("open tracker db at {db_path:?}: {e}"))?;
             let db = Arc::new(db);
+
+            // Initialize IBKR state with configuration + shared DB.
+            let ibkr_state = IbkrState::new(config.ibkr.clone().into(), Arc::clone(&db));
 
             // Set app handle for event emitter
             let app_handle = app.handle().clone();
@@ -91,6 +93,12 @@ pub fn run() {
             ibkr::commands::ibkr_stop_scanner,
             ibkr::commands::tracker_fetch_bars,
             ibkr::commands::tracker_get_news,
+            ibkr::commands::tracker_add,
+            ibkr::commands::tracker_remove,
+            ibkr::commands::tracker_list,
+            ibkr::commands::tracker_get,
+            ibkr::commands::tracker_set_tags,
+            ibkr::commands::tracker_set_status,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,

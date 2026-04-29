@@ -5,16 +5,9 @@ use tauri::State;
 #[tauri::command]
 pub async fn ibkr_connect(
     state: State<'_, IbkrState>,
-    config: Option<ConnectionConfig>,
+    _config: Option<ConnectionConfig>,
 ) -> Result<String, String> {
     tracing::info!("🟢 CONNECT COMMAND CALLED");
-
-    // If config is provided, update the client config
-    if let Some(new_config) = config {
-        let _client = IbkrState::new(new_config);
-        // Note: In a real implementation, you'd want to update the managed state
-        // For now, we'll use the existing client
-    }
 
     let result = state.client.connect().await;
     tracing::info!("🟢 CONNECT RESULT: {:?}", result.is_ok());

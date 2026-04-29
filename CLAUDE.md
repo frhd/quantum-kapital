@@ -83,8 +83,8 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
       - `trading.rs`: Order placement commands
       - `analysis.rs`: Fundamental data and projection commands
       - `scanner.rs`: Market scanner stream lifecycle commands
-      - `tracker.rs`: Tracker subsystem commands (Phase 02 added `tracker_fetch_bars`; Phase 03 added `tracker_get_news`; full set lands in Phase 04+)
-    - `types/`: Type definitions modularized by domain (account, connection, fundamentals, historical, market_data, news, orders, positions, scanner)
+      - `tracker.rs`: Tracker subsystem commands (Phase 02 added `tracker_fetch_bars`; Phase 03 added `tracker_get_news`; Phase 04 added watchlist CRUD: `tracker_add` / `tracker_remove` / `tracker_list` / `tracker_get` / `tracker_set_tags` / `tracker_set_status`)
+    - `types/`: Type definitions modularized by domain (account, connection, fundamentals, historical, market_data, news, orders, positions, scanner, tracker)
     - `state.rs`: Application state management with Tokio async runtime
     - `error.rs`: Custom error types with thiserror
     - `mocks.rs`: MockIbkrClient for test-driven development
@@ -96,6 +96,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `financial_data_service.rs` + `financial_data_service/news.rs`: Alpha Vantage fundamental data integration. Phase 03 added a `news` submodule for `NEWS_SENTIMENT` with SQLite-backed cache (`news_cache` table, 60-min default TTL), HTTP transport seam (`NewsHttp` trait blanket-impl'd by `ReqwestNewsHttp`), and injectable `NewsClock` for deterministic tests. Service is best-effort: rate-limit `Note`/`Information` responses, transport failures, or missing API key fall back to the cached payload (or empty `Vec`) and only log a `warn!` — never propagate as an error. Filters items to the requested symbol via `ticker_sentiment[].ticker`. `FinancialDataService::fetch_news_sentiment` requires `with_db(Arc<Db>)` to be set first.
     - `projection_service.rs`: Forward-looking financial projection logic
     - `cache_service.rs`: In-memory caching for fundamentals/projections
+    - `tracker_service/`: Watchlist persistence over the `tracked_tickers` table (added Phase 04). `TrackerService::new(db: Arc<Db>)`. CRUD surface: `add` (returns `TrackerError::AlreadyTracked` on PK conflict), `remove` (idempotent), `list(status_filter)`, `get`, `set_tags`, `set_status(in_play_until)`, `touch_last_checked`. Symbols are normalized to uppercase. `tags` and `source_meta` round-trip as JSON columns; status is stored as a snake_case string but transitions are NOT enforced here — Phase 12 owns the state machine.
     - `historical_data_service/`: Historical bars fetcher with SQLite cache (added Phase 02)
       - `mod.rs`: `HistoricalDataService` with cache-first reads, write-through, in-flight dedup via `tokio::sync::Mutex<HashMap<key, Arc<Mutex<()>>>>`, partial-range gap fetch for daily bars, intraday cache invalidation at session rollover. Exposes `HistoricalDataFetcher` trait (blanket-impl'd by `IbkrClient`) + injectable `Clock` for tests.
       - `tests.rs`: 9 unit tests covering cache hit/miss, partial-range fetch, daily-vs-intraday TTL, rate-limiter accounting, dedup, and bit-equal SQLite round-trip
@@ -113,7 +114,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `migrations.rs`: Idempotent `CREATE TABLE IF NOT EXISTS` runner invoked at startup
     - `error.rs`: `StorageError` (`Sqlite`, `Pool`, `Migration`, `Serde`, `Join`)
     - PRAGMAs (`journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`) applied per pooled connection via `SqliteConnectionManager::with_init`
-    - DB lives at `app_local_data_dir()/tracker.sqlite`; `Arc<Db>` is `app.manage`d in `lib.rs::run` (Phase 04+ will wire it through `IbkrState`)
+    - DB lives at `app_local_data_dir()/tracker.sqlite`; `Arc<Db>` is both `app.manage`d in `lib.rs::run` and held on `IbkrState` (Phase 04 wired `IbkrState::db` + `IbkrState::tracker: Arc<TrackerService>`)
     - `bars_cache` (Phase 02) is read/written exclusively through `HistoricalDataService` — composite PK `(symbol, bar_size, bar_time)` is the only index; writes use `INSERT OR REPLACE` for idempotency
   - `utils/`: Shared utilities
 - **Entry Points**:
@@ -139,6 +140,10 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
    - `ibkr_start_scanner` / `ibkr_stop_scanner`: Start/stop a market scanner stream (single shared handle in `IbkrState::scanner_handle`; results pushed via `EventEmitter`)
    - `tracker_fetch_bars`: Fetch historical bars with SQLite cache + 6 req/min rate limit (Phase 02)
    - `tracker_get_news(symbol, lookback_hours) -> Vec<NewsItem>`: Fetch Alpha Vantage NEWS_SENTIMENT with SQLite cache; falls back to cached/empty on rate-limit, transport failure, or missing API key (Phase 03)
+   - `tracker_add(symbol, source, sourceMeta, tags, notes) -> TrackedTicker`: Insert new watchlist row; rejects duplicates with `AlreadyTracked` (Phase 04)
+   - `tracker_remove(symbol)`: Delete watchlist row (idempotent — non-existent symbol returns `Ok(())`) (Phase 04)
+   - `tracker_list(status?)` / `tracker_get(symbol)`: Read watchlist, optionally filtered by status (Phase 04)
+   - `tracker_set_tags(symbol, tags)` / `tracker_set_status(symbol, status, inPlayUntil?)`: Update tags or status; both return the refreshed row, error `NotFound` if missing (Phase 04)
    - `get_settings` / `update_settings` / `get_settings_path`: Configuration management (in `config::commands`)
 
    Streaming commands (daily P&L, scanner) follow a "replace any existing subscription" pattern: starting a new stream stops the previous one. See `IbkrState::start_*` / `stop_*` in `ibkr/state.rs`.

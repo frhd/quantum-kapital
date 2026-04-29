@@ -2,6 +2,8 @@ use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::{IbkrClient, StreamHandle};
 use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position, ScannerSubscription};
 use crate::middleware::RateLimiter;
+use crate::services::tracker_service::TrackerService;
+use crate::storage::Db;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -40,12 +42,15 @@ pub struct IbkrState {
     pub config: Arc<RwLock<ConnectionConfig>>,
     pub daily_pnl_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
+    pub db: Arc<Db>,
+    pub tracker: Arc<TrackerService>,
 }
 
 #[allow(dead_code)]
 impl IbkrState {
-    pub fn new(config: ConnectionConfig) -> Self {
+    pub fn new(config: ConnectionConfig, db: Arc<Db>) -> Self {
         let config_arc = Arc::new(RwLock::new(config));
+        let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
         Self {
             client: Arc::new(IbkrClient::with_shared_config(Arc::clone(&config_arc))),
             event_emitter: Arc::new(EventEmitter::new()),
@@ -66,6 +71,8 @@ impl IbkrState {
             config: config_arc,
             daily_pnl_handle: Arc::new(RwLock::new(None)),
             scanner_handle: Arc::new(RwLock::new(None)),
+            db,
+            tracker,
         }
     }
 
