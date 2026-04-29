@@ -83,8 +83,8 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
       - `trading.rs`: Order placement commands
       - `analysis.rs`: Fundamental data and projection commands
       - `scanner.rs`: Market scanner stream lifecycle commands
-      - `tracker.rs`: Tracker subsystem commands (Phase 02 added `tracker_fetch_bars`; full set lands in Phase 04+)
-    - `types/`: Type definitions modularized by domain (account, connection, fundamentals, historical, market_data, orders, positions, scanner)
+      - `tracker.rs`: Tracker subsystem commands (Phase 02 added `tracker_fetch_bars`; Phase 03 added `tracker_get_news`; full set lands in Phase 04+)
+    - `types/`: Type definitions modularized by domain (account, connection, fundamentals, historical, market_data, news, orders, positions, scanner)
     - `state.rs`: Application state management with Tokio async runtime
     - `error.rs`: Custom error types with thiserror
     - `mocks.rs`: MockIbkrClient for test-driven development
@@ -93,7 +93,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `account_service.rs`: Account management operations
     - `market_service.rs`: Market data operations
     - `trading_service.rs`: Trading operations
-    - `financial_data_service.rs`: Alpha Vantage fundamental data integration
+    - `financial_data_service.rs` + `financial_data_service/news.rs`: Alpha Vantage fundamental data integration. Phase 03 added a `news` submodule for `NEWS_SENTIMENT` with SQLite-backed cache (`news_cache` table, 60-min default TTL), HTTP transport seam (`NewsHttp` trait blanket-impl'd by `ReqwestNewsHttp`), and injectable `NewsClock` for deterministic tests. Service is best-effort: rate-limit `Note`/`Information` responses, transport failures, or missing API key fall back to the cached payload (or empty `Vec`) and only log a `warn!` — never propagate as an error. Filters items to the requested symbol via `ticker_sentiment[].ticker`. `FinancialDataService::fetch_news_sentiment` requires `with_db(Arc<Db>)` to be set first.
     - `projection_service.rs`: Forward-looking financial projection logic
     - `cache_service.rs`: In-memory caching for fundamentals/projections
     - `historical_data_service/`: Historical bars fetcher with SQLite cache (added Phase 02)
@@ -138,6 +138,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
    - `ibkr_get_cached_tickers`: List tickers currently cached in `cache_service`
    - `ibkr_start_scanner` / `ibkr_stop_scanner`: Start/stop a market scanner stream (single shared handle in `IbkrState::scanner_handle`; results pushed via `EventEmitter`)
    - `tracker_fetch_bars`: Fetch historical bars with SQLite cache + 6 req/min rate limit (Phase 02)
+   - `tracker_get_news(symbol, lookback_hours) -> Vec<NewsItem>`: Fetch Alpha Vantage NEWS_SENTIMENT with SQLite cache; falls back to cached/empty on rate-limit, transport failure, or missing API key (Phase 03)
    - `get_settings` / `update_settings` / `get_settings_path`: Configuration management (in `config::commands`)
 
    Streaming commands (daily P&L, scanner) follow a "replace any existing subscription" pattern: starting a new stream stops the previous one. See `IbkrState::start_*` / `stop_*` in `ibkr/state.rs`.

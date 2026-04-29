@@ -90,6 +90,7 @@ pub fn run() {
             ibkr::commands::ibkr_start_scanner,
             ibkr::commands::ibkr_stop_scanner,
             ibkr::commands::tracker_fetch_bars,
+            ibkr::commands::tracker_get_news,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,

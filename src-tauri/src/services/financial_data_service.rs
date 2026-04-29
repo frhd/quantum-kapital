@@ -1,13 +1,21 @@
 use crate::ibkr::types::fundamentals::{
     AnalystEstimate, AnalystEstimates, CurrentMetrics, FundamentalData, HistoricalFinancial,
 };
+use crate::ibkr::types::news::NewsItem;
 use crate::services::cache_service::CacheService;
+use crate::storage::Db;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::error::Error;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{debug, info, warn};
+
+pub mod news;
+
+#[cfg(test)]
+mod news_tests;
 
 /// Service for fetching fundamental data from Alpha Vantage API
 pub struct FinancialDataService {
@@ -15,6 +23,7 @@ pub struct FinancialDataService {
     api_key: String,
     base_url: String,
     cache: Option<CacheService>,
+    db: Option<Arc<Db>>,
 }
 
 // Alpha Vantage API response structures
@@ -134,7 +143,38 @@ impl FinancialDataService {
             api_key,
             base_url: "https://www.alphavantage.co/query".to_string(),
             cache,
+            db: None,
         }
+    }
+
+    /// Attach a SQLite handle so news fetches can read/write `news_cache`.
+    pub fn with_db(mut self, db: Arc<Db>) -> Self {
+        self.db = Some(db);
+        self
+    }
+
+    /// Fetch ticker-tagged news + sentiment from Alpha Vantage NEWS_SENTIMENT,
+    /// using the SQLite news cache (1-hour default TTL). Falls back to cached
+    /// or empty data on rate-limit / no-key / transport failures so the
+    /// surrounding flow never crashes on news. Requires a `Db` previously
+    /// attached via [`FinancialDataService::with_db`].
+    pub async fn fetch_news_sentiment(
+        &self,
+        symbol: &str,
+        lookback_hours: u32,
+    ) -> Result<Vec<NewsItem>, Box<dyn Error + Send + Sync>> {
+        let db = self
+            .db
+            .as_ref()
+            .ok_or("News fetching requires a Db; call FinancialDataService::with_db first")?;
+        news::fetch_news_sentiment_default(
+            Arc::clone(db),
+            &self.api_key,
+            &self.base_url,
+            symbol,
+            lookback_hours,
+        )
+        .await
     }
 
     /// Fetches fundamental data for a given symbol
