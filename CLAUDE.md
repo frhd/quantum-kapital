@@ -68,7 +68,7 @@ The React frontend (`/src`) uses a modular structure:
 - **Icons**: Lucide React
 - **Structure**:
   - `app/`: Main application entry and layout
-  - `features/`: Feature-based modules (connection, portfolio, market-data, trading)
+  - `features/`: Feature-based modules (connection, portfolio, analysis, scanner)
   - `shared/`: Reusable components, utilities, hooks, types, and API layer
 
 ### Backend Architecture
@@ -78,11 +78,12 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `client.rs`: IBKR TWS/Gateway connection using `ibapi` crate
     - `commands/`: Tauri command handlers modularized by domain
       - `connection.rs`: Connection management commands
-      - `accounts.rs`: Account-related commands
+      - `accounts.rs`: Account-related commands (including daily P&L stream lifecycle)
       - `market_data.rs`: Market data subscription commands
       - `trading.rs`: Order placement commands
       - `analysis.rs`: Fundamental data and projection commands
-    - `types/`: Type definitions modularized by domain (account, connection, historical, market_data, orders, positions, scanner)
+      - `scanner.rs`: Market scanner stream lifecycle commands
+    - `types/`: Type definitions modularized by domain (account, connection, fundamentals, historical, market_data, orders, positions, scanner)
     - `state.rs`: Application state management with Tokio async runtime
     - `error.rs`: Custom error types with thiserror
     - `mocks.rs`: MockIbkrClient for test-driven development
@@ -95,8 +96,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `projection_service.rs`: Forward-looking financial projection logic
     - `cache_service.rs`: In-memory caching for fundamentals/projections
   - `middleware/`: Cross-cutting concerns
-    - `logging.rs`: Structured logging with tracing
-    - `rate_limit.rs`: API rate limiting
+    - `rate_limit.rs`: API rate limiting (default 50 req/sec; tracing is initialized in `lib.rs::run`)
   - `events/`: Event system
     - `emitter.rs`: Event emitter for frontend notifications
   - `config/`: Application configuration
@@ -115,13 +115,17 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
    - `ibkr_get_accounts`: Retrieve account list
    - `ibkr_get_account_summary`: Get account metrics
    - `ibkr_get_positions`: Fetch current positions
+   - `ibkr_start_daily_pnl` / `ibkr_stop_daily_pnl`: Subscribe/unsubscribe daily P&L stream (single shared `StreamHandle` in `IbkrState::daily_pnl_handle`)
    - `ibkr_subscribe_market_data`: Real-time quotes
    - `ibkr_place_order`: Submit orders
    - `ibkr_get_fundamental_data`: Fetch fundamental data (via Alpha Vantage or mock)
    - `ibkr_generate_projections`: Generate forward-looking scenario projections
    - `ibkr_generate_projection_results`: Run projection scenarios and return computed results
    - `ibkr_get_cached_tickers`: List tickers currently cached in `cache_service`
+   - `ibkr_start_scanner` / `ibkr_stop_scanner`: Start/stop a market scanner stream (single shared handle in `IbkrState::scanner_handle`; results pushed via `EventEmitter`)
    - `get_settings` / `update_settings` / `get_settings_path`: Configuration management (in `config::commands`)
+
+   Streaming commands (daily P&L, scanner) follow a "replace any existing subscription" pattern: starting a new stream stops the previous one. See `IbkrState::start_*` / `stop_*` in `ibkr/state.rs`.
 
 2. **State Management**: The `IbkrState` (managed by Tauri) maintains the IBKR client connection and is accessed across commands using Tauri's state management. Initialized in `lib.rs` setup with configuration.
 
@@ -240,10 +244,10 @@ Follow the test-driven approach:
 The frontend follows a feature-based architecture in `/src/features/`:
 - `connection/`: IBKR connection management (ConnectionSettings, ConnectionStatus)
 - `portfolio/`: Account and position management (AccountSummary, AccountDetails, StockPositions, OptionPositions)
-- `market-data/`: Real-time market data streaming and display
-- `trading/`: Order placement and execution
 - `analysis/`: Fundamental data analysis and forward projections (integrated with Alpha Vantage API)
-Each feature contains its own components, hooks, and types.
+- `scanner/`: Market scanner UI consuming the streaming scanner backend; selecting a row deep-links to the analysis tab via the `pendingSymbol` prop on `TickerAnalysis`
+
+Each feature contains its own components, hooks, and (where relevant) types. Real-time market data and order placement are exposed as backend Tauri commands but do not have dedicated feature directories yet.
 
 When creating new features:
 - Place shared components in `src/shared/components/ui/`
