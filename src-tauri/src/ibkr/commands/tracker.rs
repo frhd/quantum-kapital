@@ -11,6 +11,7 @@ use crate::ibkr::types::tracker::{
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
+use crate::services::intraday_scheduler::IntradayScheduler;
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
 use crate::storage::Db;
 
@@ -174,21 +175,27 @@ pub async fn tracker_get_setups(
         .map_err(|e| e.to_string())
 }
 
-/// Phase 13 — start the EOD scheduler. The Phase 14 intraday scheduler
-/// will hang off the same command pair once it lands; for now this only
-/// starts the EOD loop. Calling twice is safe — the second call replaces
-/// the existing handle (mirrors the scanner stream pattern).
+/// Phase 13/14 — start both the EOD sweep and the intraday RTH
+/// scheduler. Calling twice is safe — each `start_*` call replaces
+/// any existing handle (mirrors the scanner stream pattern).
 #[tauri::command]
 pub async fn tracker_start_scheduler(
     state: State<'_, IbkrState>,
-    scheduler: State<'_, Arc<EodScheduler>>,
+    eod_scheduler: State<'_, Arc<EodScheduler>>,
+    intraday_scheduler: State<'_, Arc<IntradayScheduler>>,
 ) -> Result<(), String> {
-    state.start_eod_scheduler(Arc::clone(&scheduler)).await
+    state
+        .start_eod_scheduler(Arc::clone(&eod_scheduler))
+        .await?;
+    state
+        .start_intraday_scheduler(Arc::clone(&intraday_scheduler))
+        .await
 }
 
-/// Phase 13 — stop the EOD scheduler if one is running. Idempotent.
+/// Phase 13/14 — stop both schedulers if they are running. Idempotent.
 #[tauri::command]
 pub async fn tracker_stop_scheduler(state: State<'_, IbkrState>) -> Result<(), String> {
     state.stop_eod_scheduler().await;
+    state.stop_intraday_scheduler().await;
     Ok(())
 }

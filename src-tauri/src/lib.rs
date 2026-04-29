@@ -9,12 +9,16 @@ mod utils;
 
 use std::sync::Arc;
 
+use std::time::Duration;
+
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::HistoricalRateLimiter;
+use services::decay_watcher::{DecayWatcher, DecayWatcherStub};
 use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
+use services::intraday_scheduler::IntradayScheduler;
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
 use strategies::default_registry;
@@ -104,6 +108,18 @@ pub fn run() {
                 Arc::clone(&ibkr_state.event_emitter),
             ));
 
+            // Phase 14: intraday scheduler. Same start/stop command pair
+            // as the EOD scheduler. Phase 18 swaps `DecayWatcherStub` for
+            // a real Anthropic-backed implementation.
+            let decay_watcher: Arc<dyn DecayWatcher> = Arc::new(DecayWatcherStub);
+            let intraday_scheduler = Arc::new(IntradayScheduler::new(
+                Arc::clone(&tracker_runner),
+                Arc::clone(&ibkr_state.state_machine),
+                Arc::clone(&ibkr_state.tracker),
+                decay_watcher,
+                Duration::from_secs(config.tracker.intraday_tick_interval_secs),
+            ));
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
@@ -111,6 +127,7 @@ pub fn run() {
             app.manage(financial_service);
             app.manage(tracker_runner);
             app.manage(eod_scheduler);
+            app.manage(intraday_scheduler);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

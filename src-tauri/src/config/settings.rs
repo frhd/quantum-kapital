@@ -8,6 +8,8 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     pub ui: UiConfig,
     pub api: ApiConfig,
+    #[serde(default)]
+    pub tracker: TrackerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +43,13 @@ pub struct UiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     pub alpha_vantage_api_key: Option<String>, // Alpha Vantage API key
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackerConfig {
+    /// Cadence for the Phase 14 intraday scheduler. Default 300s
+    /// (5 min). Tunable via Phase 22 detector-config UI.
+    pub intraday_tick_interval_secs: u64,
 }
 
 impl Default for IbkrConfig {
@@ -84,6 +93,14 @@ impl Default for ApiConfig {
     fn default() -> Self {
         Self {
             alpha_vantage_api_key: std::env::var("ALPHA_VANTAGE_API_KEY").ok(),
+        }
+    }
+}
+
+impl Default for TrackerConfig {
+    fn default() -> Self {
+        Self {
+            intraday_tick_interval_secs: 300,
         }
     }
 }

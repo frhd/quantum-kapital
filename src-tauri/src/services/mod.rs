@@ -1,8 +1,10 @@
 pub mod account_service;
 pub mod cache_service;
+pub mod decay_watcher;
 pub mod eod_scheduler;
 pub mod financial_data_service;
 pub mod historical_data_service;
+pub mod intraday_scheduler;
 pub mod market_service;
 pub mod projection_service;
 pub mod tracker_runner;
