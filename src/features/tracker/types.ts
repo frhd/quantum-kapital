@@ -93,6 +93,19 @@ export interface TargetLevel {
   price: number
 }
 
+export interface InvalidationLevel {
+  label: string
+  price: number
+  reason: string
+}
+
+export interface ThesisStructured {
+  thesis_md: string
+  conviction: "A" | "B" | "C"
+  invalidation_levels: InvalidationLevel[]
+  risk_notes: string
+}
+
 export interface Setup {
   id: number
   symbol: string
@@ -104,6 +117,8 @@ export interface Setup {
   targets: TargetLevel[]
   raw_signals: unknown
   thesis: string | null
+  /** Phase 17: full structured thesis JSON (markdown + conviction + invalidation_levels + risk_notes). */
+  thesis_json: ThesisStructured | null
   status: SetupStatus
   invalidated_at: string | null
   invalidation_reason: string | null

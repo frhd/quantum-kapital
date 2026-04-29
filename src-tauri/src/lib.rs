@@ -20,6 +20,7 @@ use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
+use services::thesis_generator::ThesisGenerator;
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
 use strategies::default_registry;
@@ -102,15 +103,27 @@ pub fn run() {
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
             let news: Arc<dyn NewsFetcher> = Arc::clone(&financial_service) as Arc<dyn NewsFetcher>;
-            let tracker_runner = Arc::new(TrackerRunner::new(
-                Arc::clone(&db),
+
+            // Phase 17: thesis generator runs after each persisted setup
+            // and re-emits `SetupDetected` with the populated thesis.
+            let thesis_generator = Arc::new(ThesisGenerator::new(
+                Arc::clone(&llm_service),
                 Arc::clone(&ibkr_state.tracker),
-                Arc::clone(&ibkr_state.state_machine),
                 Arc::clone(&ibkr_state.event_emitter),
-                bars,
-                news,
-                Arc::new(default_registry()),
             ));
+
+            let tracker_runner = Arc::new(
+                TrackerRunner::new(
+                    Arc::clone(&db),
+                    Arc::clone(&ibkr_state.tracker),
+                    Arc::clone(&ibkr_state.state_machine),
+                    Arc::clone(&ibkr_state.event_emitter),
+                    bars,
+                    news,
+                    Arc::new(default_registry()),
+                )
+                .with_thesis_generator(Arc::clone(&thesis_generator)),
+            );
 
             // Phase 13: EOD scheduler. The handle is held on `IbkrState`
             // and started/stopped via the `tracker_start_scheduler` /
@@ -144,6 +157,7 @@ pub fn run() {
             app.manage(eod_scheduler);
             app.manage(intraday_scheduler);
             app.manage(llm_service);
+            app.manage(thesis_generator);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

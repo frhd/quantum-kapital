@@ -41,6 +41,11 @@ function strategyLabel(strategy: string): string {
   return STRATEGY_LABELS[strategy] ?? strategy
 }
 
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s
+  return s.slice(0, max - 1).trimEnd() + "…"
+}
+
 export function TrackerTab({
   refreshKey,
   onSelectSymbol,
@@ -53,7 +58,7 @@ export function TrackerTab({
   const { toasts, push: pushToast, dismiss } = useToasts()
   const [filter, setFilter] = useState<StatusFilter>("all")
 
-  const lastSetupIdRef = useRef<number | null>(null)
+  const lastSetupIdRef = useRef<string | null>(null)
   const lastInvalidatedIdRef = useRef<number | null>(null)
   const lastStatusKeyRef = useRef<string | null>(null)
 
@@ -61,17 +66,26 @@ export function TrackerTab({
     onCountChange?.(tickers.length)
   }, [tickers.length, onCountChange])
 
-  // Setup detected → toast + refresh row.
+  // Setup detected → toast + refresh row. The same setup id may fire
+  // twice (Phase 17): first with `thesis: null` from the runner, then
+  // again with a populated thesis from the LLM pipeline. We re-fire
+  // the toast (with refreshed copy) when the thesis arrives.
   useEffect(() => {
     if (!lastSetupDetected) return
     const setup = lastSetupDetected.setup
-    if (lastSetupIdRef.current === setup.id) return
-    lastSetupIdRef.current = setup.id
+    const thesisMd = lastSetupDetected.thesis ?? setup.thesis ?? null
+    const dedupeKey = `${setup.id}:${thesisMd ? "thesis" : "pending"}`
+    if (lastSetupIdRef.current === dedupeKey) return
+    lastSetupIdRef.current = dedupeKey
+    const description = thesisMd
+      ? truncate(thesisMd, 220)
+      : `${setup.direction.toUpperCase()} @ $${setup.trigger_price.toFixed(2)} — thesis pending`
     pushToast({
-      id: `setup-detected-${setup.id}`,
+      id: `setup-detected-${setup.id}-${thesisMd ? "thesis" : "pending"}`,
       variant: "success",
       title: `${strategyLabel(setup.strategy)} detected on ${setup.symbol}`,
-      description: `${setup.direction.toUpperCase()} @ $${setup.trigger_price.toFixed(2)}`,
+      description,
+      durationMs: thesisMd ? 9000 : 5000,
     })
     void refresh()
   }, [lastSetupDetected, pushToast, refresh])

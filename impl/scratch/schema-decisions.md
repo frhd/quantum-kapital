@@ -9,6 +9,15 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 17 — Thesis generator persistence
+
+**Change:** Added `setups.thesis_json TEXT` (nullable) to hold the full structured `Thesis` (markdown + conviction + invalidation_levels[] + risk_notes) as a serialized JSON object. Markdown still lives in `setups.thesis` for backwards-compatibility and for the existing `Setup.thesis: Option<String>` wire surface.
+**Why two columns:** Keeping `thesis` as the markdown-only convenience preserves the existing `SetupDetected.thesis: Option<String>` event payload (frontend reads it directly to fill toast / row preview) without forcing a JSON parse on every render. `thesis_json` carries the fuller LLM output (conviction grade, multi-level invalidation list, risk flags) for components that want the structured data — Phase 21's AlertFeed and Phase 20's daily ranker would otherwise need a sibling table.
+**Migration impact:** additive. `schema.sql` updated for fresh DBs; `migrations.rs` runs an idempotent `add_column_if_missing(&tx, "setups", "thesis_json", "TEXT")` so existing `tracker.sqlite` files pick up the column on next launch. No data backfill needed — existing rows stay `NULL` until the next runner pass regenerates the thesis.
+**Cross-references:** `src-tauri/src/storage/{schema.sql, migrations.rs}`, `src-tauri/src/ibkr/types/tracker.rs::Setup` (added `thesis_json: Option<serde_json::Value>`), `src-tauri/src/services/tracker_service/mod.rs::update_setup_thesis`, `src-tauri/src/services/thesis_generator/{mod,tests}.rs` (8 unit tests + 1 runner integration test, all green).
+
+---
+
 ### 2026-04-29 — Phase 12 — Tracker status state machine
 
 **Change:** Added `tracked_tickers.cool_down_until INTEGER` (nullable). Stored separately from `in_play_until` rather than reusing the column — different semantics (cool-down rules out re-entry, in-play accelerates intraday checks) and easier queries (`expire_ttls` checks both with a single `OR` filter).

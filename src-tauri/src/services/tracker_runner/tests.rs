@@ -655,6 +655,141 @@ async fn setup_detected_event_serializes_with_expected_fields() {
     assert!(data.get("thesis").is_some());
 }
 
+// ---------------- Phase 17: thesis generator integration ----------------
+
+#[tokio::test]
+async fn run_for_with_thesis_generator_emits_thesis_populated_event_once() {
+    use std::collections::VecDeque;
+    use std::sync::Mutex as StdMutex;
+
+    use serde_json::Value;
+
+    use crate::services::llm_service::{AnthropicHttp, AnthropicHttpError, LlmService};
+    use crate::services::thesis_generator::ThesisGenerator;
+
+    // Lightweight HTTP mock — single canned tool_use response.
+    struct MockHttp {
+        canned: StdMutex<VecDeque<Result<Value, AnthropicHttpError>>>,
+    }
+    impl MockHttp {
+        fn new() -> Self {
+            Self {
+                canned: StdMutex::new(VecDeque::new()),
+            }
+        }
+        fn enqueue_ok(&self, value: Value) {
+            self.canned.lock().unwrap().push_back(Ok(value));
+        }
+    }
+    #[async_trait]
+    impl AnthropicHttp for MockHttp {
+        async fn send_messages(
+            &self,
+            _api_key: &str,
+            _anthropic_version: &str,
+            _body: &Value,
+        ) -> Result<Value, AnthropicHttpError> {
+            self.canned.lock().unwrap().pop_front().expect("queue")
+        }
+    }
+
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+
+    let candidate = sample_candidate("breakout", Direction::Long);
+    let mut registry = DetectorRegistry::new();
+    registry.register(Arc::new(StubDetector::new_hit(
+        "breakout",
+        StrategyTag::Breakout,
+        candidate.clone(),
+    )));
+
+    let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+    let emitter = Arc::new(EventEmitter::for_capture());
+    let state_machine = Arc::new(TrackerStateMachine::new(
+        Arc::clone(&db),
+        Arc::clone(&tracker),
+        Arc::clone(&emitter),
+    ));
+
+    let http = Arc::new(MockHttp::new());
+    http.enqueue_ok(json!({
+        "content": [{
+            "type": "tool_use",
+            "id": "tu_1",
+            "name": "emit_thesis",
+            "input": {
+                "thesis_md": "AAPL breakout looks clean: 1.85× volume confirms.",
+                "conviction": "B",
+                "invalidation_levels": [
+                    { "label": "stop", "price": 100.0, "reason": "below 10d swing low" }
+                ],
+                "risk_notes": "Earnings clear next 7 days."
+            }
+        }],
+        "usage": {
+            "input_tokens": 100, "output_tokens": 60,
+            "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0
+        }
+    }));
+    let llm = Arc::new(
+        LlmService::new("test-key".to_string(), Arc::clone(&db), 100.0)
+            .with_http(http as Arc<dyn AnthropicHttp>),
+    );
+    let thesis_generator = Arc::new(ThesisGenerator::new(
+        Arc::clone(&llm),
+        Arc::clone(&tracker),
+        Arc::clone(&emitter),
+    ));
+
+    let runner = TrackerRunner::new(
+        Arc::clone(&db),
+        Arc::clone(&tracker),
+        Arc::clone(&state_machine),
+        Arc::clone(&emitter),
+        bars,
+        news,
+        Arc::new(registry),
+    )
+    .with_thesis_generator(Arc::clone(&thesis_generator));
+
+    add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+    let setups = runner.run_for("AAPL").await.expect("run_for");
+    assert_eq!(setups.len(), 1);
+
+    let detected: Vec<_> = emitter
+        .captured()
+        .await
+        .into_iter()
+        .filter_map(|e| match e {
+            AppEvent::SetupDetected { setup, thesis } => Some((setup, thesis)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        detected.len(),
+        1,
+        "exactly one SetupDetected — generator owns the emit"
+    );
+    let (emitted, thesis) = &detected[0];
+    assert!(thesis.is_some(), "thesis populated by generator");
+    assert!(thesis.as_deref().unwrap().contains("breakout"));
+    assert!(
+        emitted.thesis.is_some(),
+        "row carries persisted thesis markdown"
+    );
+
+    // Round-trip check — DB row is updated.
+    let stored = tracker
+        .get_setup(setups[0].id)
+        .await
+        .unwrap()
+        .expect("stored");
+    assert!(stored.thesis.is_some());
+    assert!(stored.thesis_json.is_some());
+}
+
 // Bind unused imports for compile cleanliness; helpers live in scope
 // only when tests reference them.
 #[allow(dead_code)]

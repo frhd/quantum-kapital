@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS setups (
     targets        TEXT NOT NULL,
     raw_signals    TEXT NOT NULL,
     thesis         TEXT,
+    thesis_json    TEXT,
     status         TEXT NOT NULL DEFAULT 'active',
     invalidated_at INTEGER,
     invalidation_reason TEXT,

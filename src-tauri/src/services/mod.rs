@@ -8,6 +8,7 @@ pub mod intraday_scheduler;
 pub mod llm_service;
 pub mod market_service;
 pub mod projection_service;
+pub mod thesis_generator;
 pub mod tracker_runner;
 pub mod tracker_service;
 pub mod tracker_state_machine;

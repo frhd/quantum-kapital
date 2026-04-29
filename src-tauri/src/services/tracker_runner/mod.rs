@@ -22,6 +22,7 @@ use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{Setup, TrackerStatus};
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
+use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
@@ -143,6 +144,10 @@ pub struct TrackerRunner {
     bars: Arc<dyn BarsFetcher>,
     news: Arc<dyn NewsFetcher>,
     registry: Arc<DetectorRegistry>,
+    /// Phase 17 — optional. When wired, runs after each persisted setup
+    /// to attach an LLM-generated thesis. When `None`, the runner emits
+    /// `SetupDetected { thesis: None }` exactly as Phase 15 did.
+    thesis_generator: Option<Arc<ThesisGenerator>>,
 }
 
 impl TrackerRunner {
@@ -163,7 +168,16 @@ impl TrackerRunner {
             bars,
             news,
             registry,
+            thesis_generator: None,
         }
+    }
+
+    /// Attach a [`ThesisGenerator`]. With one wired, `run_for` skips the
+    /// `thesis: None` event when generation succeeds — the generator
+    /// emits `SetupDetected` itself with the populated thesis.
+    pub fn with_thesis_generator(mut self, generator: Arc<ThesisGenerator>) -> Self {
+        self.thesis_generator = Some(generator);
+        self
     }
 
     /// Gather a [`MarketContext`] for `symbol`. Daily bars are mandatory
@@ -238,17 +252,44 @@ impl TrackerRunner {
                                     ctx_owned.symbol
                                 );
                             }
-                            // Phase 15: surface the persisted setup to the
-                            // frontend so the watchlist row + toast update
-                            // without a manual refresh. Phase 17 will fill
-                            // `thesis` once the LLM prompt lands.
-                            let _ = self
-                                .emitter
-                                .emit(AppEvent::SetupDetected {
-                                    setup: setup.clone(),
-                                    thesis: None,
-                                })
-                                .await;
+                            // Phase 17: if a thesis generator is wired, let
+                            // it own the `SetupDetected` emission (with the
+                            // populated thesis). On success it persists the
+                            // thesis to the row + emits SetupDetected with
+                            // Some(thesis). On any other outcome (graceful
+                            // fallback, idempotent skip, error) we fall back
+                            // to the Phase 15 emit so the frontend still
+                            // updates without a manual refresh.
+                            let mut thesis_emitted = false;
+                            if let Some(gen) = &self.thesis_generator {
+                                let thesis_ctx = ThesisContext {
+                                    daily_bars: &ctx_owned.daily_bars,
+                                    recent_news: &ctx_owned.recent_news,
+                                };
+                                match gen.generate(&setup, &thesis_ctx).await {
+                                    Ok(Some(_)) => {
+                                        thesis_emitted = true;
+                                    }
+                                    Ok(None) => {
+                                        // Idempotent skip or graceful LLM fallback.
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "thesis generator failed for {} setup#{}: {e}",
+                                            ctx_owned.symbol, setup.id
+                                        );
+                                    }
+                                }
+                            }
+                            if !thesis_emitted {
+                                let _ = self
+                                    .emitter
+                                    .emit(AppEvent::SetupDetected {
+                                        setup: setup.clone(),
+                                        thesis: None,
+                                    })
+                                    .await;
+                            }
                             persisted.push(setup);
                         }
                         Ok(None) => {

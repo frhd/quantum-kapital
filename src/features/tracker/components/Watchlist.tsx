@@ -52,6 +52,11 @@ function tagLabel(tag: StrategyTag): string {
   return builtin ? builtin.label : tag
 }
 
+function truncateThesis(s: string, max: number): string {
+  if (s.length <= max) return s
+  return s.slice(0, max - 1).trimEnd() + "…"
+}
+
 export function Watchlist({
   tickers,
   loading,
@@ -179,6 +184,14 @@ export function Watchlist({
                     <div className="flex flex-col gap-1">
                       <span>{t.symbol}</span>
                       {activeSetup && <SetupBadge setup={activeSetup} />}
+                      {activeSetup?.thesis && (
+                        <p
+                          className="max-w-md text-xs leading-snug text-slate-300"
+                          title={activeSetup.thesis}
+                        >
+                          {truncateThesis(activeSetup.thesis, 180)}
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>

@@ -335,8 +335,8 @@ impl TrackerService {
                 conn.execute(
                     "INSERT INTO setups \
                      (symbol, strategy, direction, detected_at, trigger_price, stop_price, \
-                      targets, raw_signals, thesis, status, invalidated_at, invalidation_reason) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, 'active', NULL, NULL)",
+                      targets, raw_signals, thesis, thesis_json, status, invalidated_at, invalidation_reason) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, 'active', NULL, NULL)",
                     rusqlite::params![
                         symbol_for_db,
                         strategy_for_db,
@@ -363,10 +363,41 @@ impl TrackerService {
             targets,
             raw_signals,
             thesis: None,
+            thesis_json: None,
             status: SetupStatus::Active,
             invalidated_at: None,
             invalidation_reason: None,
         })
+    }
+
+    /// Persist a generated LLM thesis on a `setups` row. `thesis_md` is
+    /// the human-readable markdown body; `thesis_json` is the full
+    /// structured tool-output (conviction, invalidation_levels,
+    /// risk_notes, …) stored as JSON. Returns the refreshed row, or
+    /// `NotFound` if the id doesn't exist.
+    pub async fn update_setup_thesis(
+        &self,
+        id: i64,
+        thesis_md: String,
+        thesis_json: serde_json::Value,
+    ) -> Result<Setup> {
+        let thesis_json_str = serde_json::to_string(&thesis_json)?;
+        let updated = self
+            .db
+            .with_conn(move |conn| {
+                let n = conn.execute(
+                    "UPDATE setups SET thesis = ?1, thesis_json = ?2 WHERE id = ?3",
+                    rusqlite::params![thesis_md, thesis_json_str, id],
+                )?;
+                Ok(n)
+            })
+            .await?;
+        if updated == 0 {
+            return Err(TrackerError::NotFound(format!("setup#{id}")));
+        }
+        self.get_setup(id)
+            .await?
+            .ok_or_else(|| TrackerError::NotFound(format!("setup#{id}")))
     }
 
     /// List setups, optionally filtered by `symbol` and / or by a
@@ -384,7 +415,7 @@ impl TrackerService {
             .with_conn(move |conn| {
                 let mut sql = String::from(
                     "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
-                            stop_price, targets, raw_signals, thesis, status, \
+                            stop_price, targets, raw_signals, thesis, thesis_json, status, \
                             invalidated_at, invalidation_reason \
                      FROM setups",
                 );
@@ -434,7 +465,7 @@ impl TrackerService {
             .with_conn(move |conn| {
                 conn.query_row(
                     "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
-                            stop_price, targets, raw_signals, thesis, status, \
+                            stop_price, targets, raw_signals, thesis, thesis_json, status, \
                             invalidated_at, invalidation_reason \
                      FROM setups WHERE id = ?1",
                     rusqlite::params![id],
@@ -577,7 +608,8 @@ type SetupRawRow = (
     f64,            // stop_price
     String,         // targets json
     String,         // raw_signals json
-    Option<String>, // thesis
+    Option<String>, // thesis (markdown)
+    Option<String>, // thesis_json (full structured)
     String,         // status
     Option<i64>,    // invalidated_at unix
     Option<String>, // invalidation_reason
@@ -598,6 +630,7 @@ fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
         row.get(10)?,
         row.get(11)?,
         row.get(12)?,
+        row.get(13)?,
     ))
 }
 
@@ -613,6 +646,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         targets_s,
         raw_signals_s,
         thesis,
+        thesis_json_s,
         status_s,
         invalidated_at,
         invalidation_reason,
@@ -629,6 +663,10 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
     })?;
     let targets: Vec<TargetLevel> = serde_json::from_str(&targets_s)?;
     let raw_signals: serde_json::Value = serde_json::from_str(&raw_signals_s)?;
+    let thesis_json = match thesis_json_s {
+        Some(s) if !s.is_empty() => Some(serde_json::from_str::<serde_json::Value>(&s)?),
+        _ => None,
+    };
     Ok(Setup {
         id,
         symbol,
@@ -640,6 +678,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         targets,
         raw_signals,
         thesis,
+        thesis_json,
         status,
         invalidated_at: invalidated_at.map(unix_to_utc),
         invalidation_reason,

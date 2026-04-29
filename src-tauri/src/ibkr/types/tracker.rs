@@ -169,6 +169,10 @@ pub struct Setup {
     pub targets: Vec<crate::strategies::TargetLevel>,
     pub raw_signals: serde_json::Value,
     pub thesis: Option<String>,
+    /// Phase 17 — full structured thesis JSON (markdown + conviction +
+    /// invalidation_levels + risk_notes). Markdown also stays in `thesis`
+    /// for legacy callers.
+    pub thesis_json: Option<serde_json::Value>,
     pub status: SetupStatus,
     pub invalidated_at: Option<DateTime<Utc>>,
     pub invalidation_reason: Option<String>,
