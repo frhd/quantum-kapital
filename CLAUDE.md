@@ -7,6 +7,22 @@ Stack-specific rules:
 - **`src-tauri/CLAUDE.md`** — Rust backend, IBKR adapter, services, tracker pipeline, cargo commands
 - **`src/CLAUDE.md`** — React 19 + Vite frontend, feature folders, Tauri command wrappers
 
+## Running the app
+
+`pnpm tauri dev` from the repo root brings up Vite + the Rust backend with hot reload. Frontend-only and prod-build commands are in `src/CLAUDE.md`.
+
+## Secrets
+
+Backend reads `src-tauri/.env` (Alpha Vantage `ALPHA_VANTAGE_API_KEY`, etc.). The frontend never sees these — all external API calls go through Rust services. App falls back to mock data if the key is missing; failures here are silent in the UI, so check logs if fundamentals look stale.
+
+## LLM budget
+
+`LlmService` enforces a daily USD budget against the `llm_calls` ledger before every call. Any new code that calls an LLM must go through `LlmService` — never bypass it, even in tests; use the trait seam.
+
+## Tracker is surveillance-only
+
+The tracker pipeline (detectors → state machine → alerts) MUST NOT call order-placement code paths. Order commands exist in the IBKR adapter for manual UI use only. Wiring them into the tracker requires explicit project-level approval.
+
 ## Test discipline
 
 TDD with red → green → refactor at every phase. Tests use the `IbkrClientTrait` seam (`MockIbkrClient` in `src-tauri/src/ibkr/mocks.rs`), never a live IBKR client. Any service that touches IBKR should be testable through that trait.
