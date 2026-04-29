@@ -56,14 +56,16 @@ pub struct IbkrState {
 impl IbkrState {
     pub fn new(config: ConnectionConfig, db: Arc<Db>) -> Self {
         let config_arc = Arc::new(RwLock::new(config));
+        let event_emitter = Arc::new(EventEmitter::new());
         let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
         let state_machine = Arc::new(TrackerStateMachine::new(
             Arc::clone(&db),
             Arc::clone(&tracker),
+            Arc::clone(&event_emitter),
         ));
         Self {
             client: Arc::new(IbkrClient::with_shared_config(Arc::clone(&config_arc))),
-            event_emitter: Arc::new(EventEmitter::new()),
+            event_emitter,
             rate_limiter: Arc::new(RateLimiter::new(50)), // Default 50 requests per second
             connection_info: Arc::new(RwLock::new(ConnectionInfo {
                 connected: false,

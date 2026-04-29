@@ -7,6 +7,7 @@ use serde_json::json;
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
 
+use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::{IbkrError, Result as IbkrResult};
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
@@ -221,21 +222,24 @@ fn build_runner(
     bars: Arc<dyn BarsFetcher>,
     news: Arc<dyn NewsFetcher>,
     registry: DetectorRegistry,
-) -> (Arc<TrackerService>, TrackerRunner) {
+) -> (Arc<TrackerService>, Arc<EventEmitter>, TrackerRunner) {
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+    let emitter = Arc::new(EventEmitter::for_capture());
     let state_machine = Arc::new(TrackerStateMachine::new(
         Arc::clone(&db),
         Arc::clone(&tracker),
+        Arc::clone(&emitter),
     ));
     let runner = TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&tracker),
         state_machine,
+        Arc::clone(&emitter),
         bars,
         news,
         Arc::new(registry),
     );
-    (tracker, runner)
+    (tracker, emitter, runner)
 }
 
 // ---------------- tests ----------------
@@ -245,7 +249,7 @@ async fn gathers_context_for_symbol_with_daily_bars_only() {
     let (_tmp, db) = make_db();
     let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
     let news = Arc::new(MockNews::new());
-    let (_tracker, runner) = build_runner(db, bars, news, DetectorRegistry::new());
+    let (_tracker, _emitter, runner) = build_runner(db, bars, news, DetectorRegistry::new());
 
     let ctx = runner.context_for("aapl").await.expect("context");
     assert_eq!(ctx.symbol, "AAPL");
@@ -276,7 +280,7 @@ async fn context_includes_intraday_when_provided() {
             ),
     );
     let news = Arc::new(MockNews::new());
-    let (_tracker, runner) = build_runner(db, bars, news, DetectorRegistry::new());
+    let (_tracker, _emitter, runner) = build_runner(db, bars, news, DetectorRegistry::new());
 
     let ctx = runner.context_for("AAPL").await.expect("context");
     let intraday = ctx.intraday_bars.expect("intraday present");
@@ -302,7 +306,7 @@ async fn runs_all_detectors_and_aggregates_outcomes() {
     registry.register(Arc::new(hit));
     registry.register(Arc::new(miss));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
 
     let setups = runner.run_for("AAPL").await.expect("run_for");
@@ -326,7 +330,7 @@ async fn persists_hit_to_setups_table() {
         candidate.clone(),
     )));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
 
     let setups = runner.run_for("AAPL").await.expect("run_for");
@@ -361,7 +365,7 @@ async fn does_not_persist_misses() {
         StrategyTag::Breakout,
     )));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
 
     let setups = runner.run_for("AAPL").await.expect("run_for");
@@ -387,7 +391,7 @@ async fn dedups_recent_duplicates_within_window() {
         candidate.clone(),
     )));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
 
     let first = runner.run_for("AAPL").await.expect("first run");
@@ -420,7 +424,7 @@ async fn dedup_is_keyed_on_strategy_and_direction() {
         sample_candidate("parabolic_short", Direction::Short),
     )));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
 
     // Two distinct (strategy, direction) pairs both persist on first pass.
@@ -448,7 +452,7 @@ async fn run_all_iterates_watchlist_excluding_cool_down() {
         sample_candidate("breakout", Direction::Long),
     )));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
     add_ticker(&tracker, "MSFT", TrackerStatus::InPlay).await;
     add_ticker(&tracker, "NVDA", TrackerStatus::CoolDown).await;
@@ -483,7 +487,7 @@ async fn errors_in_one_symbol_dont_block_others() {
         sample_candidate("breakout", Direction::Long),
     )));
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
     add_ticker(&tracker, "MSFT", TrackerStatus::Watching).await;
     add_ticker(&tracker, "NVDA", TrackerStatus::Watching).await;
@@ -511,7 +515,7 @@ async fn run_for_touches_last_checked_on_success() {
     let news = Arc::new(MockNews::new());
     let registry = DetectorRegistry::new();
 
-    let (tracker, runner) = build_runner(db, bars, news, registry);
+    let (tracker, _emitter, runner) = build_runner(db, bars, news, registry);
     add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
     assert!(tracker
         .get("AAPL")
@@ -524,6 +528,131 @@ async fn run_for_touches_last_checked_on_success() {
     let _ = runner.run_for("AAPL").await.expect("run");
     let after = tracker.get("AAPL").await.unwrap().unwrap();
     assert!(after.last_checked_at.is_some());
+}
+
+// ---------------- Phase 15: event emission ----------------
+
+#[tokio::test]
+async fn setup_detected_event_emitted_on_runner_persist() {
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+
+    let candidate = sample_candidate("breakout", Direction::Long);
+    let mut registry = DetectorRegistry::new();
+    registry.register(Arc::new(StubDetector::new_hit(
+        "breakout",
+        StrategyTag::Breakout,
+        candidate.clone(),
+    )));
+
+    let (tracker, emitter, runner) = build_runner(db, bars, news, registry);
+    add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+
+    let setups = runner.run_for("AAPL").await.expect("run_for");
+    assert_eq!(setups.len(), 1);
+
+    let events = emitter.captured().await;
+    let detected: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            AppEvent::SetupDetected { setup, thesis } => Some((setup.clone(), thesis.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(detected.len(), 1, "exactly one SetupDetected emitted");
+    let (setup, thesis) = &detected[0];
+    assert_eq!(setup.symbol, "AAPL");
+    assert_eq!(setup.strategy, "breakout");
+    assert_eq!(setup.direction, Direction::Long);
+    assert_eq!(setup.id, setups[0].id);
+    assert!(thesis.is_none(), "thesis is None until Phase 17");
+}
+
+#[tokio::test]
+async fn setup_detected_not_emitted_on_dedup_skip() {
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+
+    let candidate = sample_candidate("breakout", Direction::Long);
+    let mut registry = DetectorRegistry::new();
+    registry.register(Arc::new(StubDetector::new_hit(
+        "breakout",
+        StrategyTag::Breakout,
+        candidate,
+    )));
+
+    let (tracker, emitter, runner) = build_runner(db, bars, news, registry);
+    add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+
+    runner.run_for("AAPL").await.expect("first run");
+    runner.run_for("AAPL").await.expect("second run");
+
+    let detected_count = emitter
+        .captured()
+        .await
+        .iter()
+        .filter(|e| matches!(e, AppEvent::SetupDetected { .. }))
+        .count();
+    assert_eq!(
+        detected_count, 1,
+        "duplicate within window must not re-emit"
+    );
+}
+
+#[tokio::test]
+async fn setup_detected_event_serializes_with_expected_fields() {
+    // The frontend listener relies on the `setup` payload carrying
+    // every field of the `Setup` row (snake_case to match other event
+    // payloads on the wire).
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+
+    let candidate = sample_candidate("breakout", Direction::Long);
+    let mut registry = DetectorRegistry::new();
+    registry.register(Arc::new(StubDetector::new_hit(
+        "breakout",
+        StrategyTag::Breakout,
+        candidate,
+    )));
+
+    let (tracker, emitter, runner) = build_runner(db, bars, news, registry);
+    add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+    runner.run_for("AAPL").await.expect("run_for");
+
+    let detected = emitter
+        .captured()
+        .await
+        .into_iter()
+        .find(|e| matches!(e, AppEvent::SetupDetected { .. }))
+        .expect("at least one SetupDetected");
+
+    let json = serde_json::to_value(&detected).unwrap();
+    assert_eq!(json["type"], "SetupDetected");
+    let data = &json["data"];
+    let setup = &data["setup"];
+    for field in [
+        "id",
+        "symbol",
+        "strategy",
+        "direction",
+        "trigger_price",
+        "stop_price",
+        "targets",
+        "detected_at",
+    ] {
+        assert!(
+            setup.get(field).is_some(),
+            "expected setup.{field} in event payload, got: {setup}"
+        );
+    }
+    assert_eq!(setup["symbol"], "AAPL");
+    assert_eq!(setup["direction"], "long");
+    // `thesis` is present (Some(_)) once Phase 17 lands; for now it's
+    // serialized as `null`, which the frontend treats as absent.
+    assert!(data.get("thesis").is_some());
 }
 
 // Bind unused imports for compile cleanliness; helpers live in scope

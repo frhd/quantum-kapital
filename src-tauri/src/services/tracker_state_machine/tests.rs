@@ -4,6 +4,7 @@ use chrono::{Duration as ChronoDuration, FixedOffset, NaiveDate, NaiveTime, Time
 use serde_json::json;
 use tempfile::NamedTempFile;
 
+use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::types::tracker::{SetupStatus, StrategyTag, TrackerSource, TrackerStatus};
 use crate::ibkr::types::BarSize;
 use crate::services::tracker_service::TrackerService;
@@ -33,13 +34,23 @@ fn fri_2026_05_01_10am_et() -> chrono::DateTime<Utc> {
 
 fn make_fixtures(
     now: chrono::DateTime<Utc>,
-) -> (NamedTempFile, Arc<TrackerService>, TrackerStateMachine) {
+) -> (
+    NamedTempFile,
+    Arc<TrackerService>,
+    TrackerStateMachine,
+    Arc<EventEmitter>,
+) {
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
-    let sm =
-        TrackerStateMachine::with_clock(Arc::clone(&db), Arc::clone(&tracker), Clock::Fixed(now));
-    (tmp, tracker, sm)
+    let emitter = Arc::new(EventEmitter::for_capture());
+    let sm = TrackerStateMachine::with_clock(
+        Arc::clone(&db),
+        Arc::clone(&tracker),
+        Arc::clone(&emitter),
+        Clock::Fixed(now),
+    );
+    (tmp, tracker, sm, emitter)
 }
 
 fn sample_candidate(direction: Direction) -> SetupCandidate {
@@ -69,7 +80,7 @@ fn sample_candidate(direction: Direction) -> SetupCandidate {
 #[tokio::test]
 async fn watching_promoted_to_in_play_on_scanner_add() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Scanner, None, vec![], None)
         .await
@@ -90,7 +101,7 @@ async fn watching_promoted_to_in_play_on_scanner_add() {
 #[tokio::test]
 async fn watching_promoted_to_setup_active_on_detector_hit() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Manual, None, vec![], None)
         .await
@@ -111,7 +122,7 @@ async fn watching_promoted_to_setup_active_on_detector_hit() {
 #[tokio::test]
 async fn in_play_promoted_to_setup_active_on_detector_hit() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Scanner, None, vec![], None)
         .await
@@ -132,7 +143,7 @@ async fn in_play_promoted_to_setup_active_on_detector_hit() {
 #[tokio::test]
 async fn setup_active_to_cool_down_on_invalidate() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Manual, None, vec![], None)
         .await
@@ -163,7 +174,7 @@ async fn setup_active_to_cool_down_on_invalidate() {
 #[tokio::test]
 async fn setup_active_to_cool_down_on_target_hit() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Manual, None, vec![], None)
         .await
@@ -189,7 +200,7 @@ async fn cool_down_to_watching_on_ttl_expiry() {
     // Pin the clock so the cool-down stamp is deterministic, then call
     // `expire_ttls` with a `now` past the cool_down_until.
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Manual, None, vec![], None)
         .await
@@ -217,7 +228,7 @@ async fn cool_down_to_watching_on_ttl_expiry() {
 #[tokio::test]
 async fn in_play_to_watching_on_ttl_expiry() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Scanner, None, vec![], None)
         .await
@@ -238,7 +249,7 @@ async fn in_play_to_watching_on_ttl_expiry() {
 #[tokio::test]
 async fn expire_ttls_is_idempotent() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Scanner, None, vec![], None)
         .await
@@ -265,7 +276,7 @@ async fn expire_ttls_uses_trading_days_not_calendar_days() {
     // by trading-day math we still owe Wed.
     let fri = NaiveDate::from_ymd_opt(2026, 5, 1).unwrap();
     let now = et_dt(fri, 10, 0);
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Scanner, None, vec![], None)
         .await
@@ -295,7 +306,7 @@ async fn expire_ttls_uses_trading_days_not_calendar_days() {
 #[tokio::test]
 async fn multiple_active_setups_only_last_invalidation_flips_status() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Manual, None, vec![], None)
         .await
@@ -330,7 +341,7 @@ async fn multiple_active_setups_only_last_invalidation_flips_status() {
 #[tokio::test]
 async fn mark_invalidated_returns_error_for_unknown_setup() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, _tracker, sm) = make_fixtures(now);
+    let (_tmp, _tracker, sm, _emitter) = make_fixtures(now);
     let err = sm
         .mark_invalidated(9999, "no such setup")
         .await
@@ -344,7 +355,7 @@ async fn mark_invalidated_returns_error_for_unknown_setup() {
 #[tokio::test]
 async fn active_in_play_symbols_returns_in_play_and_setup_active() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     tracker
         .add("AAPL", TrackerSource::Manual, None, vec![], None)
         .await
@@ -374,7 +385,157 @@ async fn active_in_play_symbols_returns_in_play_and_setup_active() {
 #[tokio::test]
 async fn record_scanner_hit_on_unknown_symbol_is_noop() {
     let now = fri_2026_05_01_10am_et();
-    let (_tmp, tracker, sm) = make_fixtures(now);
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
     sm.record_scanner_hit("NOSUCH", None).await.unwrap();
     assert!(tracker.get("NOSUCH").await.unwrap().is_none());
+}
+
+// ---------------- Phase 15: event emission ----------------
+
+#[tokio::test]
+async fn ticker_status_changed_event_on_promotion() {
+    let now = fri_2026_05_01_10am_et();
+    let (_tmp, tracker, sm, emitter) = make_fixtures(now);
+    tracker
+        .add("AAPL", TrackerSource::Scanner, None, vec![], None)
+        .await
+        .unwrap();
+
+    sm.record_scanner_hit("AAPL", None).await.unwrap();
+
+    let events = emitter.captured().await;
+    let status_events: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            AppEvent::TickerStatusChanged { symbol, from, to } => {
+                Some((symbol.clone(), *from, *to))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(status_events.len(), 1);
+    let (sym, from, to) = &status_events[0];
+    assert_eq!(sym, "AAPL");
+    assert_eq!(*from, TrackerStatus::Watching);
+    assert_eq!(*to, TrackerStatus::InPlay);
+}
+
+#[tokio::test]
+async fn setup_invalidated_event_emitted_on_state_machine_transition() {
+    let now = fri_2026_05_01_10am_et();
+    let (_tmp, tracker, sm, emitter) = make_fixtures(now);
+    tracker
+        .add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let setup = tracker
+        .insert_setup("AAPL", &sample_candidate(Direction::Long))
+        .await
+        .unwrap();
+    sm.on_setup_detected("AAPL", setup.id).await.unwrap();
+
+    sm.mark_invalidated(setup.id, "stop hit").await.unwrap();
+
+    let events = emitter.captured().await;
+    let invalidations: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            AppEvent::SetupInvalidated {
+                setup_id,
+                symbol,
+                reason,
+            } => Some((*setup_id, symbol.clone(), reason.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(invalidations.len(), 1);
+    assert_eq!(invalidations[0].0, setup.id);
+    assert_eq!(invalidations[0].1, "AAPL");
+    assert_eq!(invalidations[0].2, "stop hit");
+}
+
+#[tokio::test]
+async fn ticker_status_changed_event_on_invalidation_cool_down() {
+    let now = fri_2026_05_01_10am_et();
+    let (_tmp, tracker, sm, emitter) = make_fixtures(now);
+    tracker
+        .add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let setup = tracker
+        .insert_setup("AAPL", &sample_candidate(Direction::Long))
+        .await
+        .unwrap();
+    sm.on_setup_detected("AAPL", setup.id).await.unwrap();
+    sm.mark_invalidated(setup.id, "stop hit").await.unwrap();
+
+    let events = emitter.captured().await;
+    // Two TickerStatusChanged events: Watching→SetupActive then
+    // SetupActive→CoolDown (only one active setup so cool-down fires).
+    let transitions: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            AppEvent::TickerStatusChanged { from, to, .. } => Some((*from, *to)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        transitions,
+        vec![
+            (TrackerStatus::Watching, TrackerStatus::SetupActive),
+            (TrackerStatus::SetupActive, TrackerStatus::CoolDown),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn expire_ttls_emits_status_changed_per_flipped_row() {
+    let now = fri_2026_05_01_10am_et();
+    let (_tmp, tracker, sm, emitter) = make_fixtures(now);
+    tracker
+        .add("AAPL", TrackerSource::Scanner, None, vec![], None)
+        .await
+        .unwrap();
+    sm.record_scanner_hit("AAPL", None).await.unwrap();
+    let row = tracker.get("AAPL").await.unwrap().unwrap();
+    let in_play_until = row.in_play_until.unwrap();
+
+    // Drain capture so only the post-expire events remain.
+    let _ = emitter.captured().await;
+
+    let after = in_play_until + ChronoDuration::seconds(1);
+    sm.expire_ttls(after).await.unwrap();
+
+    let events = emitter.captured().await;
+    let post: Vec<_> = events
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            AppEvent::TickerStatusChanged { symbol, from, to } => {
+                Some((symbol.clone(), *from, *to))
+            }
+            _ => None,
+        })
+        .into_iter()
+        .collect();
+    assert_eq!(post.len(), 1);
+    assert_eq!(post[0].0, "AAPL");
+    assert_eq!(post[0].1, TrackerStatus::InPlay);
+    assert_eq!(post[0].2, TrackerStatus::Watching);
+}
+
+#[tokio::test]
+async fn ticker_status_changed_serializes_with_snake_case_status() {
+    // The frontend types map snake-case status strings; verify the
+    // wire payload matches.
+    let event = AppEvent::TickerStatusChanged {
+        symbol: "AAPL".to_string(),
+        from: TrackerStatus::Watching,
+        to: TrackerStatus::InPlay,
+    };
+    let json = serde_json::to_value(&event).unwrap();
+    assert_eq!(json["type"], "TickerStatusChanged");
+    assert_eq!(json["data"]["symbol"], "AAPL");
+    assert_eq!(json["data"]["from"], "watching");
+    assert_eq!(json["data"]["to"], "in_play");
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Card,
   CardContent,
@@ -8,8 +8,10 @@ import {
 } from "../../../shared/components/ui/card"
 import { Button } from "../../../shared/components/ui/button"
 import { Plus, RefreshCw } from "lucide-react"
+import { ToastViewport, useToasts } from "../../../shared/components/ui/toast"
 import { Watchlist } from "./Watchlist"
 import { useWatchlist } from "../hooks/useWatchlist"
+import { useTrackerEvents } from "../hooks/useTrackerEvents"
 import { STATUS_LABELS, type TrackerStatus } from "../types"
 
 type StatusFilter = "all" | TrackerStatus
@@ -29,6 +31,16 @@ const FILTER_OPTIONS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: "cool_down", label: STATUS_LABELS.cool_down },
 ]
 
+const STRATEGY_LABELS: Record<string, string> = {
+  breakout: "Breakout",
+  episodic_pivot: "Episodic Pivot",
+  parabolic_short: "Parabolic Short",
+}
+
+function strategyLabel(strategy: string): string {
+  return STRATEGY_LABELS[strategy] ?? strategy
+}
+
 export function TrackerTab({
   refreshKey,
   onSelectSymbol,
@@ -36,11 +48,58 @@ export function TrackerTab({
   onCountChange,
 }: TrackerTabProps) {
   const { tickers, loading, error, refresh, remove, setTags } = useWatchlist(refreshKey)
+  const { lastSetupDetected, lastInvalidated, lastStatusChanged, activeSetupBySymbol } =
+    useTrackerEvents()
+  const { toasts, push: pushToast, dismiss } = useToasts()
   const [filter, setFilter] = useState<StatusFilter>("all")
+
+  const lastSetupIdRef = useRef<number | null>(null)
+  const lastInvalidatedIdRef = useRef<number | null>(null)
+  const lastStatusKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     onCountChange?.(tickers.length)
   }, [tickers.length, onCountChange])
+
+  // Setup detected → toast + refresh row.
+  useEffect(() => {
+    if (!lastSetupDetected) return
+    const setup = lastSetupDetected.setup
+    if (lastSetupIdRef.current === setup.id) return
+    lastSetupIdRef.current = setup.id
+    pushToast({
+      id: `setup-detected-${setup.id}`,
+      variant: "success",
+      title: `${strategyLabel(setup.strategy)} detected on ${setup.symbol}`,
+      description: `${setup.direction.toUpperCase()} @ $${setup.trigger_price.toFixed(2)}`,
+    })
+    void refresh()
+  }, [lastSetupDetected, pushToast, refresh])
+
+  // Setup invalidated → toast + refresh row.
+  useEffect(() => {
+    if (!lastInvalidated) return
+    const id = lastInvalidated.setup_id
+    if (lastInvalidatedIdRef.current === id) return
+    lastInvalidatedIdRef.current = id
+    pushToast({
+      id: `setup-invalidated-${id}`,
+      variant: "warning",
+      title: `${lastInvalidated.symbol} setup invalidated`,
+      description: lastInvalidated.reason,
+    })
+    void refresh()
+  }, [lastInvalidated, pushToast, refresh])
+
+  // Status changed (not specific to a setup) → quietly refresh the
+  // watchlist so the row re-renders with fresh status / TTL.
+  useEffect(() => {
+    if (!lastStatusChanged) return
+    const key = `${lastStatusChanged.symbol}:${lastStatusChanged.from}:${lastStatusChanged.to}`
+    if (lastStatusKeyRef.current === key) return
+    lastStatusKeyRef.current = key
+    void refresh()
+  }, [lastStatusChanged, refresh])
 
   const filteredTickers = useMemo(() => {
     if (filter === "all") return tickers
@@ -48,68 +107,72 @@ export function TrackerTab({
   }, [tickers, filter])
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-white">Tracker</CardTitle>
-            <CardDescription className="text-slate-400">
-              Watchlist of tickers being evaluated against strategy detectors.
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void refresh()}
-              disabled={loading}
-              className="h-8"
-              title="Refresh"
-            >
-              <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} />
-            </Button>
-            <Button size="sm" onClick={onAddClick} className="h-8">
-              <Plus className="h-4 w-4" />
-              Add
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400">Filter:</span>
-          {FILTER_OPTIONS.map((opt) => {
-            const active = filter === opt.value
-            const count =
-              opt.value === "all"
-                ? tickers.length
-                : tickers.filter((t) => t.status === opt.value).length
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setFilter(opt.value)}
-                className={
-                  "rounded-full border px-3 py-0.5 text-xs transition-colors " +
-                  (active
-                    ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                    : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
-                }
+    <>
+      <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-white">Tracker</CardTitle>
+              <CardDescription className="text-slate-400">
+                Watchlist of tickers being evaluated against strategy detectors.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void refresh()}
+                disabled={loading}
+                className="h-8"
+                title="Refresh"
               >
-                {opt.label} <span className="text-slate-500">({count})</span>
-              </button>
-            )
-          })}
-        </div>
-        <Watchlist
-          tickers={filteredTickers}
-          loading={loading}
-          error={error}
-          onSelectSymbol={onSelectSymbol}
-          onRemove={remove}
-          onSaveTags={setTags}
-        />
-      </CardContent>
-    </Card>
+                <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} />
+              </Button>
+              <Button size="sm" onClick={onAddClick} className="h-8">
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400">Filter:</span>
+            {FILTER_OPTIONS.map((opt) => {
+              const active = filter === opt.value
+              const count =
+                opt.value === "all"
+                  ? tickers.length
+                  : tickers.filter((t) => t.status === opt.value).length
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFilter(opt.value)}
+                  className={
+                    "rounded-full border px-3 py-0.5 text-xs transition-colors " +
+                    (active
+                      ? "border-blue-400 bg-blue-500/20 text-blue-100"
+                      : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
+                  }
+                >
+                  {opt.label} <span className="text-slate-500">({count})</span>
+                </button>
+              )
+            })}
+          </div>
+          <Watchlist
+            tickers={filteredTickers}
+            loading={loading}
+            error={error}
+            onSelectSymbol={onSelectSymbol}
+            onRemove={remove}
+            onSaveTags={setTags}
+            activeSetupBySymbol={activeSetupBySymbol}
+          />
+        </CardContent>
+      </Card>
+      <ToastViewport toasts={toasts} onDismiss={dismiss} />
+    </>
   )
 }

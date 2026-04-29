@@ -1,8 +1,10 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::RwLock;
 
+use crate::ibkr::types::tracker::{Setup, TrackerStatus};
 use crate::ibkr::types::ScannerData;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,12 +76,36 @@ pub enum AppEvent {
     },
 
     // Tracker / scheduling events
+    /// Emitted by `TrackerRunner` after a detector hit is persisted.
+    /// The `thesis` field stays `None` until Phase 17 wires the LLM
+    /// thesis prompt; the frontend treats absence as "no narrative
+    /// yet".
+    SetupDetected {
+        setup: Setup,
+        thesis: Option<String>,
+    },
+    /// Emitted by `TrackerStateMachine::mark_invalidated` when a
+    /// persisted setup is flipped to `Invalidated`. Carries the
+    /// reason so the UI can surface it in a toast.
+    SetupInvalidated {
+        setup_id: i64,
+        symbol: String,
+        reason: String,
+    },
+    /// Emitted whenever a tracker row's status changes. Lets the
+    /// frontend update the watchlist row badge without a full
+    /// re-fetch.
+    TickerStatusChanged {
+        symbol: String,
+        from: TrackerStatus,
+        to: TrackerStatus,
+    },
     /// Emitted by the EOD scheduler after a successful 16:05 ET sweep.
-    /// `date` is the ISO-8601 ET trading-day date (`YYYY-MM-DD`). The
-    /// payload is intentionally empty for Phase 13 — Phase 20's daily
-    /// ranker will populate ranked candidates here.
+    /// `date` is the ET trading-day date. `ranked_count` is `0` until
+    /// Phase 20's daily ranker fills it in.
     MorningPackReady {
-        date: String,
+        date: NaiveDate,
+        ranked_count: usize,
     },
 
     // System events
@@ -109,6 +135,9 @@ impl AppEvent {
             AppEvent::PositionUpdate { .. } => "position-update",
             AppEvent::PositionsRefreshed => "positions-refreshed",
             AppEvent::ScannerUpdate { .. } => "scanner-update",
+            AppEvent::SetupDetected { .. } => "setup-detected",
+            AppEvent::SetupInvalidated { .. } => "setup-invalidated",
+            AppEvent::TickerStatusChanged { .. } => "ticker-status-changed",
             AppEvent::MorningPackReady { .. } => "morning-pack-ready",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
@@ -118,6 +147,11 @@ impl AppEvent {
 
 pub struct EventEmitter {
     app_handle: Arc<RwLock<Option<AppHandle>>>,
+    /// Test seam: when `Some`, every `emit` call records the event
+    /// here in addition to (or instead of) forwarding to Tauri. Lets
+    /// tests assert on emissions without standing up a full Tauri
+    /// runtime. Production code never enables this.
+    capture: Arc<RwLock<Option<Vec<AppEvent>>>>,
 }
 
 #[allow(dead_code)]
@@ -125,7 +159,34 @@ impl EventEmitter {
     pub fn new() -> Self {
         Self {
             app_handle: Arc::new(RwLock::new(None)),
+            capture: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Test-only: returns an emitter with capture pre-enabled. The
+    /// returned emitter still works fine if an `app_handle` is later
+    /// attached, but tests typically just call `captured()`.
+    pub fn for_capture() -> Self {
+        Self {
+            app_handle: Arc::new(RwLock::new(None)),
+            capture: Arc::new(RwLock::new(Some(Vec::new()))),
+        }
+    }
+
+    pub async fn enable_capture(&self) {
+        let mut cap = self.capture.write().await;
+        if cap.is_none() {
+            *cap = Some(Vec::new());
+        }
+    }
+
+    pub async fn captured(&self) -> Vec<AppEvent> {
+        self.capture
+            .read()
+            .await
+            .as_ref()
+            .map(|v| v.clone())
+            .unwrap_or_default()
     }
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
@@ -134,13 +195,28 @@ impl EventEmitter {
     }
 
     pub async fn emit(&self, event: AppEvent) -> Result<(), String> {
-        let app_handle = self.app_handle.read().await;
+        // Record into the capture buffer first (if enabled). We clone
+        // the event so the dispatch path below still owns its copy.
+        let captured = {
+            let mut cap = self.capture.write().await;
+            if let Some(buf) = cap.as_mut() {
+                buf.push(event.clone());
+                true
+            } else {
+                false
+            }
+        };
 
+        let app_handle = self.app_handle.read().await;
         if let Some(handle) = app_handle.as_ref() {
             handle
                 .emit(event.name(), &event)
                 .map_err(|e| format!("Failed to emit event: {e}"))?;
+            return Ok(());
+        }
 
+        if captured {
+            // Tests don't attach an app handle; capture is the sink.
             Ok(())
         } else {
             Err("App handle not initialized".to_string())

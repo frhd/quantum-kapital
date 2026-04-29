@@ -15,6 +15,7 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
+use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::Result as IbkrResult;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
@@ -138,6 +139,7 @@ pub struct TrackerRunner {
     db: Arc<Db>,
     tracker: Arc<TrackerService>,
     state_machine: Arc<TrackerStateMachine>,
+    emitter: Arc<EventEmitter>,
     bars: Arc<dyn BarsFetcher>,
     news: Arc<dyn NewsFetcher>,
     registry: Arc<DetectorRegistry>,
@@ -148,6 +150,7 @@ impl TrackerRunner {
         db: Arc<Db>,
         tracker: Arc<TrackerService>,
         state_machine: Arc<TrackerStateMachine>,
+        emitter: Arc<EventEmitter>,
         bars: Arc<dyn BarsFetcher>,
         news: Arc<dyn NewsFetcher>,
         registry: Arc<DetectorRegistry>,
@@ -156,6 +159,7 @@ impl TrackerRunner {
             db,
             tracker,
             state_machine,
+            emitter,
             bars,
             news,
             registry,
@@ -234,6 +238,17 @@ impl TrackerRunner {
                                     ctx_owned.symbol
                                 );
                             }
+                            // Phase 15: surface the persisted setup to the
+                            // frontend so the watchlist row + toast update
+                            // without a manual refresh. Phase 17 will fill
+                            // `thesis` once the LLM prompt lands.
+                            let _ = self
+                                .emitter
+                                .emit(AppEvent::SetupDetected {
+                                    setup: setup.clone(),
+                                    thesis: None,
+                                })
+                                .await;
                             persisted.push(setup);
                         }
                         Ok(None) => {

@@ -83,3 +83,56 @@ export interface HistoricalBar {
   wap: number
   count: number
 }
+
+export type SetupStatus = "active" | "invalidated" | "completed"
+
+export type Direction = "long" | "short"
+
+export interface TargetLevel {
+  label: string
+  price: number
+}
+
+export interface Setup {
+  id: number
+  symbol: string
+  strategy: string
+  direction: Direction
+  detected_at: string
+  trigger_price: number
+  stop_price: number
+  targets: TargetLevel[]
+  raw_signals: unknown
+  thesis: string | null
+  status: SetupStatus
+  invalidated_at: string | null
+  invalidation_reason: string | null
+}
+
+// --- Tracker / scheduler events emitted by the Rust backend ---
+//
+// AppEvent is wire-tagged as { type, data }. The variants below mirror
+// `src-tauri/src/events/emitter.rs`; only the tracker subset is typed
+// here since other features consume their own events directly.
+
+export interface SetupDetectedPayload {
+  setup: Setup
+  thesis: string | null
+}
+
+export interface SetupInvalidatedPayload {
+  setup_id: number
+  symbol: string
+  reason: string
+}
+
+export interface TickerStatusChangedPayload {
+  symbol: string
+  from: TrackerStatus
+  to: TrackerStatus
+}
+
+export type TrackerEvent =
+  | { kind: "setup-detected"; payload: SetupDetectedPayload }
+  | { kind: "setup-invalidated"; payload: SetupInvalidatedPayload }
+  | { kind: "ticker-status-changed"; payload: TickerStatusChangedPayload }

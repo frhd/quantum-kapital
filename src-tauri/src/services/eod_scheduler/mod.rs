@@ -181,7 +181,8 @@ impl EodScheduler {
         if let Err(e) = self
             .emitter
             .emit(AppEvent::MorningPackReady {
-                date: date.format("%Y-%m-%d").to_string(),
+                date,
+                ranked_count: 0,
             })
             .await
         {

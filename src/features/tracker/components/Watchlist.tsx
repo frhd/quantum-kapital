@@ -13,7 +13,14 @@ import { Badge } from "../../../shared/components/ui/badge"
 import { Button } from "../../../shared/components/ui/button"
 import { Input } from "../../../shared/components/ui/input"
 import { AlertCircle, ExternalLink, Tag, Trash2, X } from "lucide-react"
-import { BUILT_IN_TAGS, STATUS_LABELS, type StrategyTag, type TrackedTicker } from "../types"
+import {
+  BUILT_IN_TAGS,
+  STATUS_LABELS,
+  type Setup,
+  type StrategyTag,
+  type TrackedTicker,
+} from "../types"
+import { SetupBadge } from "./SetupBadge"
 
 interface WatchlistProps {
   tickers: TrackedTicker[]
@@ -22,6 +29,7 @@ interface WatchlistProps {
   onSelectSymbol: (symbol: string) => void
   onRemove: (symbol: string) => Promise<void> | void
   onSaveTags: (symbol: string, tags: StrategyTag[]) => Promise<unknown> | void
+  activeSetupBySymbol?: Record<string, Setup>
 }
 
 function formatRelativeTime(iso: string): string {
@@ -51,6 +59,7 @@ export function Watchlist({
   onSelectSymbol,
   onRemove,
   onSaveTags,
+  activeSetupBySymbol,
 }: WatchlistProps) {
   const [editingSymbol, setEditingSymbol] = useState<string | null>(null)
   const [draftTags, setDraftTags] = useState<StrategyTag[]>([])
@@ -163,9 +172,15 @@ export function Watchlist({
               const isEditing = editingSymbol === t.symbol
               const isSaving = savingSymbol === t.symbol
               const isRemoving = removingSymbol === t.symbol
+              const activeSetup = activeSetupBySymbol?.[t.symbol]
               return (
                 <TableRow key={t.symbol} className="border-slate-700">
-                  <TableCell className="font-medium text-white">{t.symbol}</TableCell>
+                  <TableCell className="font-medium text-white">
+                    <div className="flex flex-col gap-1">
+                      <span>{t.symbol}</span>
+                      {activeSetup && <SetupBadge setup={activeSetup} />}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     {isEditing ? (
                       <div className="space-y-2">

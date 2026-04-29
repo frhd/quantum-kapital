@@ -222,9 +222,11 @@ fn build_harness(
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+    let emitter = Arc::new(crate::events::EventEmitter::for_capture());
     let state_machine = Arc::new(TrackerStateMachine::with_clock(
         Arc::clone(&db),
         Arc::clone(&tracker),
+        Arc::clone(&emitter),
         crate::services::tracker_state_machine::Clock::Fixed(now),
     ));
     let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
@@ -233,6 +235,7 @@ fn build_harness(
         Arc::clone(&db),
         Arc::clone(&tracker),
         Arc::clone(&state_machine),
+        Arc::clone(&emitter),
         bars_dyn,
         news,
         Arc::new(registry),
@@ -559,6 +562,7 @@ async fn start_replaces_existing_handle() {
         Arc::clone(&db),
         Arc::clone(&state.tracker),
         Arc::clone(&state.state_machine),
+        Arc::clone(&state.event_emitter),
         bars,
         news,
         Arc::new(DetectorRegistry::new()),
@@ -606,6 +610,7 @@ async fn stop_drops_handle() {
         Arc::clone(&db),
         Arc::clone(&state.tracker),
         Arc::clone(&state.state_machine),
+        Arc::clone(&state.event_emitter),
         bars,
         news,
         Arc::new(DetectorRegistry::new()),

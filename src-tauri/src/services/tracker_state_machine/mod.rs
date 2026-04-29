@@ -27,6 +27,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tracing::warn;
 
+use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::types::tracker::{SetupStatus, TrackerStatus};
 use crate::services::tracker_service::{TrackerError, TrackerService};
 use crate::storage::error::StorageError;
@@ -78,21 +79,33 @@ impl Clock {
 pub struct TrackerStateMachine {
     db: Arc<Db>,
     tracker: Arc<TrackerService>,
+    emitter: Arc<EventEmitter>,
     clock: Clock,
 }
 
 impl TrackerStateMachine {
-    pub fn new(db: Arc<Db>, tracker: Arc<TrackerService>) -> Self {
+    pub fn new(db: Arc<Db>, tracker: Arc<TrackerService>, emitter: Arc<EventEmitter>) -> Self {
         Self {
             db,
             tracker,
+            emitter,
             clock: Clock::Real,
         }
     }
 
     #[cfg(test)]
-    pub fn with_clock(db: Arc<Db>, tracker: Arc<TrackerService>, clock: Clock) -> Self {
-        Self { db, tracker, clock }
+    pub fn with_clock(
+        db: Arc<Db>,
+        tracker: Arc<TrackerService>,
+        emitter: Arc<EventEmitter>,
+        clock: Clock,
+    ) -> Self {
+        Self {
+            db,
+            tracker,
+            emitter,
+            clock,
+        }
     }
 
     /// Promote a `Watching` (or already in-play) ticker after the scanner
@@ -136,15 +149,14 @@ impl TrackerStateMachine {
         }
         let now = self.clock.now();
         let in_play_until = trading_days_after_close(now, IN_PLAY_TRADING_DAYS);
-        self.tracker
-            .set_status(
-                &symbol_norm,
-                TrackerStatus::SetupActive,
-                Some(in_play_until),
-                None,
-            )
-            .await?;
-        Ok(())
+        self.set_status_and_emit(
+            &symbol_norm,
+            row.status,
+            TrackerStatus::SetupActive,
+            Some(in_play_until),
+            None,
+        )
+        .await
     }
 
     /// Mark a setup as `Invalidated` (stop hit, thesis broken, manual stop).
@@ -166,6 +178,17 @@ impl TrackerStateMachine {
                 TrackerError::NotFound(_) => StateMachineError::SetupNotFound(setup_id),
                 other => StateMachineError::Tracker(other),
             })?;
+        // Emit the invalidation regardless of whether the ticker flips
+        // to CoolDown — the frontend cares about per-setup lifecycle,
+        // not just per-ticker status.
+        let _ = self
+            .emitter
+            .emit(AppEvent::SetupInvalidated {
+                setup_id: setup.id,
+                symbol: setup.symbol.clone(),
+                reason: reason.to_string(),
+            })
+            .await;
         self.maybe_enter_cool_down(&setup.symbol, now).await
     }
 
@@ -187,9 +210,34 @@ impl TrackerStateMachine {
     /// Sweep the watchlist for expired TTLs and flip them back to
     /// `Watching`. Both `in_play_until` and `cool_down_until` are checked
     /// in a single SQL UPDATE so the call is atomic. Returns the number
-    /// of rows transitioned.
+    /// of rows transitioned. Emits `TickerStatusChanged` per flipped row
+    /// so the frontend badges clear without a refresh.
     pub async fn expire_ttls(&self, now: DateTime<Utc>) -> Result<usize> {
         let now_unix = now.timestamp();
+        // Snapshot the rows that will flip so we can emit per-ticker
+        // events after the atomic UPDATE.
+        let to_flip: Vec<(String, Option<TrackerStatus>)> = self
+            .db
+            .with_conn(move |conn| {
+                let mut stmt = conn.prepare(
+                    "SELECT symbol, status FROM tracked_tickers \
+                     WHERE (in_play_until IS NOT NULL AND in_play_until <= ?1) \
+                        OR (cool_down_until IS NOT NULL AND cool_down_until <= ?1)",
+                )?;
+                let iter = stmt.query_map(rusqlite::params![now_unix], |row| {
+                    let symbol: String = row.get(0)?;
+                    let status: String = row.get(1)?;
+                    Ok((symbol, status))
+                })?;
+                let mut out = Vec::new();
+                for r in iter {
+                    let (symbol, status) = r?;
+                    out.push((symbol, TrackerStatus::parse(&status)));
+                }
+                Ok(out)
+            })
+            .await?;
+
         let n = self
             .db
             .with_conn(move |conn| {
@@ -203,6 +251,22 @@ impl TrackerStateMachine {
                 Ok(n)
             })
             .await?;
+
+        for (symbol, from) in to_flip {
+            if let Some(from) = from {
+                if from != TrackerStatus::Watching {
+                    let _ = self
+                        .emitter
+                        .emit(AppEvent::TickerStatusChanged {
+                            symbol,
+                            from,
+                            to: TrackerStatus::Watching,
+                        })
+                        .await;
+                }
+            }
+        }
+
         Ok(n)
     }
 
@@ -247,14 +311,14 @@ impl TrackerStateMachine {
             TrackerStatus::Watching | TrackerStatus::InPlay => {
                 let now = self.clock.now();
                 let in_play_until = trading_days_after_close(now, IN_PLAY_TRADING_DAYS);
-                self.tracker
-                    .set_status(
-                        &symbol_norm,
-                        TrackerStatus::InPlay,
-                        Some(in_play_until),
-                        None,
-                    )
-                    .await?;
+                self.set_status_and_emit(
+                    &symbol_norm,
+                    row.status,
+                    TrackerStatus::InPlay,
+                    Some(in_play_until),
+                    None,
+                )
+                .await?;
                 if let Some(meta_value) = meta {
                     self.update_source_meta(&symbol_norm, meta_value).await?;
                 }
@@ -274,15 +338,45 @@ impl TrackerStateMachine {
         if active_remaining > 0 {
             return Ok(());
         }
+        let from = match self.tracker.get(&symbol_norm).await? {
+            Some(r) => r.status,
+            None => {
+                warn!("maybe_enter_cool_down: {symbol_norm} vanished mid-flight");
+                return Ok(());
+            }
+        };
         let cool_down_until = trading_days_after_close(now, COOL_DOWN_TRADING_DAYS);
+        self.set_status_and_emit(
+            &symbol_norm,
+            from,
+            TrackerStatus::CoolDown,
+            None,
+            Some(cool_down_until),
+        )
+        .await
+    }
+
+    async fn set_status_and_emit(
+        &self,
+        symbol: &str,
+        from: TrackerStatus,
+        to: TrackerStatus,
+        in_play_until: Option<DateTime<Utc>>,
+        cool_down_until: Option<DateTime<Utc>>,
+    ) -> Result<()> {
         self.tracker
-            .set_status(
-                &symbol_norm,
-                TrackerStatus::CoolDown,
-                None,
-                Some(cool_down_until),
-            )
+            .set_status(symbol, to, in_play_until, cool_down_until)
             .await?;
+        if from != to {
+            let _ = self
+                .emitter
+                .emit(AppEvent::TickerStatusChanged {
+                    symbol: symbol.to_string(),
+                    from,
+                    to,
+                })
+                .await;
+        }
         Ok(())
     }
 

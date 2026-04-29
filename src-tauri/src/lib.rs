@@ -92,6 +92,7 @@ pub fn run() {
                 Arc::clone(&db),
                 Arc::clone(&ibkr_state.tracker),
                 Arc::clone(&ibkr_state.state_machine),
+                Arc::clone(&ibkr_state.event_emitter),
                 bars,
                 news,
                 Arc::new(default_registry()),
