@@ -30,7 +30,7 @@ Every phase follows the same TDD discipline:
 - **Alpha Vantage setup:** `ALPHA_VANTAGE_SETUP.md`, `FUNDAMENTAL_DATA_API.md`
 - **Settings:** `SETTINGS_GUIDE.md`
 
-No `CONTRIBUTING.md` exists at the time of writing; use `CLAUDE.md` as the canonical contributor guide.
+- **Contributor guide:** `CONTRIBUTING.md` (file-size limits, escalation rules); `CLAUDE.md` remains the canonical engineering reference.
 
 ## Cross-phase scratchpads
 
@@ -103,6 +103,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 - [ ] **Phase 22** — Configurable detector parameters in settings — `impl/phase-22-detector-config.md`
 - [ ] **Phase 23** — Backtest replay mode — `impl/phase-23-backtest.md`
 - [ ] **Phase 24** — Daily journal skill (`/journal` Claude Code skill + `ibkr_get_executions` command) — `impl/phase-24-daily-journal-skill.md`
+- [ ] **Phase 25** — Cleanup pass (panic removal, file-size splits, `unwrap` audit) — `impl/phase-25-cleanup-pass.md`
 
 ## Out of scope
 
