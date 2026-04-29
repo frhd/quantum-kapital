@@ -166,7 +166,7 @@ export function MorningPackPanel({
                     onClick={() => toggleRow(row.setup_id)}
                     className="flex w-full items-center justify-between gap-3 text-left"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex min-w-0 items-center gap-3">
                       <Badge
                         variant="outline"
                         className="border-amber-400 bg-amber-500/20 text-amber-100"
@@ -182,7 +182,7 @@ export function MorningPackPanel({
                         </Badge>
                       )}
                       {direction && (
-                        <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                        <span className="text-[10px] tracking-wide text-slate-400 uppercase">
                           {direction}
                         </span>
                       )}

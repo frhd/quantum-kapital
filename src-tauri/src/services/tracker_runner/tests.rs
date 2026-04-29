@@ -790,6 +790,75 @@ async fn run_for_with_thesis_generator_emits_thesis_populated_event_once() {
     assert!(stored.thesis_json.is_some());
 }
 
+// ---------------- Phase 21: alert recording ----------------
+
+#[tokio::test]
+async fn alert_inserted_on_setup_detected() {
+    use crate::ibkr::types::tracker::AlertKind;
+    use crate::services::alerts::{list_alerts, ListAlertsQuery};
+
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+
+    let candidate = sample_candidate("breakout", Direction::Long);
+    let mut registry = DetectorRegistry::new();
+    registry.register(Arc::new(StubDetector::new_hit(
+        "breakout",
+        StrategyTag::Breakout,
+        candidate,
+    )));
+
+    let (tracker, _emitter, runner) = build_runner(Arc::clone(&db), bars, news, registry);
+    add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+
+    let setups = runner.run_for("AAPL").await.expect("run_for");
+    assert_eq!(setups.len(), 1);
+
+    let alerts = list_alerts(&db, ListAlertsQuery::default())
+        .await
+        .expect("list");
+    assert_eq!(alerts.len(), 1, "exactly one detected alert recorded");
+    assert_eq!(alerts[0].kind, AlertKind::Detected);
+    assert_eq!(alerts[0].setup_id, setups[0].id);
+    assert!(!alerts[0].seen);
+    assert_eq!(alerts[0].payload["symbol"], "AAPL");
+    assert_eq!(alerts[0].payload["strategy"], "breakout");
+}
+
+#[tokio::test]
+async fn detected_alert_is_deduped_when_runner_reemits() {
+    // The runner re-emits SetupDetected via the thesis generator; the
+    // alert layer's dedup window collapses both into a single row.
+    use crate::services::alerts::{list_alerts, ListAlertsQuery};
+
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+
+    let candidate = sample_candidate("breakout", Direction::Long);
+    let mut registry = DetectorRegistry::new();
+    registry.register(Arc::new(StubDetector::new_hit(
+        "breakout",
+        StrategyTag::Breakout,
+        candidate,
+    )));
+
+    let (tracker, _emitter, runner) = build_runner(Arc::clone(&db), bars, news, registry);
+    add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+
+    runner.run_for("AAPL").await.expect("run_for");
+
+    // A second pass within the dedup window of the runner-side
+    // duplicate guard returns no new setup, so no second alert either.
+    runner.run_for("AAPL").await.expect("second run");
+
+    let alerts = list_alerts(&db, ListAlertsQuery::default())
+        .await
+        .expect("list");
+    assert_eq!(alerts.len(), 1);
+}
+
 // Bind unused imports for compile cleanliness; helpers live in scope
 // only when tests reference them.
 #[allow(dead_code)]

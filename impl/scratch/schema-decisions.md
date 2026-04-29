@@ -9,6 +9,16 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 21 — Alert feed persistence
+
+**Change:** Added two indexes on the existing `alerts` table — `idx_alerts_fired_at(fired_at DESC)` and `idx_alerts_setup_kind_fired(setup_id, kind, fired_at DESC)`. No new columns; the Phase 01 baseline `alerts` schema (id, setup_id, kind, fired_at, payload, seen) was already the right shape.
+**Why these indexes:** The list query (`tracker_list_alerts`) orders by `fired_at DESC` and filters by `kind` / `seen` / `since`. The dedup probe in `record_alert` reads the most-recent row for `(setup_id, kind)` to suppress duplicate emits within a 1s window. Both queries scan small ranges in the indexes rather than full-table.
+**Why no `(setup_id, kind)` UNIQUE:** dedup is time-bounded (1s), not lifetime. The same setup can legitimately fire `Detected → ThesisChanged → Invalidated → ThesisChanged` over hours/days, all of which deserve their own row. Application-level dedup keeps that semantics; a UNIQUE constraint would force a `INSERT … ON CONFLICT` shape that conflates "duplicate event" with "stale row from yesterday".
+**Migration impact:** additive. `schema.sql` adds the two `CREATE INDEX IF NOT EXISTS` statements. The existing migrations runner re-executes the schema on every launch so existing `tracker.sqlite` files pick the indexes up automatically — no data backfill needed.
+**Cross-references:** `src-tauri/src/storage/schema.sql`, `src-tauri/src/services/alerts/{mod,tests}.rs` (record/list/mark-seen + 5 tests), `src-tauri/src/ibkr/types/tracker.rs` (`Alert`, `AlertKind`).
+
+---
+
 ### 2026-04-29 — Phase 20 — Morning pack persistence
 
 **Change:** Added new table `morning_packs (date TEXT PRIMARY KEY, payload TEXT NOT NULL, generated_at INTEGER NOT NULL)`. Stores the full ranked `MorningPack` JSON keyed by ET trading day. `INSERT ... ON CONFLICT(date) DO UPDATE` ensures the latest run wins, so a user can re-run the EOD sweep and get a fresh pack without polluting history.

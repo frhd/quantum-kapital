@@ -70,7 +70,7 @@ const VARIANT_STYLES: Record<ToastVariant, { wrapper: string; icon: ReactElement
 export function ToastViewport({ toasts, onDismiss }: ToastViewportProps) {
   if (typeof document === "undefined") return null
   return createPortal(
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2">
+    <div className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-2">
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} onDismiss={onDismiss} />
       ))}
@@ -104,7 +104,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
     >
       <span className="mt-0.5">{styles.icon}</span>
       <div className="flex-1">
-        <p className="font-medium leading-tight">{title}</p>
+        <p className="leading-tight font-medium">{title}</p>
         {description && <p className="mt-0.5 text-xs text-slate-300">{description}</p>}
       </div>
       <button

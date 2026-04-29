@@ -19,7 +19,8 @@ use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::Result as IbkrResult;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::{NewsItem, NewsVerdict};
-use crate::ibkr::types::tracker::{Setup, TrackerStatus};
+use crate::ibkr::types::tracker::{AlertKind, Setup, TrackerStatus};
+use crate::services::alerts::record_alert;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
@@ -138,7 +139,6 @@ pub struct RunResult {
 
 #[derive(Clone)]
 pub struct TrackerRunner {
-    #[allow(dead_code)]
     db: Arc<Db>,
     tracker: Arc<TrackerService>,
     state_machine: Arc<TrackerStateMachine>,
@@ -254,6 +254,29 @@ impl TrackerRunner {
                                     "state-machine on_setup_detected failed for {}: {e}",
                                     ctx_owned.symbol
                                 );
+                            }
+                            // Phase 21: record a `detected` alert so the
+                            // AlertFeed can surface this hit even if the
+                            // user missed the toast. The dedup window in
+                            // `record_alert` collapses the runner's
+                            // first-emit + thesis-generated re-emit into
+                            // a single row.
+                            if let Err(e) = record_alert(
+                                &self.db,
+                                setup.id,
+                                AlertKind::Detected,
+                                serde_json::json!({
+                                    "symbol": setup.symbol,
+                                    "strategy": setup.strategy,
+                                    "direction": setup.direction,
+                                    "trigger_price": setup.trigger_price,
+                                    "stop_price": setup.stop_price,
+                                    "detected_at": setup.detected_at,
+                                }),
+                            )
+                            .await
+                            {
+                                warn!("record_alert(detected) failed for setup#{}: {e}", setup.id);
                             }
                             // Phase 17: if a thesis generator is wired, let
                             // it own the `SetupDetected` emission (with the

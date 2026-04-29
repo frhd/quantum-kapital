@@ -221,6 +221,8 @@ pub fn run() {
             ibkr::commands::tracker_start_scheduler,
             ibkr::commands::tracker_stop_scheduler,
             ibkr::commands::tracker_get_morning_pack,
+            ibkr::commands::tracker_list_alerts,
+            ibkr::commands::tracker_mark_alerts_seen,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

@@ -28,7 +28,8 @@ use thiserror::Error;
 use tracing::warn;
 
 use crate::events::{AppEvent, EventEmitter};
-use crate::ibkr::types::tracker::{SetupStatus, TrackerStatus};
+use crate::ibkr::types::tracker::{AlertKind, SetupStatus, TrackerStatus};
+use crate::services::alerts::record_alert;
 use crate::services::tracker_service::{TrackerError, TrackerService};
 use crate::storage::error::StorageError;
 use crate::storage::Db;
@@ -189,6 +190,23 @@ impl TrackerStateMachine {
                 reason: reason.to_string(),
             })
             .await;
+        // Phase 21: record an `invalidated` alert for the AlertFeed.
+        if let Err(e) = record_alert(
+            &self.db,
+            setup.id,
+            AlertKind::Invalidated,
+            serde_json::json!({
+                "symbol": setup.symbol,
+                "reason": reason,
+            }),
+        )
+        .await
+        {
+            warn!(
+                "record_alert(invalidated) failed for setup#{}: {e}",
+                setup.id
+            );
+        }
         self.maybe_enter_cool_down(&setup.symbol, now).await
     }
 
@@ -204,6 +222,22 @@ impl TrackerStateMachine {
                 TrackerError::NotFound(_) => StateMachineError::SetupNotFound(setup_id),
                 other => StateMachineError::Tracker(other),
             })?;
+        // Phase 21: record a `target_hit` alert for the AlertFeed.
+        if let Err(e) = record_alert(
+            &self.db,
+            setup.id,
+            AlertKind::TargetHit,
+            serde_json::json!({
+                "symbol": setup.symbol,
+            }),
+        )
+        .await
+        {
+            warn!(
+                "record_alert(target_hit) failed for setup#{}: {e}",
+                setup.id
+            );
+        }
         self.maybe_enter_cool_down(&setup.symbol, now).await
     }
 

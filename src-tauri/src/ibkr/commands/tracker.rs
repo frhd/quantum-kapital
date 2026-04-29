@@ -6,8 +6,9 @@ use crate::ibkr::state::IbkrState;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{
-    Setup, StrategyTag, TrackedTicker, TrackerSource, TrackerStatus,
+    Alert, AlertKind, Setup, StrategyTag, TrackedTicker, TrackerSource, TrackerStatus,
 };
+use crate::services::alerts::{list_alerts, mark_alerts_seen, ListAlertsQuery};
 use crate::services::daily_ranker::{DailyRanker, MorningPack};
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::financial_data_service::FinancialDataService;
@@ -215,6 +216,39 @@ pub async fn tracker_get_morning_pack(
         Some(d) => ranker.get_pack(d).await.map_err(|e| e.to_string()),
         None => ranker.get_latest().await.map_err(|e| e.to_string()),
     }
+}
+
+/// Phase 21 — read a slice of the alert feed. All filters are
+/// AND-combined; rows come back newest-first. The frontend consumes the
+/// raw `Alert` rows; `payload.symbol` lets a click route to the analysis
+/// view.
+#[tauri::command]
+pub async fn tracker_list_alerts(
+    db: State<'_, Arc<crate::storage::Db>>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    since: Option<DateTime<Utc>>,
+    kind: Option<AlertKind>,
+    only_unseen: Option<bool>,
+) -> Result<Vec<Alert>, String> {
+    let q = ListAlertsQuery {
+        limit: limit.unwrap_or(50),
+        offset: offset.unwrap_or(0),
+        since,
+        kind,
+        only_unseen: only_unseen.unwrap_or(false),
+    };
+    list_alerts(&db, q).await.map_err(|e| e.to_string())
+}
+
+/// Phase 21 — mark every alert id in `ids` as seen. Returns the number
+/// of rows actually flipped (already-seen and unknown ids contribute 0).
+#[tauri::command]
+pub async fn tracker_mark_alerts_seen(
+    db: State<'_, Arc<crate::storage::Db>>,
+    ids: Vec<i64>,
+) -> Result<usize, String> {
+    mark_alerts_seen(&db, ids).await.map_err(|e| e.to_string())
 }
 
 /// Phase 16 — debug-only Anthropic smoke test. Sends a tiny prompt to

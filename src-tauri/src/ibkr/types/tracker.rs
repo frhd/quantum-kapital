@@ -153,6 +153,55 @@ impl SetupStatus {
     }
 }
 
+/// Phase 21 — kinds of `alerts` rows the tracker pipeline records. The
+/// four kinds map 1:1 to the events the frontend AlertFeed surfaces:
+/// detector hit (`Detected`), state-machine invalidation (`Invalidated`),
+/// target hit on a completed setup (`TargetHit`), and a thesis update
+/// from the LLM pipeline (`ThesisChanged`). Storage encodes each as a
+/// snake_case string in the `alerts.kind` column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlertKind {
+    Detected,
+    Invalidated,
+    TargetHit,
+    ThesisChanged,
+}
+
+impl AlertKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AlertKind::Detected => "detected",
+            AlertKind::Invalidated => "invalidated",
+            AlertKind::TargetHit => "target_hit",
+            AlertKind::ThesisChanged => "thesis_changed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "detected" => Some(AlertKind::Detected),
+            "invalidated" => Some(AlertKind::Invalidated),
+            "target_hit" => Some(AlertKind::TargetHit),
+            "thesis_changed" => Some(AlertKind::ThesisChanged),
+            _ => None,
+        }
+    }
+}
+
+/// Persisted alert row mirroring the `alerts` table. `payload` is the
+/// event-specific JSON body; the frontend reads `payload.symbol` to wire
+/// row clicks to the analysis tab.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Alert {
+    pub id: i64,
+    pub setup_id: i64,
+    pub kind: AlertKind,
+    pub fired_at: DateTime<Utc>,
+    pub payload: serde_json::Value,
+    pub seen: bool,
+}
+
 /// Persisted strategy setup row, mirroring the `setups` table. The
 /// `direction` and `targets` types are owned by the strategies module
 /// so the persistence layer and the detector framework agree on a
@@ -218,6 +267,21 @@ mod tests {
         assert_eq!(serde_json::to_string(&tag).unwrap(), "\"squeeze\"");
         let parsed: StrategyTag = serde_json::from_str("\"squeeze\"").unwrap();
         assert_eq!(parsed, StrategyTag::Custom("squeeze".to_string()));
+    }
+
+    #[test]
+    fn alert_kind_round_trips_snake_case() {
+        for k in [
+            AlertKind::Detected,
+            AlertKind::Invalidated,
+            AlertKind::TargetHit,
+            AlertKind::ThesisChanged,
+        ] {
+            let s = serde_json::to_string(&k).unwrap();
+            let parsed: AlertKind = serde_json::from_str(&s).unwrap();
+            assert_eq!(parsed, k);
+            assert_eq!(s.trim_matches('"'), k.as_str());
+        }
     }
 
     #[test]

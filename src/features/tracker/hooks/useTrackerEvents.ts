@@ -16,10 +16,7 @@ interface TauriEnvelope<TType extends string, TData> {
 
 type SetupDetectedEnvelope = TauriEnvelope<"SetupDetected", SetupDetectedPayload>
 type SetupInvalidatedEnvelope = TauriEnvelope<"SetupInvalidated", SetupInvalidatedPayload>
-type TickerStatusChangedEnvelope = TauriEnvelope<
-  "TickerStatusChanged",
-  TickerStatusChangedPayload
->
+type TickerStatusChangedEnvelope = TauriEnvelope<"TickerStatusChanged", TickerStatusChangedPayload>
 type MorningPackReadyEnvelope = TauriEnvelope<"MorningPackReady", MorningPackReadyPayload>
 
 const MAX_EVENTS = 100
@@ -42,10 +39,12 @@ export function useTrackerEvents(): UseTrackerEventsResult {
   const [recentEvents, setRecentEvents] = useState<TrackerEvent[]>([])
   const [lastSetupDetected, setLastSetupDetected] = useState<SetupDetectedPayload | null>(null)
   const [lastInvalidated, setLastInvalidated] = useState<SetupInvalidatedPayload | null>(null)
-  const [lastStatusChanged, setLastStatusChanged] =
-    useState<TickerStatusChangedPayload | null>(null)
-  const [lastMorningPackReady, setLastMorningPackReady] =
-    useState<MorningPackReadyPayload | null>(null)
+  const [lastStatusChanged, setLastStatusChanged] = useState<TickerStatusChangedPayload | null>(
+    null,
+  )
+  const [lastMorningPackReady, setLastMorningPackReady] = useState<MorningPackReadyPayload | null>(
+    null,
+  )
   const [activeSetupBySymbol, setActiveSetupBySymbol] = useState<Record<string, Setup>>({})
   const cancelledRef = useRef(false)
 
@@ -93,15 +92,12 @@ export function useTrackerEvents(): UseTrackerEventsResult {
         }
         unlisteners.push(u2)
 
-        const u3 = await listen<TickerStatusChangedEnvelope>(
-          "ticker-status-changed",
-          (event) => {
-            const payload = event.payload?.data
-            if (!payload) return
-            setLastStatusChanged(payload)
-            pushEvent({ kind: "ticker-status-changed", payload })
-          },
-        )
+        const u3 = await listen<TickerStatusChangedEnvelope>("ticker-status-changed", (event) => {
+          const payload = event.payload?.data
+          if (!payload) return
+          setLastStatusChanged(payload)
+          pushEvent({ kind: "ticker-status-changed", payload })
+        })
         if (cancelledRef.current) {
           u3()
           return

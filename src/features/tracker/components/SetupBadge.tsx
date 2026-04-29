@@ -36,7 +36,7 @@ export function SetupBadge({ setup }: SetupBadgeProps) {
     >
       <Icon className="h-3 w-3" />
       <span>{label}</span>
-      <span className="text-[10px] uppercase tracking-wide">{setup.direction}</span>
+      <span className="text-[10px] tracking-wide uppercase">{setup.direction}</span>
       <span className="text-slate-200">${formatPrice(setup.trigger_price)}</span>
     </span>
   )

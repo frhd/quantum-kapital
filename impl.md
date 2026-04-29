@@ -85,7 +85,7 @@ DONE
 
 ### Polish (21–24)
 
-- [ ] **Phase 21** — AlertFeed UI (rolling alerts, mark-as-seen) — `impl/phase-21-alert-feed-ui.md`
+- [x] **Phase 21** — AlertFeed UI (rolling alerts, mark-as-seen) — `impl/phase-21-alert-feed-ui.md`
 - [ ] **Phase 22** — Configurable detector parameters in settings — `impl/phase-22-detector-config.md`
 - [ ] **Phase 23** — Backtest replay mode — `impl/phase-23-backtest.md`
 - [ ] **Phase 24** — Daily journal skill (`/journal` Claude Code skill + `ibkr_get_executions` command) — `impl/phase-24-daily-journal-skill.md`

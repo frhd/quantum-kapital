@@ -46,6 +46,14 @@ impl TrackerService {
         Self { db }
     }
 
+    /// Test-only accessor for the shared `Db` handle. Phase 21 alert-
+    /// wiring tests need to read the `alerts` table through
+    /// `services::alerts::list_alerts`, which takes `&Arc<Db>`.
+    #[cfg(test)]
+    pub fn db_for_testing(&self) -> Arc<Db> {
+        Arc::clone(&self.db)
+    }
+
     pub async fn add(
         &self,
         symbol: &str,

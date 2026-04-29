@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS alerts (
     seen        INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(setup_id) REFERENCES setups(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_alerts_fired_at ON alerts(fired_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_setup_kind_fired ON alerts(setup_id, kind, fired_at DESC);
 
 CREATE TABLE IF NOT EXISTS bars_cache (
     symbol     TEXT NOT NULL,

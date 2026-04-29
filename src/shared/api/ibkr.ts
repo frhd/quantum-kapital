@@ -12,6 +12,8 @@ import type {
   ScannerSubscription,
 } from "../types"
 import type {
+  Alert,
+  AlertKind,
   TrackedTicker,
   TrackerSource,
   TrackerStatus,
@@ -150,6 +152,29 @@ export const ibkrApi = {
      *  to fetch a specific day; omit to get the most recent pack. */
     getMorningPack: async (date?: string) => {
       return invoke<MorningPack | null>("tracker_get_morning_pack", { date: date ?? null })
+    },
+
+    /** Phase 21 — read a slice of the alert feed. All filters are AND-combined. */
+    listAlerts: async (params?: {
+      limit?: number
+      offset?: number
+      since?: string | null
+      kind?: AlertKind | null
+      onlyUnseen?: boolean
+    }) => {
+      return invoke<Alert[]>("tracker_list_alerts", {
+        limit: params?.limit ?? null,
+        offset: params?.offset ?? null,
+        since: params?.since ?? null,
+        kind: params?.kind ?? null,
+        onlyUnseen: params?.onlyUnseen ?? null,
+      })
+    },
+
+    /** Phase 21 — flip the listed ids' `seen` to true. Returns the number
+     *  of rows actually flipped (already-seen / unknown ids contribute 0). */
+    markAlertsSeen: async (ids: number[]) => {
+      return invoke<number>("tracker_mark_alerts_seen", { ids })
     },
   },
 }

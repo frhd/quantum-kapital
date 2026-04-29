@@ -524,6 +524,90 @@ async fn expire_ttls_emits_status_changed_per_flipped_row() {
     assert_eq!(post[0].2, TrackerStatus::Watching);
 }
 
+// ---------------- Phase 21: alert recording ----------------
+
+#[tokio::test]
+async fn alert_inserted_on_setup_invalidated() {
+    use crate::ibkr::types::tracker::AlertKind;
+    use crate::services::alerts::{list_alerts, ListAlertsQuery};
+
+    let now = fri_2026_05_01_10am_et();
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
+    tracker
+        .add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let setup = tracker
+        .insert_setup("AAPL", &sample_candidate(Direction::Long))
+        .await
+        .unwrap();
+    sm.on_setup_detected("AAPL", setup.id).await.unwrap();
+
+    sm.mark_invalidated(setup.id, "stop hit").await.unwrap();
+
+    // We get the Db through the tracker service's pool; the state
+    // machine and the tracker service share the same `Arc<Db>` via
+    // `make_fixtures`, so list_alerts on a fresh handle reads the
+    // same store.
+    let db = tracker_db_from(&tracker);
+    let alerts = list_alerts(&db, ListAlertsQuery::default())
+        .await
+        .expect("list");
+    let invalidated: Vec<_> = alerts
+        .iter()
+        .filter(|a| a.kind == AlertKind::Invalidated)
+        .collect();
+    assert_eq!(invalidated.len(), 1);
+    assert_eq!(invalidated[0].setup_id, setup.id);
+    assert_eq!(invalidated[0].payload["symbol"], "AAPL");
+    assert_eq!(invalidated[0].payload["reason"], "stop hit");
+    assert!(!invalidated[0].seen);
+}
+
+#[tokio::test]
+async fn alert_inserted_on_setup_target_hit() {
+    use crate::ibkr::types::tracker::AlertKind;
+    use crate::services::alerts::{list_alerts, ListAlertsQuery};
+
+    let now = fri_2026_05_01_10am_et();
+    let (_tmp, tracker, sm, _emitter) = make_fixtures(now);
+    tracker
+        .add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let setup = tracker
+        .insert_setup("AAPL", &sample_candidate(Direction::Long))
+        .await
+        .unwrap();
+    sm.on_setup_detected("AAPL", setup.id).await.unwrap();
+
+    sm.mark_completed(setup.id).await.unwrap();
+
+    let db = tracker_db_from(&tracker);
+    let alerts = list_alerts(&db, ListAlertsQuery::default())
+        .await
+        .expect("list");
+    let target_hits: Vec<_> = alerts
+        .iter()
+        .filter(|a| a.kind == AlertKind::TargetHit)
+        .collect();
+    assert_eq!(target_hits.len(), 1);
+    assert_eq!(target_hits[0].setup_id, setup.id);
+    assert_eq!(target_hits[0].payload["symbol"], "AAPL");
+}
+
+/// Test helper: pull the shared `Arc<Db>` back out by opening a new
+/// `Db` against the same temp path.  Cheap because the underlying file
+/// is the same and r2d2 hands us a fresh connection.  Used by the
+/// Phase 21 alert-wiring tests.
+fn tracker_db_from(_tracker: &Arc<TrackerService>) -> Arc<crate::storage::Db> {
+    // The tracker service holds a private Arc<Db>; re-use it through a
+    // minimal accessor so the alert-wiring tests don't need to be
+    // refactored to thread the Db through `make_fixtures`. Keeping the
+    // helper local keeps the test surface honest about the dependency.
+    _tracker.db_for_testing()
+}
+
 #[tokio::test]
 async fn ticker_status_changed_serializes_with_snake_case_status() {
     // The frontend types map snake-case status strings; verify the

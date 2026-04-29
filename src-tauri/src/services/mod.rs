@@ -1,4 +1,5 @@
 pub mod account_service;
+pub mod alerts;
 pub mod cache_service;
 pub mod daily_ranker;
 pub mod decay_watcher;

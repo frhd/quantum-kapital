@@ -11,6 +11,7 @@ import { Plus, RefreshCw } from "lucide-react"
 import { ToastViewport, useToasts } from "../../../shared/components/ui/toast"
 import { Watchlist } from "./Watchlist"
 import { MorningPackPanel } from "./MorningPack"
+import { AlertFeed } from "./AlertFeed"
 import { useWatchlist } from "../hooks/useWatchlist"
 import { useTrackerEvents } from "../hooks/useTrackerEvents"
 import { STATUS_LABELS, type TrackerStatus } from "../types"
@@ -136,68 +137,74 @@ export function TrackerTab({
         />
         <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
           <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-white">Tracker</CardTitle>
-              <CardDescription className="text-slate-400">
-                Watchlist of tickers being evaluated against strategy detectors.
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void refresh()}
-                disabled={loading}
-                className="h-8"
-                title="Refresh"
-              >
-                <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} />
-              </Button>
-              <Button size="sm" onClick={onAddClick} className="h-8">
-                <Plus className="h-4 w-4" />
-                Add
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-400">Filter:</span>
-            {FILTER_OPTIONS.map((opt) => {
-              const active = filter === opt.value
-              const count =
-                opt.value === "all"
-                  ? tickers.length
-                  : tickers.filter((t) => t.status === opt.value).length
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setFilter(opt.value)}
-                  className={
-                    "rounded-full border px-3 py-0.5 text-xs transition-colors " +
-                    (active
-                      ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                      : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
-                  }
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-white">Tracker</CardTitle>
+                <CardDescription className="text-slate-400">
+                  Watchlist of tickers being evaluated against strategy detectors.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refresh()}
+                  disabled={loading}
+                  className="h-8"
+                  title="Refresh"
                 >
-                  {opt.label} <span className="text-slate-500">({count})</span>
-                </button>
-              )
-            })}
-          </div>
-          <Watchlist
-            tickers={filteredTickers}
-            loading={loading}
-            error={error}
-            onSelectSymbol={onSelectSymbol}
-            onRemove={remove}
-            onSaveTags={setTags}
-            activeSetupBySymbol={activeSetupBySymbol}
-          />
-        </CardContent>
+                  <RefreshCw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} />
+                </Button>
+                <Button size="sm" onClick={onAddClick} className="h-8">
+                  <Plus className="h-4 w-4" />
+                  Add
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-400">Filter:</span>
+              {FILTER_OPTIONS.map((opt) => {
+                const active = filter === opt.value
+                const count =
+                  opt.value === "all"
+                    ? tickers.length
+                    : tickers.filter((t) => t.status === opt.value).length
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setFilter(opt.value)}
+                    className={
+                      "rounded-full border px-3 py-0.5 text-xs transition-colors " +
+                      (active
+                        ? "border-blue-400 bg-blue-500/20 text-blue-100"
+                        : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
+                    }
+                  >
+                    {opt.label} <span className="text-slate-500">({count})</span>
+                  </button>
+                )
+              })}
+            </div>
+            <Watchlist
+              tickers={filteredTickers}
+              loading={loading}
+              error={error}
+              onSelectSymbol={onSelectSymbol}
+              onRemove={remove}
+              onSaveTags={setTags}
+              activeSetupBySymbol={activeSetupBySymbol}
+            />
+          </CardContent>
         </Card>
+        <AlertFeed
+          lastSetupDetected={lastSetupDetected}
+          lastInvalidated={lastInvalidated}
+          lastStatusChanged={lastStatusChanged}
+          onSelectSymbol={onSelectSymbol}
+        />
       </div>
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </>

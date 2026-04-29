@@ -124,6 +124,28 @@ export interface Setup {
   invalidation_reason: string | null
 }
 
+// --- Phase 21: Alert feed ---
+
+export type AlertKind = "detected" | "invalidated" | "target_hit" | "thesis_changed"
+
+export const ALERT_KIND_LABELS: Record<AlertKind, string> = {
+  detected: "Detected",
+  invalidated: "Invalidated",
+  target_hit: "Target hit",
+  thesis_changed: "Thesis changed",
+}
+
+export interface Alert {
+  id: number
+  setup_id: number
+  kind: AlertKind
+  /** ISO 8601 UTC timestamp. */
+  fired_at: string
+  /** Event-specific JSON payload. Always carries `symbol` for click-through. */
+  payload: { symbol?: string } & Record<string, unknown>
+  seen: boolean
+}
+
 // --- Tracker / scheduler events emitted by the Rust backend ---
 //
 // AppEvent is wire-tagged as { type, data }. The variants below mirror
