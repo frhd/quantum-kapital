@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
 
+use crate::strategies::DetectorsConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub ibkr: IbkrConfig,
@@ -10,6 +12,8 @@ pub struct AppConfig {
     pub api: ApiConfig,
     #[serde(default)]
     pub tracker: TrackerConfig,
+    #[serde(default)]
+    pub detectors: DetectorsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

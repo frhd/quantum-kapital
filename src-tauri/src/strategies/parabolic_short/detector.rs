@@ -1,16 +1,18 @@
 //! Bidirectional? No — short-only "parabolic short" detector.
 //!
 //! Identifies blow-off-top names ready to fade. Daily-side gates demand
-//! ≥ 3 consecutive up days, each ≥ 5%, cumulative ≥ 40%, price ≥ 2× ATR(20)
-//! above the 20-day MA, and RSI(14) ≥ 80. Intraday trigger is the close of
-//! the first 15-min bar where `close < open`. Stop is the session high so
-//! far. Targets are 2R / 3R below trigger.
+//! ≥ `cfg.min_consec_days` consecutive up days, each ≥ `cfg.min_per_day_move`,
+//! cumulative ≥ `cfg.min_cumulative_move`, price ≥ `cfg.min_atr_distance`× ATR(20)
+//! above the 20-day MA, and RSI(14) ≥ `cfg.min_rsi`. Intraday trigger is the
+//! close of the first 15-min bar where `close < open`. Stop is the session
+//! high so far. Targets are 2R / 3R below trigger. Defaults match Phase 09.
 
 use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::json;
 
 use crate::ibkr::types::{BarSize, StrategyTag};
+use crate::strategies::config::ParabolicShortCfg;
 use crate::strategies::indicators::{atr, rsi};
 use crate::strategies::{
     targets_for_risk_profile, DetectorError, Direction, MarketContext, SetupCandidate,
@@ -23,28 +25,28 @@ const MA_PERIOD: usize = 20;
 const ATR_PERIOD: usize = 20;
 const RSI_PERIOD: usize = 14;
 
-const MIN_CONSEC_DAYS: usize = 3;
-const MIN_PER_DAY_MOVE: f64 = 0.05;
-const MIN_CUMULATIVE_MOVE: f64 = 0.40;
-const MIN_ATR_DISTANCE: f64 = 2.0;
-const MIN_RSI: f64 = 80.0;
-
 /// Recommended fetch window. Internal gate is `MIN_BARS_FOR_INDICATORS`.
 const MIN_LOOKBACK_DAYS: u32 = 25;
 
-const NORM_CONSEC_LO: f64 = 3.0;
 const NORM_CONSEC_HI: f64 = 6.0;
-const NORM_CUMUL_LO: f64 = 0.40;
 const NORM_CUMUL_HI: f64 = 0.80;
-const NORM_ATR_DIST_LO: f64 = 2.0;
 const NORM_ATR_DIST_HI: f64 = 4.0;
-const NORM_RSI_LO: f64 = 80.0;
 const NORM_RSI_HI: f64 = 95.0;
 
-#[derive(Debug, Default)]
-pub struct ParabolicShortDetector;
+#[derive(Debug, Clone, Default)]
+pub struct ParabolicShortDetector {
+    cfg: ParabolicShortCfg,
+}
 
 impl ParabolicShortDetector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_config(cfg: ParabolicShortCfg) -> Self {
+        Self { cfg }
+    }
+
     fn normalize(x: f64, lo: f64, hi: f64) -> f64 {
         if hi <= lo {
             return 0.0;
@@ -52,11 +54,15 @@ impl ParabolicShortDetector {
         ((x - lo) / (hi - lo)).clamp(0.0, 1.0)
     }
 
-    fn conviction(consec: usize, cumul: f64, atr_dist: f64, rsi_v: f64) -> f64 {
-        let c = Self::normalize(consec as f64, NORM_CONSEC_LO, NORM_CONSEC_HI);
-        let cm = Self::normalize(cumul, NORM_CUMUL_LO, NORM_CUMUL_HI);
-        let ad = Self::normalize(atr_dist, NORM_ATR_DIST_LO, NORM_ATR_DIST_HI);
-        let r = Self::normalize(rsi_v, NORM_RSI_LO, NORM_RSI_HI);
+    fn conviction(&self, consec: usize, cumul: f64, atr_dist: f64, rsi_v: f64) -> f64 {
+        let c = Self::normalize(
+            consec as f64,
+            self.cfg.min_consec_days as f64,
+            NORM_CONSEC_HI,
+        );
+        let cm = Self::normalize(cumul, self.cfg.min_cumulative_move, NORM_CUMUL_HI);
+        let ad = Self::normalize(atr_dist, self.cfg.min_atr_distance, NORM_ATR_DIST_HI);
+        let r = Self::normalize(rsi_v, self.cfg.min_rsi, NORM_RSI_HI);
         (0.3 * c + 0.3 * cm + 0.2 * ad + 0.2 * r).clamp(0.0, 1.0)
     }
 }
@@ -104,7 +110,7 @@ impl StrategyDetector for ParabolicShortDetector {
             }
         }
 
-        if consec_days < MIN_CONSEC_DAYS {
+        if consec_days < self.cfg.min_consec_days as usize {
             return Ok(None);
         }
 
@@ -125,12 +131,12 @@ impl StrategyDetector for ParabolicShortDetector {
                 min_per_day_move = mv;
             }
         }
-        if min_per_day_move < MIN_PER_DAY_MOVE {
+        if min_per_day_move < self.cfg.min_per_day_move {
             return Ok(None);
         }
 
         let cumulative_move = (today.close - prior_close) / prior_close;
-        if cumulative_move < MIN_CUMULATIVE_MOVE {
+        if cumulative_move < self.cfg.min_cumulative_move {
             return Ok(None);
         }
 
@@ -143,7 +149,7 @@ impl StrategyDetector for ParabolicShortDetector {
             return Ok(None);
         }
         let atr_distance = (today.close - ma_20) / atr_20;
-        if atr_distance < MIN_ATR_DISTANCE {
+        if atr_distance < self.cfg.min_atr_distance {
             return Ok(None);
         }
 
@@ -151,7 +157,7 @@ impl StrategyDetector for ParabolicShortDetector {
         let closes: Vec<f64> = bars.iter().map(|b| b.close).collect();
         let rsi_14 = rsi(&closes, RSI_PERIOD)
             .ok_or_else(|| DetectorError::Internal("RSI(14) requires at least 15 closes".into()))?;
-        if rsi_14 < MIN_RSI {
+        if rsi_14 < self.cfg.min_rsi {
             return Ok(None);
         }
 
@@ -188,7 +194,7 @@ impl StrategyDetector for ParabolicShortDetector {
             strategy: "parabolic_short",
             tag: StrategyTag::ParabolicShort,
             direction: Direction::Short,
-            conviction_signal: Self::conviction(consec_days, cumulative_move, atr_distance, rsi_14),
+            conviction_signal: self.conviction(consec_days, cumulative_move, atr_distance, rsi_14),
             trigger_price,
             stop_price,
             targets,

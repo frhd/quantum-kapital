@@ -56,6 +56,18 @@ Use this when:
 
 ---
 
+## Phase 22 — config-driven thresholds
+
+Phase 22 lifted the per-detector module-level constants into `AppConfig.detectors` so the values above can be tuned at runtime without recompiling. Defaults still match the table verbatim — see `src-tauri/src/strategies/config.rs`. Update the table whenever a default changes.
+
+Exposed knobs (everything else stays as a code-side constant):
+
+- **Breakout** (`detectors.breakout`): `lookback_days`, `volume_multiple`, `rsi_ceiling`, `atr_period`, `swing_low_period`. Conviction normalization (logistic `k`, midpoint) tracks `volume_multiple`. `min_lookback_days` becomes `lookback_days + 10` (warm-up buffer for ATR/RSI/swing-low).
+- **Episodic Pivot** (`detectors.episodic_pivot`): `min_gap_pct`, `min_sentiment_abs`, `min_volume_ratio`. Conviction-band upper bounds (`MAX_GAP_PCT`, `MAX_SENTIMENT`, `MAX_VOLUME_RATIO`) and `VERDICT_SENTIMENT_MAGNITUDE` remain code constants — raising the lower bound shrinks the conviction band but never inverts it.
+- **Parabolic Short** (`detectors.parabolic_short`): `min_consec_days`, `min_per_day_move`, `min_cumulative_move`, `min_atr_distance`, `min_rsi`. The four conviction-normalization HI bounds stay as code constants; lifting any LO above its HI collapses that component to 0 (acceptable — the gate will already have rejected the setup).
+
+Editing thresholds: append the change to `~/.config/quantum-kapital/settings.json` under the `detectors` block, restart the app. Missing sections fall back to defaults so older settings files keep working.
+
 ## Phase 10 dedup decision
 
 The runner short-circuits a re-run when `recent_duplicate(symbol, strategy, direction, 24h)` returns `Some(id)`. We chose **skip the insert and leave the existing row's `detected_at` untouched** rather than touching it forward. Rationale:

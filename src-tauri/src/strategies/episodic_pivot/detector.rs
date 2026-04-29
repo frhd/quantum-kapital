@@ -18,6 +18,7 @@ use chrono::Utc;
 use serde_json::json;
 
 use crate::ibkr::types::{BarSize, NewsItem, NewsTone, NewsVerdict, StrategyTag};
+use crate::strategies::config::EpisodicPivotCfg;
 use crate::strategies::{
     targets_for_risk_profile, DetectorError, Direction, MarketContext, SetupCandidate,
     StrategyDetector,
@@ -25,24 +26,34 @@ use crate::strategies::{
 
 const MIN_LOOKBACK_DAYS: u32 = 5;
 const MIN_DAILY_BARS: usize = 2; // need today + yesterday at minimum
-const MIN_GAP_PCT: f64 = 0.04;
+/// Conviction-normalization upper bounds. The lower bounds come from the
+/// detector config so the fire-or-skip threshold and the conviction floor
+/// stay aligned.
 const MAX_GAP_PCT: f64 = 0.10;
-const MIN_SENTIMENT: f64 = 0.15;
 const MAX_SENTIMENT: f64 = 0.50;
-const MIN_VOLUME_RATIO: f64 = 1.0;
 const MAX_VOLUME_RATIO: f64 = 3.0;
 /// First 30 minutes of session @ 15-min resolution = 2 bars.
 const FIRST_30_MIN_BARS: usize = 2;
 /// Sentiment magnitude assigned when polarity comes from a [`NewsVerdict`]
 /// rather than per-item AV scores. Solidly inside the
-/// `MIN_SENTIMENT..MAX_SENTIMENT` band so the conviction blend stays
+/// `min_sentiment_abs..MAX_SENTIMENT` band so the conviction blend stays
 /// well-defined.
 const VERDICT_SENTIMENT_MAGNITUDE: f64 = 0.325;
 
-#[derive(Debug, Default)]
-pub struct EpisodicPivotDetector;
+#[derive(Debug, Clone, Default)]
+pub struct EpisodicPivotDetector {
+    cfg: EpisodicPivotCfg,
+}
 
 impl EpisodicPivotDetector {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_config(cfg: EpisodicPivotCfg) -> Self {
+        Self { cfg }
+    }
+
     /// Returns `(sentiment_score, relevance_score)` for the news item with
     /// the highest per-symbol relevance, or `None` if no item carries a
     /// `ticker_sentiment` entry for `symbol`.
@@ -78,10 +89,10 @@ impl EpisodicPivotDetector {
         ((x - lo) / (hi - lo)).clamp(0.0, 1.0)
     }
 
-    fn conviction(gap_abs: f64, sent_abs: f64, vol_ratio: f64) -> f64 {
-        let g = Self::normalize(gap_abs, MIN_GAP_PCT, MAX_GAP_PCT);
-        let s = Self::normalize(sent_abs, MIN_SENTIMENT, MAX_SENTIMENT);
-        let v = Self::normalize(vol_ratio, MIN_VOLUME_RATIO, MAX_VOLUME_RATIO);
+    fn conviction(&self, gap_abs: f64, sent_abs: f64, vol_ratio: f64) -> f64 {
+        let g = Self::normalize(gap_abs, self.cfg.min_gap_pct, MAX_GAP_PCT);
+        let s = Self::normalize(sent_abs, self.cfg.min_sentiment_abs, MAX_SENTIMENT);
+        let v = Self::normalize(vol_ratio, self.cfg.min_volume_ratio, MAX_VOLUME_RATIO);
         (0.4 * g + 0.4 * s + 0.2 * v).clamp(0.0, 1.0)
     }
 }
@@ -121,7 +132,7 @@ impl StrategyDetector for EpisodicPivotDetector {
             return Ok(None);
         }
         let gap_pct = (today.open - yesterday.close) / yesterday.close;
-        if gap_pct.abs() < MIN_GAP_PCT {
+        if gap_pct.abs() < self.cfg.min_gap_pct {
             return Ok(None);
         }
 
@@ -142,7 +153,7 @@ impl StrategyDetector for EpisodicPivotDetector {
                     Some(v) => v,
                     None => return Ok(None),
                 };
-                if s.abs() < MIN_SENTIMENT {
+                if s.abs() < self.cfg.min_sentiment_abs {
                     return Ok(None);
                 }
                 s
@@ -167,7 +178,7 @@ impl StrategyDetector for EpisodicPivotDetector {
         } else {
             0.0
         };
-        if vol_ratio < MIN_VOLUME_RATIO {
+        if vol_ratio < self.cfg.min_volume_ratio {
             return Ok(None);
         }
 
@@ -211,7 +222,7 @@ impl StrategyDetector for EpisodicPivotDetector {
             strategy: "episodic_pivot",
             tag: StrategyTag::EpisodicPivot,
             direction,
-            conviction_signal: Self::conviction(gap_pct.abs(), sentiment.abs(), vol_ratio),
+            conviction_signal: self.conviction(gap_pct.abs(), sentiment.abs(), vol_ratio),
             trigger_price,
             stop_price,
             targets,

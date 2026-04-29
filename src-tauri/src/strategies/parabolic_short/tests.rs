@@ -140,7 +140,7 @@ async fn fires_on_classic_blow_off_with_first_red_15m() {
         ),
     ]);
 
-    let cand = ParabolicShortDetector
+    let cand = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate")
@@ -193,7 +193,7 @@ async fn does_not_fire_without_first_red_bar() {
         ),
     ]);
 
-    let res = ParabolicShortDetector
+    let res = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate");
@@ -213,7 +213,7 @@ async fn does_not_fire_below_consec_minimum() {
         today_close - 0.3, // red
     )]);
 
-    let res = ParabolicShortDetector
+    let res = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate");
@@ -235,7 +235,7 @@ async fn does_not_fire_below_per_day_minimum() {
         today_close - 0.3, // red
     )]);
 
-    let res = ParabolicShortDetector
+    let res = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate");
@@ -257,7 +257,7 @@ async fn does_not_fire_below_cumulative_move() {
         today_close - 0.3, // red
     )]);
 
-    let res = ParabolicShortDetector
+    let res = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate");
@@ -302,7 +302,7 @@ async fn does_not_fire_when_not_extended_above_ma() {
         today_close - 0.3, // red
     )]);
 
-    let res = ParabolicShortDetector
+    let res = ParabolicShortDetector::default()
         .evaluate(&ctx(&bars, Some(&intraday)))
         .await
         .expect("evaluate");
@@ -353,7 +353,7 @@ async fn does_not_fire_with_low_rsi() {
         today_close - 0.3, // red
     )]);
 
-    let res = ParabolicShortDetector
+    let res = ParabolicShortDetector::default()
         .evaluate(&ctx(&bars, Some(&intraday)))
         .await
         .expect("evaluate");
@@ -394,7 +394,7 @@ async fn stop_is_session_high() {
         ),
     ]);
 
-    let cand = ParabolicShortDetector
+    let cand = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate")
@@ -427,7 +427,7 @@ async fn raw_signals_includes_consec_days_cumulative_move_atr_distance_rsi() {
         ),
     ]);
 
-    let cand = ParabolicShortDetector
+    let cand = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate")
@@ -454,7 +454,7 @@ async fn targets_are_2r_3r_below_trigger_for_short() {
         (102.0, 103.0, 99.5, 100.0),  // red close = 100
     ]);
 
-    let cand = ParabolicShortDetector
+    let cand = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, Some(&intraday)))
         .await
         .expect("evaluate")
@@ -470,7 +470,7 @@ async fn targets_are_2r_3r_below_trigger_for_short() {
 async fn requires_intraday_bars() {
     let daily = daily_blowoff(&[0.10, 0.12, 0.08, 0.15]);
 
-    let err = ParabolicShortDetector
+    let err = ParabolicShortDetector::default()
         .evaluate(&ctx(&daily, None))
         .await
         .expect_err("expected error");

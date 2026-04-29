@@ -25,7 +25,7 @@ use services::news_interpreter::NewsInterpreter;
 use services::thesis_generator::ThesisGenerator;
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
-use strategies::default_registry;
+use strategies::registry_from_config;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -135,7 +135,7 @@ pub fn run() {
                     Arc::clone(&ibkr_state.event_emitter),
                     bars,
                     news,
-                    Arc::new(default_registry()),
+                    Arc::new(registry_from_config(&config.detectors)),
                 )
                 .with_thesis_generator(Arc::clone(&thesis_generator)),
             );

@@ -118,7 +118,7 @@ async fn fires_long_on_gap_up_with_bullish_news() {
     let intraday = intraday_series(&[600_000, 600_000, 200_000], &[53.4, 53.6, 53.5]);
     let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -136,7 +136,7 @@ async fn fires_short_on_gap_up_with_bearish_news() {
     let intraday = intraday_series(&[700_000, 500_000, 100_000], &[53.4, 53.8, 53.5]);
     let news = vec![news_with_sentiment(SYMBOL, -0.3, 0.8)];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -152,7 +152,7 @@ async fn fires_short_on_gap_down_with_bearish_news() {
     let intraday = intraday_series(&[600_000, 600_000, 200_000], &[47.6, 47.9, 47.8]);
     let news = vec![news_with_sentiment(SYMBOL, -0.4, 0.8)];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -167,7 +167,7 @@ async fn does_not_fire_without_news() {
     let daily = daily_series(50.0, 53.0, 1_000_000);
     let intraday = intraday_series(&[600_000, 600_000], &[53.4, 53.6]);
 
-    let res = EpisodicPivotDetector
+    let res = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &[]))
         .await
         .expect("evaluate");
@@ -180,7 +180,7 @@ async fn does_not_fire_with_neutral_sentiment() {
     let intraday = intraday_series(&[600_000, 600_000], &[53.4, 53.6]);
     let news = vec![news_with_sentiment(SYMBOL, 0.10, 0.8)]; // within ±0.15
 
-    let res = EpisodicPivotDetector
+    let res = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate");
@@ -193,7 +193,7 @@ async fn does_not_fire_below_min_gap() {
     let intraday = intraday_series(&[600_000, 600_000], &[51.2, 51.3]);
     let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
 
-    let res = EpisodicPivotDetector
+    let res = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate");
@@ -207,7 +207,7 @@ async fn does_not_fire_without_volume_confirmation() {
     let intraday = intraday_series(&[100_000, 100_000, 100_000], &[53.4, 53.6, 53.5]);
     let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
 
-    let res = EpisodicPivotDetector
+    let res = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate");
@@ -219,7 +219,7 @@ async fn requires_intraday_bars() {
     let daily = daily_series(50.0, 53.0, 1_000_000); // gap qualifies
     let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
 
-    let err = EpisodicPivotDetector
+    let err = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, None, &news))
         .await
         .expect_err("expected error");
@@ -232,7 +232,7 @@ async fn stop_for_long_is_pre_gap_close() {
     let intraday = intraday_series(&[600_000, 600_000], &[53.4, 53.6]);
     let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -252,7 +252,7 @@ async fn stop_for_short_is_gap_day_high() {
     let intraday = intraday_series(&[600_000, 600_000, 200_000], &[47.7, 48.1, 47.9]);
     let news = vec![news_with_sentiment(SYMBOL, -0.4, 0.8)];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -272,7 +272,7 @@ async fn raw_signals_includes_gap_pct_sentiment_volume_ratio() {
     let intraday = intraday_series(&[600_000, 600_000], &[53.4, 53.6]);
     let news = vec![news_with_sentiment(SYMBOL, 0.4, 0.8)];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -298,7 +298,7 @@ async fn most_relevant_news_item_drives_sentiment() {
         news_with_sentiment(SYMBOL, -0.3, 0.9),
     ];
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx(SYMBOL, &daily, Some(&intraday), &news))
         .await
         .expect("evaluate")
@@ -338,7 +338,7 @@ async fn prefers_news_verdict_over_av_sentiment_when_present() {
         summary: "Guidance cut despite headline beat.".to_string(),
     };
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx_with_verdict(
             SYMBOL,
             &daily,
@@ -371,7 +371,7 @@ async fn neutral_verdict_does_not_short_circuit_av_fallback() {
         summary: "Mixed signals.".to_string(),
     };
 
-    let cand = EpisodicPivotDetector
+    let cand = EpisodicPivotDetector::default()
         .evaluate(&ctx_with_verdict(
             SYMBOL,
             &daily,

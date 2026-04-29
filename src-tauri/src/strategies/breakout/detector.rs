@@ -1,38 +1,51 @@
 //! Long-only breakout detector.
 //!
-//! Fires when today's close makes a new 20-day-high close on volume ≥ 1.5×
-//! the prior-20-day average, provided RSI(14) is below 80 (not overextended).
-//! Stop is the tighter of the 10-bar swing low or `close − 1×ATR(14)`.
-//! Targets are 2R / 3R above trigger.
+//! Fires when today's close makes a new N-day-high close on volume ≥
+//! `cfg.volume_multiple`× the prior-N-day average, provided RSI(14) is below
+//! `cfg.rsi_ceiling` (not overextended). Stop is the tighter of the
+//! `cfg.swing_low_period`-bar swing low or `close − 1×ATR(cfg.atr_period)`.
+//! Targets are 2R / 3R above trigger. Defaults match the Phase 07 baseline.
 
 use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::json;
 
 use crate::ibkr::types::{BarSize, StrategyTag};
+use crate::strategies::config::BreakoutCfg;
 use crate::strategies::indicators::{atr, rsi, swing_low};
 use crate::strategies::{
     targets_for_risk_profile, DetectorError, Direction, MarketContext, SetupCandidate,
     StrategyDetector,
 };
 
-const LOOKBACK_DAYS: usize = 20;
-const SWING_LOW_PERIOD: usize = 10;
-const ATR_PERIOD: usize = 14;
 const RSI_PERIOD: usize = 14;
-const MIN_VOL_MULTIPLE: f64 = 1.5;
-const MAX_RSI: f64 = 80.0;
-const MIN_LOOKBACK_DAYS: u32 = 30;
+/// Buffer above `cfg.lookback_days` so the warm-up window has enough bars
+/// for swing-low / ATR / RSI seed periods.
+const MIN_LOOKBACK_BUFFER: u32 = 10;
 /// Logistic steepness for the conviction signal. With midpoint at the
-/// `MIN_VOL_MULTIPLE` (1.5×), `k = 1.2` gives ≈0.5 at 1.5× and ≈0.86 at 3.0×.
+/// configured `volume_multiple`, `k = 1.2` gives ≈0.5 at 1.5× and ≈0.86 at 3.0×.
 const CONVICTION_K: f64 = 1.2;
 
-#[derive(Debug, Default)]
-pub struct BreakoutDetector;
+#[derive(Debug, Clone, Default)]
+pub struct BreakoutDetector {
+    cfg: BreakoutCfg,
+}
 
 impl BreakoutDetector {
-    fn conviction(vol_mult: f64) -> f64 {
-        let raw = 1.0 / (1.0 + (-CONVICTION_K * (vol_mult - MIN_VOL_MULTIPLE)).exp());
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_config(cfg: BreakoutCfg) -> Self {
+        Self { cfg }
+    }
+
+    fn min_bars(&self) -> u32 {
+        self.cfg.lookback_days + MIN_LOOKBACK_BUFFER
+    }
+
+    fn conviction(&self, vol_mult: f64) -> f64 {
+        let raw = 1.0 / (1.0 + (-CONVICTION_K * (vol_mult - self.cfg.volume_multiple)).exp());
         raw.clamp(0.0, 1.0)
     }
 }
@@ -49,7 +62,7 @@ impl StrategyDetector for BreakoutDetector {
         BarSize::Day1
     }
     fn min_lookback_days(&self) -> u32 {
-        MIN_LOOKBACK_DAYS
+        self.min_bars()
     }
 
     async fn evaluate(
@@ -57,7 +70,10 @@ impl StrategyDetector for BreakoutDetector {
         ctx: &MarketContext<'_>,
     ) -> Result<Option<SetupCandidate>, DetectorError> {
         let bars = ctx.daily_bars;
-        let needed = MIN_LOOKBACK_DAYS as usize;
+        let lookback_days = self.cfg.lookback_days as usize;
+        let atr_period = self.cfg.atr_period as usize;
+        let swing_low_period = self.cfg.swing_low_period as usize;
+        let needed = self.min_bars() as usize;
         if bars.len() < needed {
             return Err(DetectorError::InsufficientBars {
                 needed,
@@ -67,8 +83,8 @@ impl StrategyDetector for BreakoutDetector {
         let n = bars.len();
         let today = &bars[n - 1];
 
-        // 20-day prior high (exclusive of today).
-        let prior_window = &bars[n - 1 - LOOKBACK_DAYS..n - 1];
+        // N-day prior high (exclusive of today).
+        let prior_window = &bars[n - 1 - lookback_days..n - 1];
         let lookback_high = prior_window
             .iter()
             .map(|b| b.close)
@@ -76,7 +92,7 @@ impl StrategyDetector for BreakoutDetector {
 
         // Volume multiple over the same exclusive window.
         let vol_avg: f64 =
-            prior_window.iter().map(|b| b.volume as f64).sum::<f64>() / LOOKBACK_DAYS as f64;
+            prior_window.iter().map(|b| b.volume as f64).sum::<f64>() / lookback_days as f64;
         let vol_mult = if vol_avg > 0.0 {
             today.volume as f64 / vol_avg
         } else {
@@ -84,10 +100,16 @@ impl StrategyDetector for BreakoutDetector {
         };
 
         // Indicators on the full bar slice (latest bar inclusive).
-        let atr_14 = atr(bars, ATR_PERIOD)
-            .ok_or_else(|| DetectorError::Internal("ATR(14) requires at least 15 bars".into()))?;
-        let swing_low_10 = swing_low(bars, SWING_LOW_PERIOD).ok_or_else(|| {
-            DetectorError::Internal("swing_low(10) requires at least 10 bars".into())
+        let atr_n = atr(bars, atr_period).ok_or_else(|| {
+            DetectorError::Internal(format!(
+                "ATR({atr_period}) requires at least {} bars",
+                atr_period + 1
+            ))
+        })?;
+        let swing_low_n = swing_low(bars, swing_low_period).ok_or_else(|| {
+            DetectorError::Internal(format!(
+                "swing_low({swing_low_period}) requires at least {swing_low_period} bars"
+            ))
         })?;
         let closes: Vec<f64> = bars.iter().map(|b| b.close).collect();
         let rsi_14 = rsi(&closes, RSI_PERIOD)
@@ -97,8 +119,8 @@ impl StrategyDetector for BreakoutDetector {
         let raw_signals = json!({
             "lookback_high": lookback_high,
             "volume_multiple": vol_mult,
-            "atr_14": atr_14,
-            "swing_low_10": swing_low_10,
+            "atr_14": atr_n,
+            "swing_low_10": swing_low_n,
             "rsi_14": rsi_14,
         });
 
@@ -106,15 +128,15 @@ impl StrategyDetector for BreakoutDetector {
         if trigger_price < lookback_high {
             return Ok(None);
         }
-        if vol_mult < MIN_VOL_MULTIPLE {
+        if vol_mult < self.cfg.volume_multiple {
             return Ok(None);
         }
-        if rsi_14 >= MAX_RSI {
+        if rsi_14 >= self.cfg.rsi_ceiling {
             return Ok(None);
         }
 
         // Stop: the *higher* (tighter) of the swing-low or trigger - 1×ATR.
-        let stop_price = swing_low_10.max(trigger_price - atr_14);
+        let stop_price = swing_low_n.max(trigger_price - atr_n);
         if trigger_price <= stop_price {
             // Degenerate: no risk distance. Skip rather than divide by zero.
             return Ok(None);
@@ -127,7 +149,7 @@ impl StrategyDetector for BreakoutDetector {
             strategy: "breakout",
             tag: StrategyTag::Breakout,
             direction: Direction::Long,
-            conviction_signal: Self::conviction(vol_mult),
+            conviction_signal: self.conviction(vol_mult),
             trigger_price,
             stop_price,
             targets,
