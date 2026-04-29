@@ -9,6 +9,15 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 02 — Historical bars service landed
+
+**Change:** `bars_cache` writes/reads now go through `services::historical_data_service::HistoricalDataService`. No schema changes — composite PK `(symbol, bar_size, bar_time)` proved sufficient. Service uses `INSERT OR REPLACE` for idempotent writes.
+**Why no separate index:** The dominant access pattern is `WHERE symbol=? AND bar_size=? AND bar_time BETWEEN ? AND ? ORDER BY bar_time ASC`, which the composite PK already covers. A SQLite primary key on a non-INTEGER table is itself a B-tree index — adding `(symbol, bar_size, bar_time DESC)` would be redundant for ascending scans. Re-evaluate if scanners ever need the most-recent N bars cheaply.
+**Migration impact:** none.
+**Cross-references:** `src-tauri/src/services/historical_data_service/mod.rs`, `src-tauri/src/services/historical_data_service/tests.rs` (9 tests, all green), `src-tauri/src/middleware/historical_rate_limit.rs`.
+
+---
+
 ### 2026-04-29 — Phase 01 — SQLite foundation landed
 
 **Change:** `src-tauri/src/storage/` (Db + r2d2 pool + embedded `schema.sql` + migrations runner). All six baseline tables + two indexes created up front. PRAGMAs set: `journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`, applied via `SqliteConnectionManager::with_init` so every pooled connection enforces them (per-connection, not just one-shot).

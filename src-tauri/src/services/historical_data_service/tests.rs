@@ -106,6 +106,7 @@ fn rate_limiter() -> Arc<HistoricalRateLimiter> {
     Arc::new(HistoricalRateLimiter::new(60))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn insert_bar(
     db: &Db,
     symbol: &str,
@@ -245,7 +246,7 @@ async fn cache_miss_fetches_and_writes_through() {
                 high: 201.0 + i as f64,
                 low: 199.0 + i as f64,
                 close: 200.5 + i as f64,
-                volume: 5_000 + i as i64,
+                volume: 5_000 + i,
                 wap: 200.25 + i as f64,
                 count: 100,
             }
@@ -488,7 +489,11 @@ async fn rate_limiter_invoked_per_request() {
             .await
             .expect("fetch ok");
     }
-    assert_eq!(rl.acquire_count().await, 3, "three fetches → three acquires");
+    assert_eq!(
+        rl.acquire_count().await,
+        3,
+        "three fetches → three acquires"
+    );
 
     // Pre-populate cache for DDD so the next call is a cache hit.
     insert_bar(
@@ -534,7 +539,7 @@ async fn service_dedups_in_flight_requests_for_same_key() {
                 high: 101.0 + i as f64,
                 low: 99.0 + i as f64,
                 close: 100.5 + i as f64,
-                volume: 1_000 + i as i64,
+                volume: 1_000 + i,
                 wap: 100.25 + i as f64,
                 count: 1,
             }

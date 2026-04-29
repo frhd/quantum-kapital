@@ -117,7 +117,12 @@ impl HistoricalDataService {
         bar_size: BarSize,
         lookback: Lookback,
     ) -> IbkrResult<Vec<HistoricalBar>> {
-        let key = format!("{}|{}|{}", symbol, bar_size.as_str(), lookback_key(&lookback));
+        let key = format!(
+            "{}|{}|{}",
+            symbol,
+            bar_size.as_str(),
+            lookback_key(&lookback)
+        );
 
         // Take or insert the per-key mutex.
         let per_key = {

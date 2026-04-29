@@ -83,6 +83,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
       - `trading.rs`: Order placement commands
       - `analysis.rs`: Fundamental data and projection commands
       - `scanner.rs`: Market scanner stream lifecycle commands
+      - `tracker.rs`: Tracker subsystem commands (Phase 02 added `tracker_fetch_bars`; full set lands in Phase 04+)
     - `types/`: Type definitions modularized by domain (account, connection, fundamentals, historical, market_data, orders, positions, scanner)
     - `state.rs`: Application state management with Tokio async runtime
     - `error.rs`: Custom error types with thiserror
@@ -95,8 +96,13 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `financial_data_service.rs`: Alpha Vantage fundamental data integration
     - `projection_service.rs`: Forward-looking financial projection logic
     - `cache_service.rs`: In-memory caching for fundamentals/projections
+    - `historical_data_service/`: Historical bars fetcher with SQLite cache (added Phase 02)
+      - `mod.rs`: `HistoricalDataService` with cache-first reads, write-through, in-flight dedup via `tokio::sync::Mutex<HashMap<key, Arc<Mutex<()>>>>`, partial-range gap fetch for daily bars, intraday cache invalidation at session rollover. Exposes `HistoricalDataFetcher` trait (blanket-impl'd by `IbkrClient`) + injectable `Clock` for tests.
+      - `tests.rs`: 9 unit tests covering cache hit/miss, partial-range fetch, daily-vs-intraday TTL, rate-limiter accounting, dedup, and bit-equal SQLite round-trip
+      - `Lookback` enum: `Days(u32)` for daily bars, `TradingDay(NaiveDate)` for intraday
   - `middleware/`: Cross-cutting concerns
     - `rate_limit.rs`: API rate limiting (default 50 req/sec; tracing is initialized in `lib.rs::run`)
+    - `historical_rate_limit.rs`: Sliding 60-second window for IBKR historical-data calls (default 6 req/min); separate from the 50 req/sec general limiter
   - `events/`: Event system
     - `emitter.rs`: Event emitter for frontend notifications
   - `config/`: Application configuration
@@ -108,6 +114,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `error.rs`: `StorageError` (`Sqlite`, `Pool`, `Migration`, `Serde`, `Join`)
     - PRAGMAs (`journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`) applied per pooled connection via `SqliteConnectionManager::with_init`
     - DB lives at `app_local_data_dir()/tracker.sqlite`; `Arc<Db>` is `app.manage`d in `lib.rs::run` (Phase 04+ will wire it through `IbkrState`)
+    - `bars_cache` (Phase 02) is read/written exclusively through `HistoricalDataService` — composite PK `(symbol, bar_size, bar_time)` is the only index; writes use `INSERT OR REPLACE` for idempotency
   - `utils/`: Shared utilities
 - **Entry Points**:
   - `main.rs`: Application entry
@@ -130,6 +137,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
    - `ibkr_generate_projection_results`: Run projection scenarios and return computed results
    - `ibkr_get_cached_tickers`: List tickers currently cached in `cache_service`
    - `ibkr_start_scanner` / `ibkr_stop_scanner`: Start/stop a market scanner stream (single shared handle in `IbkrState::scanner_handle`; results pushed via `EventEmitter`)
+   - `tracker_fetch_bars`: Fetch historical bars with SQLite cache + 6 req/min rate limit (Phase 02)
    - `get_settings` / `update_settings` / `get_settings_path`: Configuration management (in `config::commands`)
 
    Streaming commands (daily P&L, scanner) follow a "replace any existing subscription" pattern: starting a new stream stops the previous one. See `IbkrState::start_*` / `stop_*` in `ibkr/state.rs`.
