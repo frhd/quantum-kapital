@@ -1,0 +1,293 @@
+//! Phase 10 — `TrackerRunner` glues bars + news + the detector registry
+//! together so a single Tauri command can evaluate one symbol (or the
+//! whole watchlist) end-to-end.
+//!
+//! The runner is intentionally small: it owns no state of its own
+//! beyond `Arc` handles to its dependencies. Ownership of bars / news
+//! data lives in `OwnedMarketContext`, which is converted to a
+//! borrowed `MarketContext<'_>` at the detector call site so the
+//! existing detector trait can keep its no-allocation contract.
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use serde::{Deserialize, Serialize};
+use tracing::warn;
+
+use crate::ibkr::error::Result as IbkrResult;
+use crate::ibkr::types::historical::{BarSize, HistoricalBar};
+use crate::ibkr::types::news::NewsItem;
+use crate::ibkr::types::tracker::{Setup, TrackerStatus};
+use crate::services::financial_data_service::FinancialDataService;
+use crate::services::historical_data_service::{HistoricalDataService, Lookback};
+use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
+use crate::storage::Db;
+use crate::strategies::{DetectorRegistry, MarketContext};
+
+#[cfg(test)]
+mod tests;
+
+/// Default duplicate-suppression window. Re-running detectors against
+/// the same `(symbol, strategy, direction)` within this window does
+/// not re-insert a row. Phase 10 picks 24h as a conservative single-
+/// day guard; Phase 12 will revisit when the status state machine
+/// owns "fresh vs stale" semantics.
+pub const DUPLICATE_WINDOW: ChronoDuration = ChronoDuration::hours(24);
+
+const DAILY_LOOKBACK_DAYS: u32 = 200;
+const INTRADAY_BAR_SIZE: BarSize = BarSize::Min15;
+const NEWS_LOOKBACK_HOURS: u32 = 24;
+
+// ---------------- traits (test seams) ----------------
+
+/// Narrow seam for fetching historical bars. Production wiring uses
+/// the real `HistoricalDataService`; tests use a hand-rolled mock so
+/// they don't have to stand up the full SQLite cache + IBKR client
+/// stack just to hand bars to the runner.
+#[async_trait]
+pub trait BarsFetcher: Send + Sync {
+    async fn fetch(
+        &self,
+        symbol: &str,
+        bar_size: BarSize,
+        lookback: Lookback,
+    ) -> IbkrResult<Vec<HistoricalBar>>;
+}
+
+#[async_trait]
+impl BarsFetcher for HistoricalDataService {
+    async fn fetch(
+        &self,
+        symbol: &str,
+        bar_size: BarSize,
+        lookback: Lookback,
+    ) -> IbkrResult<Vec<HistoricalBar>> {
+        self.fetch_bars(symbol, bar_size, lookback).await
+    }
+}
+
+/// News fetcher seam. The trait collapses the result to `Vec<NewsItem>`
+/// (best-effort) — a transport / API failure should never propagate
+/// out of a runner pass; the EP detector simply sees an empty news
+/// list.
+#[async_trait]
+pub trait NewsFetcher: Send + Sync {
+    async fn fetch(&self, symbol: &str, lookback_hours: u32) -> Vec<NewsItem>;
+}
+
+#[async_trait]
+impl NewsFetcher for FinancialDataService {
+    async fn fetch(&self, symbol: &str, lookback_hours: u32) -> Vec<NewsItem> {
+        match self.fetch_news_sentiment(symbol, lookback_hours).await {
+            Ok(items) => items,
+            Err(e) => {
+                warn!("news fetch failed for {symbol} (best-effort): {e}");
+                Vec::new()
+            }
+        }
+    }
+}
+
+// ---------------- types ----------------
+
+/// Owned counterpart to [`MarketContext`]. The runner returns these
+/// because async fetches happen on a different stack frame than the
+/// detector calls; the borrowed `MarketContext` is constructed at the
+/// dispatch site via [`OwnedMarketContext::as_borrowed`].
+#[derive(Debug, Clone)]
+pub struct OwnedMarketContext {
+    pub symbol: String,
+    pub daily_bars: Vec<HistoricalBar>,
+    pub intraday_bars: Option<Vec<HistoricalBar>>,
+    pub recent_news: Vec<NewsItem>,
+    pub now: DateTime<Utc>,
+}
+
+impl OwnedMarketContext {
+    pub fn as_borrowed(&self) -> MarketContext<'_> {
+        MarketContext {
+            symbol: &self.symbol,
+            daily_bars: &self.daily_bars,
+            intraday_bars: self.intraday_bars.as_deref(),
+            fundamentals: None,
+            recent_news: &self.recent_news,
+            current_quote: None,
+            now: self.now,
+        }
+    }
+}
+
+/// Result of a single-symbol pass through the registry. Holds both the
+/// persisted setups and any error that arose during context-gathering
+/// so the batch-runner can surface per-symbol failures without
+/// short-circuiting the whole sweep.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunResult {
+    pub symbol: String,
+    pub setups: Vec<Setup>,
+    pub error: Option<String>,
+}
+
+// ---------------- runner ----------------
+
+#[derive(Clone)]
+pub struct TrackerRunner {
+    #[allow(dead_code)]
+    db: Arc<Db>,
+    tracker: Arc<TrackerService>,
+    bars: Arc<dyn BarsFetcher>,
+    news: Arc<dyn NewsFetcher>,
+    registry: Arc<DetectorRegistry>,
+}
+
+impl TrackerRunner {
+    pub fn new(
+        db: Arc<Db>,
+        tracker: Arc<TrackerService>,
+        bars: Arc<dyn BarsFetcher>,
+        news: Arc<dyn NewsFetcher>,
+        registry: Arc<DetectorRegistry>,
+    ) -> Self {
+        Self {
+            db,
+            tracker,
+            bars,
+            news,
+            registry,
+        }
+    }
+
+    /// Gather a [`MarketContext`] for `symbol`. Daily bars are mandatory
+    /// (a fetch failure here propagates as an error); intraday bars
+    /// and news are best-effort and degrade to `None` / empty on
+    /// failure. Fundamentals and live quotes are intentionally `None`
+    /// for Phase 10 — no current detector reads them.
+    pub async fn context_for(&self, symbol: &str) -> IbkrResult<OwnedMarketContext> {
+        let symbol_norm = symbol.to_uppercase();
+
+        let daily_bars = self
+            .bars
+            .fetch(
+                &symbol_norm,
+                BarSize::Day1,
+                Lookback::Days(DAILY_LOOKBACK_DAYS),
+            )
+            .await?;
+
+        let intraday_bars = match self
+            .bars
+            .fetch(&symbol_norm, INTRADAY_BAR_SIZE, Lookback::Days(1))
+            .await
+        {
+            Ok(bars) if bars.is_empty() => None,
+            Ok(bars) => Some(bars),
+            Err(e) => {
+                warn!("intraday bars fetch failed for {symbol_norm} (best-effort): {e}");
+                None
+            }
+        };
+
+        let recent_news = self.news.fetch(&symbol_norm, NEWS_LOOKBACK_HOURS).await;
+
+        Ok(OwnedMarketContext {
+            symbol: symbol_norm,
+            daily_bars,
+            intraday_bars,
+            recent_news,
+            now: Utc::now(),
+        })
+    }
+
+    /// Run all registered detectors against `symbol` and persist the
+    /// hits. Returns the persisted rows; misses (None outcomes) and
+    /// detector errors are logged but not returned. Touches the
+    /// ticker's `last_checked_at` after a successful pass.
+    pub async fn run_for(&self, symbol: &str) -> IbkrResult<Vec<Setup>> {
+        let ctx_owned = self.context_for(symbol).await?;
+        let ctx = ctx_owned.as_borrowed();
+        let outcomes = self.registry.evaluate_all(&ctx).await;
+
+        let mut persisted = Vec::new();
+        for outcome in outcomes {
+            match outcome.result {
+                Ok(Some(candidate)) => {
+                    match self.persist_with_dedup(&ctx_owned.symbol, &candidate).await {
+                        Ok(Some(setup)) => persisted.push(setup),
+                        Ok(None) => {
+                            // Recent duplicate — silently skip.
+                        }
+                        Err(e) => {
+                            warn!(
+                                "failed to persist setup for {} ({}): {e}",
+                                ctx_owned.symbol, outcome.detector
+                            );
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    warn!(
+                        "detector {} failed for {}: {e}",
+                        outcome.detector, ctx_owned.symbol
+                    );
+                }
+            }
+        }
+
+        if let Err(e) = self.tracker.touch_last_checked(&ctx_owned.symbol).await {
+            warn!("touch_last_checked failed for {}: {e}", ctx_owned.symbol);
+        }
+
+        Ok(persisted)
+    }
+
+    /// Iterate the watchlist (excluding `CoolDown` rows) and run each
+    /// in turn. Per-symbol failures are captured into the matching
+    /// `RunResult` and never short-circuit the batch.
+    pub async fn run_all(&self) -> TrackerResult<Vec<RunResult>> {
+        let watchlist = self.tracker.list(None).await?;
+        let mut results = Vec::with_capacity(watchlist.len());
+        for ticker in watchlist {
+            if matches!(ticker.status, TrackerStatus::CoolDown) {
+                continue;
+            }
+            let symbol = ticker.symbol.clone();
+            let result = match self.run_for(&symbol).await {
+                Ok(setups) => RunResult {
+                    symbol,
+                    setups,
+                    error: None,
+                },
+                Err(e) => RunResult {
+                    symbol,
+                    setups: Vec::new(),
+                    error: Some(e.to_string()),
+                },
+            };
+            results.push(result);
+        }
+        Ok(results)
+    }
+
+    async fn persist_with_dedup(
+        &self,
+        symbol: &str,
+        candidate: &crate::strategies::SetupCandidate,
+    ) -> TrackerResult<Option<Setup>> {
+        let existing = self
+            .tracker
+            .recent_duplicate(
+                symbol,
+                candidate.strategy,
+                candidate.direction,
+                DUPLICATE_WINDOW,
+            )
+            .await?;
+        if existing.is_some() {
+            return Ok(None);
+        }
+        let row = self.tracker.insert_setup(symbol, candidate).await?;
+        Ok(Some(row))
+    }
+}

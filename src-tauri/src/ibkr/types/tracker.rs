@@ -120,6 +120,62 @@ pub struct TrackedTicker {
     pub in_play_until: Option<DateTime<Utc>>,
 }
 
+/// Lifecycle of a persisted strategy setup. Phase 10 only writes
+/// `Active` rows; `Invalidated` and `Completed` are reserved for the
+/// status state machine in Phase 12 and the LLM decay-watcher in
+/// Phase 18.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SetupStatus {
+    Active,
+    Invalidated,
+    Completed,
+}
+
+impl SetupStatus {
+    /// Stable wire form. Phase 12 (status state machine) will start
+    /// emitting `Invalidated` / `Completed`; Phase 10 only stores
+    /// `Active`, hence the `dead_code` allow.
+    #[allow(dead_code)]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SetupStatus::Active => "active",
+            SetupStatus::Invalidated => "invalidated",
+            SetupStatus::Completed => "completed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "active" => Some(SetupStatus::Active),
+            "invalidated" => Some(SetupStatus::Invalidated),
+            "completed" => Some(SetupStatus::Completed),
+            _ => None,
+        }
+    }
+}
+
+/// Persisted strategy setup row, mirroring the `setups` table. The
+/// `direction` and `targets` types are owned by the strategies module
+/// so the persistence layer and the detector framework agree on a
+/// single representation; Phase 10 introduces this shared shape.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Setup {
+    pub id: i64,
+    pub symbol: String,
+    pub strategy: String,
+    pub direction: crate::strategies::Direction,
+    pub detected_at: DateTime<Utc>,
+    pub trigger_price: f64,
+    pub stop_price: f64,
+    pub targets: Vec<crate::strategies::TargetLevel>,
+    pub raw_signals: serde_json::Value,
+    pub thesis: Option<String>,
+    pub status: SetupStatus,
+    pub invalidated_at: Option<DateTime<Utc>>,
+    pub invalidation_reason: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

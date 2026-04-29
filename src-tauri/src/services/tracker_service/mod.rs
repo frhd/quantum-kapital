@@ -8,13 +8,16 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
 use rusqlite::OptionalExtension;
 use thiserror::Error;
 
-use crate::ibkr::types::tracker::{StrategyTag, TrackedTicker, TrackerSource, TrackerStatus};
+use crate::ibkr::types::tracker::{
+    Setup, SetupStatus, StrategyTag, TrackedTicker, TrackerSource, TrackerStatus,
+};
 use crate::storage::error::StorageError;
 use crate::storage::Db;
+use crate::strategies::{Direction, SetupCandidate, TargetLevel};
 
 #[cfg(test)]
 mod tests;
@@ -245,6 +248,189 @@ impl TrackerService {
             .await?;
         Ok(())
     }
+
+    // ---------------- setup CRUD (Phase 10) ----------------
+
+    /// Insert a new `Setup` row from a detector candidate. The caller
+    /// passes the symbol explicitly because `SetupCandidate` does not
+    /// carry it (the detector frame already knows the symbol from the
+    /// surrounding `MarketContext`). Returns the persisted row with its
+    /// generated `id` populated.
+    pub async fn insert_setup(&self, symbol: &str, candidate: &SetupCandidate) -> Result<Setup> {
+        let symbol_norm = symbol.to_uppercase();
+        let strategy = candidate.strategy.to_string();
+        let direction = candidate.direction;
+        let direction_str = direction_as_str(direction).to_string();
+        let detected_at = candidate.detected_at;
+        let detected_at_unix = detected_at.timestamp();
+        let trigger_price = candidate.trigger_price;
+        let stop_price = candidate.stop_price;
+        let targets = candidate.targets.clone();
+        let targets_json = serde_json::to_string(&targets)?;
+        let raw_signals = candidate.raw_signals.clone();
+        let raw_signals_json = serde_json::to_string(&raw_signals)?;
+
+        let symbol_for_db = symbol_norm.clone();
+        let strategy_for_db = strategy.clone();
+
+        let id = self
+            .db
+            .with_conn(move |conn| {
+                conn.execute(
+                    "INSERT INTO setups \
+                     (symbol, strategy, direction, detected_at, trigger_price, stop_price, \
+                      targets, raw_signals, thesis, status, invalidated_at, invalidation_reason) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, 'active', NULL, NULL)",
+                    rusqlite::params![
+                        symbol_for_db,
+                        strategy_for_db,
+                        direction_str,
+                        detected_at_unix,
+                        trigger_price,
+                        stop_price,
+                        targets_json,
+                        raw_signals_json,
+                    ],
+                )?;
+                Ok(conn.last_insert_rowid())
+            })
+            .await?;
+
+        Ok(Setup {
+            id,
+            symbol: symbol_norm,
+            strategy,
+            direction,
+            detected_at,
+            trigger_price,
+            stop_price,
+            targets,
+            raw_signals,
+            thesis: None,
+            status: SetupStatus::Active,
+            invalidated_at: None,
+            invalidation_reason: None,
+        })
+    }
+
+    /// List setups, optionally filtered by `symbol` and / or by a
+    /// `since` cutoff (rows with `detected_at >= since` only). Order is
+    /// `detected_at DESC` so the freshest rows come first.
+    pub async fn list_setups(
+        &self,
+        symbol: Option<&str>,
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<Setup>> {
+        let symbol = symbol.map(|s| s.to_uppercase());
+        let since_unix = since.map(|d| d.timestamp());
+        let raws = self
+            .db
+            .with_conn(move |conn| {
+                let mut sql = String::from(
+                    "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
+                            stop_price, targets, raw_signals, thesis, status, \
+                            invalidated_at, invalidation_reason \
+                     FROM setups",
+                );
+                let mut clauses: Vec<&'static str> = Vec::new();
+                if symbol.is_some() {
+                    clauses.push("symbol = ?1");
+                }
+                if since_unix.is_some() {
+                    if symbol.is_some() {
+                        clauses.push("detected_at >= ?2");
+                    } else {
+                        clauses.push("detected_at >= ?1");
+                    }
+                }
+                if !clauses.is_empty() {
+                    sql.push_str(" WHERE ");
+                    sql.push_str(&clauses.join(" AND "));
+                }
+                sql.push_str(" ORDER BY detected_at DESC, id DESC");
+
+                let mut stmt = conn.prepare(&sql)?;
+                let rows = match (symbol.as_ref(), since_unix) {
+                    (Some(s), Some(u)) => stmt
+                        .query_map(rusqlite::params![s, u], setup_row_to_raw)?
+                        .collect::<rusqlite::Result<Vec<_>>>()?,
+                    (Some(s), None) => stmt
+                        .query_map(rusqlite::params![s], setup_row_to_raw)?
+                        .collect::<rusqlite::Result<Vec<_>>>()?,
+                    (None, Some(u)) => stmt
+                        .query_map(rusqlite::params![u], setup_row_to_raw)?
+                        .collect::<rusqlite::Result<Vec<_>>>()?,
+                    (None, None) => stmt
+                        .query_map([], setup_row_to_raw)?
+                        .collect::<rusqlite::Result<Vec<_>>>()?,
+                };
+                Ok(rows)
+            })
+            .await?;
+
+        raws.into_iter().map(decode_setup_raw).collect()
+    }
+
+    /// Phase 10 surfaces this through the unit test that round-trips
+    /// `insert_setup`; Phase 17 (LLM thesis) will be the first runtime
+    /// caller, so the `dead_code` allow is intentional here.
+    #[allow(dead_code)]
+    pub async fn get_setup(&self, id: i64) -> Result<Option<Setup>> {
+        let raw = self
+            .db
+            .with_conn(move |conn| {
+                conn.query_row(
+                    "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
+                            stop_price, targets, raw_signals, thesis, status, \
+                            invalidated_at, invalidation_reason \
+                     FROM setups WHERE id = ?1",
+                    rusqlite::params![id],
+                    setup_row_to_raw,
+                )
+                .optional()
+                .map_err(StorageError::from)
+            })
+            .await?;
+        match raw {
+            Some(r) => Ok(Some(decode_setup_raw(r)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Look up the most recent `setups` row for `(symbol, strategy,
+    /// direction)` whose `detected_at` falls within the last
+    /// `within` window. Returns the row's `id` if a match exists, or
+    /// `None` if there is no recent duplicate. Used by the runner to
+    /// short-circuit re-emitting the same signal twice in a single
+    /// trading day.
+    pub async fn recent_duplicate(
+        &self,
+        symbol: &str,
+        strategy: &str,
+        direction: Direction,
+        within: ChronoDuration,
+    ) -> Result<Option<i64>> {
+        let symbol = symbol.to_uppercase();
+        let strategy = strategy.to_string();
+        let direction_str = direction_as_str(direction).to_string();
+        let cutoff_unix = (Utc::now() - within).timestamp();
+        let id = self
+            .db
+            .with_conn(move |conn| {
+                conn.query_row(
+                    "SELECT id FROM setups \
+                     WHERE symbol = ?1 AND strategy = ?2 AND direction = ?3 \
+                       AND detected_at >= ?4 \
+                     ORDER BY detected_at DESC LIMIT 1",
+                    rusqlite::params![symbol, strategy, direction_str, cutoff_unix],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()
+                .map_err(StorageError::from)
+            })
+            .await?;
+        Ok(id)
+    }
 }
 
 // ---------------- internals ----------------
@@ -311,4 +497,100 @@ fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
 
 fn unix_to_utc(ts: i64) -> DateTime<Utc> {
     Utc.timestamp_opt(ts, 0).single().unwrap_or_else(Utc::now)
+}
+
+// ---------------- setup row helpers (Phase 10) ----------------
+
+type SetupRawRow = (
+    i64,            // id
+    String,         // symbol
+    String,         // strategy
+    String,         // direction
+    i64,            // detected_at unix
+    f64,            // trigger_price
+    f64,            // stop_price
+    String,         // targets json
+    String,         // raw_signals json
+    Option<String>, // thesis
+    String,         // status
+    Option<i64>,    // invalidated_at unix
+    Option<String>, // invalidation_reason
+);
+
+fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
+    Ok((
+        row.get(0)?,
+        row.get(1)?,
+        row.get(2)?,
+        row.get(3)?,
+        row.get(4)?,
+        row.get(5)?,
+        row.get(6)?,
+        row.get(7)?,
+        row.get(8)?,
+        row.get(9)?,
+        row.get(10)?,
+        row.get(11)?,
+        row.get(12)?,
+    ))
+}
+
+fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
+    let (
+        id,
+        symbol,
+        strategy,
+        direction_s,
+        detected_at,
+        trigger_price,
+        stop_price,
+        targets_s,
+        raw_signals_s,
+        thesis,
+        status_s,
+        invalidated_at,
+        invalidation_reason,
+    ) = r;
+    let direction = parse_direction(&direction_s).ok_or_else(|| {
+        TrackerError::Storage(StorageError::Migration(format!(
+            "unknown direction '{direction_s}' on setup {id}"
+        )))
+    })?;
+    let status = SetupStatus::parse(&status_s).ok_or_else(|| {
+        TrackerError::Storage(StorageError::Migration(format!(
+            "unknown setup status '{status_s}' on setup {id}"
+        )))
+    })?;
+    let targets: Vec<TargetLevel> = serde_json::from_str(&targets_s)?;
+    let raw_signals: serde_json::Value = serde_json::from_str(&raw_signals_s)?;
+    Ok(Setup {
+        id,
+        symbol,
+        strategy,
+        direction,
+        detected_at: unix_to_utc(detected_at),
+        trigger_price,
+        stop_price,
+        targets,
+        raw_signals,
+        thesis,
+        status,
+        invalidated_at: invalidated_at.map(unix_to_utc),
+        invalidation_reason,
+    })
+}
+
+fn direction_as_str(direction: Direction) -> &'static str {
+    match direction {
+        Direction::Long => "long",
+        Direction::Short => "short",
+    }
+}
+
+fn parse_direction(s: &str) -> Option<Direction> {
+    match s {
+        "long" => Some(Direction::Long),
+        "short" => Some(Direction::Short),
+        _ => None,
+    }
 }

@@ -12,8 +12,11 @@ use std::sync::Arc;
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::HistoricalRateLimiter;
+use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
+use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
+use strategies::default_registry;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -69,10 +72,31 @@ pub fn run() {
                 hist_rate_limit,
             ));
 
+            // Phase 10: shared FinancialDataService instance (the news
+            // half is best-effort and falls back to cached/empty when
+            // the API key is missing or rate-limited). The tracker
+            // runner lifts bars + news + the detector registry into a
+            // single command-callable surface.
+            let api_key = std::env::var("ALPHA_VANTAGE_API_KEY").unwrap_or_default();
+            let financial_service =
+                Arc::new(FinancialDataService::new(api_key).with_db(Arc::clone(&db)));
+
+            let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
+            let news: Arc<dyn NewsFetcher> = Arc::clone(&financial_service) as Arc<dyn NewsFetcher>;
+            let tracker_runner = Arc::new(TrackerRunner::new(
+                Arc::clone(&db),
+                Arc::clone(&ibkr_state.tracker),
+                bars,
+                news,
+                Arc::new(default_registry()),
+            ));
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
             app.manage(hist_service);
+            app.manage(financial_service);
+            app.manage(tracker_runner);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -100,6 +124,8 @@ pub fn run() {
             ibkr::commands::tracker_get,
             ibkr::commands::tracker_set_tags,
             ibkr::commands::tracker_set_status,
+            ibkr::commands::tracker_run_now,
+            ibkr::commands::tracker_get_setups,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,

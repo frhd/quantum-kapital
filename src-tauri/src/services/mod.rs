@@ -4,5 +4,6 @@ pub mod financial_data_service;
 pub mod historical_data_service;
 pub mod market_service;
 pub mod projection_service;
+pub mod tracker_runner;
 pub mod tracker_service;
 pub mod trading_service;

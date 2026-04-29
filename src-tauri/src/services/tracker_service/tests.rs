@@ -250,3 +250,192 @@ async fn get_returns_none_for_missing() {
     let (_tmp, svc) = make_service();
     assert!(svc.get("NOSUCH").await.unwrap().is_none());
 }
+
+// ---------------- setup CRUD (Phase 10) ----------------
+
+use crate::ibkr::types::tracker::SetupStatus;
+use crate::ibkr::types::BarSize;
+use crate::strategies::{Direction, SetupCandidate, TargetLevel};
+
+fn sample_candidate() -> SetupCandidate {
+    SetupCandidate {
+        strategy: "breakout",
+        tag: StrategyTag::Breakout,
+        direction: Direction::Long,
+        conviction_signal: 0.7,
+        trigger_price: 105.0,
+        stop_price: 100.0,
+        targets: vec![
+            TargetLevel {
+                label: "2R".to_string(),
+                price: 115.0,
+            },
+            TargetLevel {
+                label: "3R".to_string(),
+                price: 120.0,
+            },
+        ],
+        raw_signals: serde_json::json!({"volume_multiple": 1.8, "rsi_14": 65.0}),
+        timeframe: BarSize::Day1,
+        detected_at: Utc::now(),
+    }
+}
+
+#[tokio::test]
+async fn insert_setup_persists_row_and_returns_typed_value() {
+    let (_tmp, svc) = make_service();
+    svc.add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+
+    let cand = sample_candidate();
+    let row = svc.insert_setup("AAPL", &cand).await.expect("insert");
+    assert!(row.id > 0);
+    assert_eq!(row.symbol, "AAPL");
+    assert_eq!(row.strategy, "breakout");
+    assert_eq!(row.direction, Direction::Long);
+    assert_eq!(row.trigger_price, 105.0);
+    assert_eq!(row.stop_price, 100.0);
+    assert_eq!(row.targets.len(), 2);
+    assert_eq!(row.status, SetupStatus::Active);
+    assert!(row.thesis.is_none());
+
+    let fetched = svc
+        .get_setup(row.id)
+        .await
+        .expect("get_setup")
+        .expect("present");
+    assert_eq!(fetched.symbol, "AAPL");
+    assert_eq!(fetched.raw_signals, cand.raw_signals);
+    assert_eq!(fetched.targets, cand.targets);
+}
+
+#[tokio::test]
+async fn insert_setup_normalizes_symbol_case() {
+    let (_tmp, svc) = make_service();
+    svc.add("tsla", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let row = svc.insert_setup("tsla", &sample_candidate()).await.unwrap();
+    assert_eq!(row.symbol, "TSLA");
+}
+
+#[tokio::test]
+async fn list_setups_filters_by_symbol_and_since() {
+    let (_tmp, svc) = make_service();
+    svc.add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    svc.add("MSFT", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+
+    let now = Utc::now();
+    let mut a = sample_candidate();
+    a.detected_at = now - ChronoDuration::days(2);
+    svc.insert_setup("AAPL", &a).await.unwrap();
+
+    let mut b = sample_candidate();
+    b.detected_at = now;
+    svc.insert_setup("MSFT", &b).await.unwrap();
+
+    // No filter — both rows.
+    let all = svc.list_setups(None, None).await.unwrap();
+    assert_eq!(all.len(), 2);
+    // Most-recent first by detected_at DESC.
+    assert_eq!(all[0].symbol, "MSFT");
+    assert_eq!(all[1].symbol, "AAPL");
+
+    // Symbol filter.
+    let aapl_only = svc.list_setups(Some("AAPL"), None).await.unwrap();
+    assert_eq!(aapl_only.len(), 1);
+    assert_eq!(aapl_only[0].symbol, "AAPL");
+
+    // Since filter excludes the older row.
+    let recent = svc
+        .list_setups(None, Some(now - ChronoDuration::hours(1)))
+        .await
+        .unwrap();
+    assert_eq!(recent.len(), 1);
+    assert_eq!(recent[0].symbol, "MSFT");
+
+    // Combined filters.
+    let combo = svc
+        .list_setups(Some("AAPL"), Some(now - ChronoDuration::hours(1)))
+        .await
+        .unwrap();
+    assert!(combo.is_empty());
+}
+
+#[tokio::test]
+async fn recent_duplicate_finds_match_within_window() {
+    let (_tmp, svc) = make_service();
+    svc.add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let cand = sample_candidate();
+    let inserted = svc.insert_setup("AAPL", &cand).await.unwrap();
+
+    let dup = svc
+        .recent_duplicate(
+            "AAPL",
+            "breakout",
+            Direction::Long,
+            ChronoDuration::hours(24),
+        )
+        .await
+        .unwrap();
+    assert_eq!(dup, Some(inserted.id));
+
+    // Different direction → no match.
+    let dup_short = svc
+        .recent_duplicate(
+            "AAPL",
+            "breakout",
+            Direction::Short,
+            ChronoDuration::hours(24),
+        )
+        .await
+        .unwrap();
+    assert!(dup_short.is_none());
+
+    // Different strategy → no match.
+    let dup_other = svc
+        .recent_duplicate(
+            "AAPL",
+            "episodic_pivot",
+            Direction::Long,
+            ChronoDuration::hours(24),
+        )
+        .await
+        .unwrap();
+    assert!(dup_other.is_none());
+}
+
+#[tokio::test]
+async fn recent_duplicate_returns_none_for_old_row() {
+    let (_tmp, svc) = make_service();
+    svc.add("AAPL", TrackerSource::Manual, None, vec![], None)
+        .await
+        .unwrap();
+    let mut cand = sample_candidate();
+    cand.detected_at = Utc::now() - ChronoDuration::days(2);
+    svc.insert_setup("AAPL", &cand).await.unwrap();
+
+    let dup = svc
+        .recent_duplicate(
+            "AAPL",
+            "breakout",
+            Direction::Long,
+            ChronoDuration::hours(24),
+        )
+        .await
+        .unwrap();
+    assert!(dup.is_none());
+}
+
+#[tokio::test]
+async fn get_setup_returns_none_for_missing_id() {
+    let (_tmp, svc) = make_service();
+    assert!(svc.get_setup(9999).await.unwrap().is_none());
+}

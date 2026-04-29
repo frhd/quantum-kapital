@@ -79,7 +79,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 - [x] **Phase 07** — Breakout detector + table-driven tests — `impl/phase-07-breakout-detector.md`
 - [x] **Phase 08** — Episodic Pivot detector + tests — `impl/phase-08-episodic-pivot-detector.md`
 - [x] **Phase 09** — Parabolic Short detector + tests — `impl/phase-09-parabolic-short-detector.md`
-- [ ] **Phase 10** — `tracker_run_now` command + setup persistence — `impl/phase-10-run-now.md`
+- [x] **Phase 10** — `tracker_run_now` command + setup persistence — `impl/phase-10-run-now.md`
 
 ### Scheduling (11–15)
 

@@ -5,9 +5,12 @@ use tauri::State;
 use crate::ibkr::state::IbkrState;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
-use crate::ibkr::types::tracker::{StrategyTag, TrackedTicker, TrackerSource, TrackerStatus};
+use crate::ibkr::types::tracker::{
+    Setup, StrategyTag, TrackedTicker, TrackerSource, TrackerStatus,
+};
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
+use crate::services::tracker_runner::{RunResult, TrackerRunner};
 use crate::storage::Db;
 
 #[tauri::command]
@@ -101,6 +104,49 @@ pub async fn tracker_set_status(
     state
         .tracker
         .set_status(&symbol, status, in_play_until)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Phase 10 — gather fresh bars/news for one symbol (or every active
+/// watchlist row when `symbol` is `None`), evaluate detectors, and
+/// persist hits. Per-symbol failures are surfaced inside individual
+/// `RunResult` entries and never short-circuit the batch.
+#[tauri::command]
+pub async fn tracker_run_now(
+    runner: State<'_, Arc<TrackerRunner>>,
+    symbol: Option<String>,
+) -> Result<Vec<RunResult>, String> {
+    match symbol {
+        Some(s) => match runner.run_for(&s).await {
+            Ok(setups) => Ok(vec![RunResult {
+                symbol: s.to_uppercase(),
+                setups,
+                error: None,
+            }]),
+            Err(e) => Ok(vec![RunResult {
+                symbol: s.to_uppercase(),
+                setups: Vec::new(),
+                error: Some(e.to_string()),
+            }]),
+        },
+        None => runner.run_all().await.map_err(|e| e.to_string()),
+    }
+}
+
+/// Phase 10 — read the persisted `setups` table. Both arguments are
+/// optional: pass `symbol` to filter to one ticker, `since` (UTC) to
+/// only return rows newer than the cutoff. Returns rows ordered by
+/// `detected_at DESC`.
+#[tauri::command]
+pub async fn tracker_get_setups(
+    state: State<'_, IbkrState>,
+    symbol: Option<String>,
+    since: Option<DateTime<Utc>>,
+) -> Result<Vec<Setup>, String> {
+    state
+        .tracker
+        .list_setups(symbol.as_deref(), since)
         .await
         .map_err(|e| e.to_string())
 }

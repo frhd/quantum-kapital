@@ -56,6 +56,14 @@ Use this when:
 
 ---
 
+## Phase 10 dedup decision
+
+The runner short-circuits a re-run when `recent_duplicate(symbol, strategy, direction, 24h)` returns `Some(id)`. We chose **skip the insert and leave the existing row's `detected_at` untouched** rather than touching it forward. Rationale:
+
+- `detected_at` is the moment the signal first fired; mutating it on every subsequent run obscures the original signal time.
+- The `last_checked_at` column on `tracked_tickers` already records "we looked at this ticker again," so the audit trail of repeated passes is preserved without trampling the setup row.
+- 24h window is a conservative single-day guard. Phase 12 (status state machine) will revisit when transitions like `Active → Invalidated` need to gate re-emission on lifecycle, not just elapsed time.
+
 ## Observation log
 
 Append dated observations as detectors run on live data:
