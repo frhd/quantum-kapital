@@ -67,34 +67,20 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 
 ### Foundation (1–5)
 
-- [x] **Phase 01** — SQLite foundation (Db, migrations, full schema upfront) — `impl/phase-01-sqlite-foundation.md`
-- [x] **Phase 02** — Historical bars service (`IbkrClient::historical_data` + cache) — `impl/phase-02-historical-bars.md`
-- [x] **Phase 03** — Alpha Vantage news service + cache — `impl/phase-03-news-service.md`
-- [x] **Phase 04** — Tracker persistence (types, service, Tauri commands) — `impl/phase-04-tracker-persistence.md`
-- [x] **Phase 05** — Tracker UI + scanner "Add to tracker" integration — `impl/phase-05-tracker-frontend.md`
+DONE
 
 ### Detector framework (6–10)
 
-- [x] **Phase 06** — `StrategyDetector` trait, `MarketContext`, `SetupCandidate`, registry — `impl/phase-06-detector-framework.md`
-- [x] **Phase 07** — Breakout detector + table-driven tests — `impl/phase-07-breakout-detector.md`
-- [x] **Phase 08** — Episodic Pivot detector + tests — `impl/phase-08-episodic-pivot-detector.md`
-- [x] **Phase 09** — Parabolic Short detector + tests — `impl/phase-09-parabolic-short-detector.md`
-- [x] **Phase 10** — `tracker_run_now` command + setup persistence — `impl/phase-10-run-now.md`
+DONE
 
 ### Scheduling (11–15)
 
-- [x] **Phase 11** — Market calendar utility (RTH + holidays) — `impl/phase-11-market-calendar.md`
-- [x] **Phase 12** — Tracker status state machine + transitions — `impl/phase-12-status-state-machine.md`
-- [x] **Phase 13** — EOD scheduler (16:05 ET full sweep) — `impl/phase-13-eod-scheduler.md`
-- [x] **Phase 14** — Intraday scheduler (5-min RTH for in-play) — `impl/phase-14-intraday-scheduler.md`
-- [x] **Phase 15** — Setup events plumbing + frontend listeners — `impl/phase-15-setup-events.md`
+DONE
 
 ### LLM reasoning layer (16–20)
 
-- [x] **Phase 16** — Anthropic client foundation + budget kill-switch — `impl/phase-16-anthropic-client.md`
-- [x] **Phase 17** — Thesis prompt (Sonnet 4.6, tool-use forced JSON) — `impl/phase-17-thesis-prompt.md`
-- [x] **Phase 18** — Decay-watcher prompt (Haiku 4.5, intraday) — `impl/phase-18-decay-watcher.md`
-- [x] **Phase 19** — News interpreter prompt (Haiku 4.5) — `impl/phase-19-news-interpreter.md`
+DONE
+
 - [ ] **Phase 20** — Daily ranker (Sonnet 4.6) + MorningPack UI — `impl/phase-20-daily-ranker.md`
 
 ### Polish (21–24)
@@ -113,14 +99,3 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 - Portfolio-aware position sizing (the system suggests stops/targets relative to setup R, but does not know account size — that intentionally stays the user's responsibility).
 - Web UI / cloud sync — desktop-only, single-user.
 - Pre-market / after-hours data beyond what IBKR delivers as RTH-extended bars.
-
-## Risks tracked across phases
-
-| Risk | First mitigated in | Notes |
-|---|---|---|
-| IBKR historical-data rate limit | Phase 02 | Reuse `RateLimiter`; SQLite cache eliminates repeats. |
-| Alpha Vantage 25 calls/day free tier | Phase 03 | News refresh capped; document upgrade path. |
-| LLM cost overrun | Phase 16 | Daily budget kill-switch + prompt caching + Haiku for hot paths. |
-| LLM hallucination | Phase 17 | Detectors emit structured `raw_signals`; prompts reason over numbers, not narratives. |
-| Setup-active rows accumulating | Phase 12 | `cool_down` TTL + nightly cleanup in EOD job. |
-| News-driven false positives for EP | Phase 08, refined Phase 19 | Sentiment polarity must align with gap direction; LLM news interpreter as second filter. |
