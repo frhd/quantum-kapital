@@ -1,5 +1,6 @@
 pub mod account_service;
 pub mod cache_service;
+pub mod daily_ranker;
 pub mod decay_watcher;
 pub mod eod_scheduler;
 pub mod financial_data_service;

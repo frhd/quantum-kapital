@@ -1,0 +1,25 @@
+{
+  "name": "emit_morning_pack",
+  "description": "Emit the ranked morning pack of today's top swing-trade candidates. Each entry must reference signals from the input.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "ranked": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "setup_id": { "type": "integer" },
+            "rank": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "why_top_pick": {
+              "type": "string",
+              "description": "One or two sentences citing structured signals — explain why this candidate beat the others."
+            }
+          },
+          "required": ["setup_id", "rank", "why_top_pick"]
+        }
+      }
+    },
+    "required": ["ranked"]
+  }
+}

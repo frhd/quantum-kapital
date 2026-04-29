@@ -10,6 +10,7 @@ import { Button } from "../../../shared/components/ui/button"
 import { Plus, RefreshCw } from "lucide-react"
 import { ToastViewport, useToasts } from "../../../shared/components/ui/toast"
 import { Watchlist } from "./Watchlist"
+import { MorningPackPanel } from "./MorningPack"
 import { useWatchlist } from "../hooks/useWatchlist"
 import { useTrackerEvents } from "../hooks/useTrackerEvents"
 import { STATUS_LABELS, type TrackerStatus } from "../types"
@@ -53,8 +54,13 @@ export function TrackerTab({
   onCountChange,
 }: TrackerTabProps) {
   const { tickers, loading, error, refresh, remove, setTags } = useWatchlist(refreshKey)
-  const { lastSetupDetected, lastInvalidated, lastStatusChanged, activeSetupBySymbol } =
-    useTrackerEvents()
+  const {
+    lastSetupDetected,
+    lastInvalidated,
+    lastStatusChanged,
+    lastMorningPackReady,
+    activeSetupBySymbol,
+  } = useTrackerEvents()
   const { toasts, push: pushToast, dismiss } = useToasts()
   const [filter, setFilter] = useState<StatusFilter>("all")
 
@@ -122,8 +128,14 @@ export function TrackerTab({
 
   return (
     <>
-      <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
-        <CardHeader>
+      <div className="space-y-4">
+        <MorningPackPanel
+          lastMorningPackReady={lastMorningPackReady}
+          activeSetupBySymbol={activeSetupBySymbol}
+          onSelectSymbol={onSelectSymbol}
+        />
+        <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+          <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <div>
               <CardTitle className="text-white">Tracker</CardTitle>
@@ -185,7 +197,8 @@ export function TrackerTab({
             activeSetupBySymbol={activeSetupBySymbol}
           />
         </CardContent>
-      </Card>
+        </Card>
+      </div>
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </>
   )

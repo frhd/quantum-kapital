@@ -73,3 +73,9 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     cost_usd   REAL NOT NULL,
     called_at  INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS morning_packs (
+    date          TEXT PRIMARY KEY,
+    payload       TEXT NOT NULL,
+    generated_at  INTEGER NOT NULL
+);

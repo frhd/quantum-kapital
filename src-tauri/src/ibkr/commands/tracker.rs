@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use std::sync::Arc;
 use tauri::State;
 
@@ -8,6 +8,7 @@ use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{
     Setup, StrategyTag, TrackedTicker, TrackerSource, TrackerStatus,
 };
+use crate::services::daily_ranker::{DailyRanker, MorningPack};
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
@@ -200,6 +201,20 @@ pub async fn tracker_stop_scheduler(state: State<'_, IbkrState>) -> Result<(), S
     state.stop_eod_scheduler().await;
     state.stop_intraday_scheduler().await;
     Ok(())
+}
+
+/// Phase 20 — fetch the persisted morning pack for `date` (or the
+/// most recent one when `date` is `None`). Returns `None` when no pack
+/// has ever been generated.
+#[tauri::command]
+pub async fn tracker_get_morning_pack(
+    ranker: State<'_, Arc<DailyRanker>>,
+    date: Option<NaiveDate>,
+) -> Result<Option<MorningPack>, String> {
+    match date {
+        Some(d) => ranker.get_pack(d).await.map_err(|e| e.to_string()),
+        None => ranker.get_latest().await.map_err(|e| e.to_string()),
+    }
 }
 
 /// Phase 16 — debug-only Anthropic smoke test. Sends a tiny prompt to

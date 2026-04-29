@@ -9,6 +9,16 @@ Use this when:
 
 ---
 
+### 2026-04-29 — Phase 20 — Morning pack persistence
+
+**Change:** Added new table `morning_packs (date TEXT PRIMARY KEY, payload TEXT NOT NULL, generated_at INTEGER NOT NULL)`. Stores the full ranked `MorningPack` JSON keyed by ET trading day. `INSERT ... ON CONFLICT(date) DO UPDATE` ensures the latest run wins, so a user can re-run the EOD sweep and get a fresh pack without polluting history.
+**Why a separate table (vs. a sibling column on `setups`):** The pack is a per-day artifact, not per-setup. Multiple setups participate in one pack and one setup never appears in two packs (same trading day). A keyed-by-date table is the natural shape and lets the `tracker_get_morning_pack` command serve `Option<MorningPack>` with a single PK lookup.
+**Why JSON payload:** The `RankedSetup { setup_id, rank, why_top_pick }` shape is bounded and rarely queried by sub-field — frontend always reads the whole pack. Storing a normalized `morning_pack_entries` join table would force a 5-row materialization per render with no upside.
+**Migration impact:** additive. The table uses `CREATE TABLE IF NOT EXISTS` in `schema.sql` so the existing migration runner picks it up on next launch — no `add_column_if_missing` needed.
+**Cross-references:** `src-tauri/src/storage/schema.sql`, `src-tauri/src/services/daily_ranker/{mod,tests}.rs` (8 unit tests, all green), `src-tauri/src/services/eod_scheduler/mod.rs` (calls `rank_today` after `expire_ttls`), `src-tauri/src/ibkr/commands/tracker.rs::tracker_get_morning_pack`.
+
+---
+
 ### 2026-04-29 — Phase 19 — News interpreter verdict persistence
 
 **Change:** Added `news_cache.news_verdict_json TEXT` (nullable). Stores the full `NewsVerdict` struct (`tone`, `ep_worthy`, `parabolic_risk`, `summary`) as a serialized JSON object on the same row as the cached news payload.

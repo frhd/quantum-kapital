@@ -75,9 +75,19 @@ If switching models, bump the prompt version and log here.
 - **Expected cost (per call, Haiku 4.5):** input ~250 tokens (persona + ≤10 headlines), output ~80 tokens, cache reads after the first call within TTL ~200 tokens. Pricing: `(0.00025 × 1) + (0.00008 × 5) + (0.0002 × 0.10) ≈ $0.0007 per cached call` — well under the plan's ~$0.005/call ceiling.
 - **Observed:** _to fill in after first real-data run; manual verification (`tracker_get_news` against a tracked symbol) requires `ANTHROPIC_API_KEY` + `ALPHA_VANTAGE_API_KEY`_.
 
-### Daily ranker — v1 (Phase 20)
+### Daily ranker — v1 (Phase 20 — landed 2026-04-29)
 
-_to fill_
+- **Status:** shipped. Source of truth: `src-tauri/src/services/daily_ranker/mod.rs` (`SYSTEM_PROMPT` via `include_str!("../llm_service/prompts/ranker_v1.md")`, `tool_schema()` via `include_str!("../llm_service/prompts/ranker_tool.json")`).
+- **Model:** `claude-sonnet-4-6`, `max_tokens = 1024`. One call per EOD sweep (low frequency); reasoning quality matters because the user reads the rationale verbatim.
+- **System prompt summary:** Anchors the model in the user's disciplined-swing risk profile (0.5–1% risk/trade, 5–7 concurrent, 2R/3R targets), spells out ranking principles (prefer A-conviction theses, fresher catalysts, tighter risk; penalize parabolic-risk flags / earnings blackout; pick cleaner invalidation when setups overlap), forces unique contiguous ranks from 1, and demands output ONLY through the `emit_morning_pack` tool. Stored as a `.md` file under `src-tauri/src/services/llm_service/prompts/ranker_v1.md` so version bumps are visible in git history.
+- **Input shape (user-message JSON):** `{ top_n: usize, setups: [{ setup_id, symbol, strategy, direction, trigger_price, stop_price, targets, raw_signals, thesis_md, conviction_letter, detected_at }] }`. `conviction_letter` is harvested from `thesis_json.conviction` (Phase 17) when present so the ranker can prefer A/B over C without re-reading the full thesis. Older setups (detected before today's ET-midnight) are excluded by the service before the LLM ever sees them.
+- **Output schema (forced tool-use `emit_morning_pack`):** `{ ranked: [{ setup_id (i64), rank (1..10), why_top_pick (string) }] }`. Stored as `src-tauri/src/services/llm_service/prompts/ranker_tool.json` and parsed once at request build time. The service truncates to `top_n` after sorting by rank, so the model can over-deliver without breaking the contract.
+- **Prompt cache TTL:** ephemeral. The single system block is `cache_control: { type: "ephemeral" }`. Daily-frequency call so cache hits across days are unlikely; the cache is mostly there for re-runs within the 5-min window if the EOD sweep is retried.
+- **Persistence:** the full `MorningPack` JSON lands in `morning_packs(date, payload, generated_at)` keyed by ET trading day; `INSERT ... ON CONFLICT(date) DO UPDATE` so re-runs overwrite (latest wins). The frontend re-fetches via `tracker_get_morning_pack` whenever a `morning-pack-ready` event fires.
+- **Failure handling:** every transient / config / parse problem (`BudgetExhausted`, `Auth`, `Upstream`, `Network`, `NoApiKey`, `Malformed`, `UnknownModel`, missing tool call, malformed tool input) collapses to a **naive top-N ranking by detector `conviction_signal` desc** with a `warn!`. The user still gets a pack — the ranker just never blocks the EOD pipeline. Naive entries carry a "Fallback ranking — LLM ranker unavailable" rationale string so the UI is honest about the source.
+- **Empty-day path:** zero active setups today → no LLM call, but a `MorningPack { ranked: [] }` is persisted and `MorningPackReady { ranked_count: 0 }` is still emitted so the UI can render an "no setups today" panel rather than going blank.
+- **Expected cost (per call, Sonnet 4.6):** input ~1500–2500 tokens (persona + 12 setup summaries with raw_signals), output ~300–500 tokens, cache reads negligible (daily frequency). Pricing: `(0.0015 × 3) + (0.0004 × 15) ≈ $0.011/call` — well within the daily budget for once-per-day execution.
+- **Observed:** _to fill in after first real-data run; manual verification via the `tracker_start_scheduler` flow at 16:05 ET requires `ANTHROPIC_API_KEY` + ≥1 detected setup_.
 
 ---
 

@@ -151,3 +151,24 @@ export type TrackerEvent =
   | { kind: "setup-detected"; payload: SetupDetectedPayload }
   | { kind: "setup-invalidated"; payload: SetupInvalidatedPayload }
   | { kind: "ticker-status-changed"; payload: TickerStatusChangedPayload }
+
+// --- Phase 20: Daily ranker / Morning pack ---
+
+export interface RankedSetup {
+  setup_id: number
+  rank: number
+  why_top_pick: string
+}
+
+export interface MorningPack {
+  /** ET trading-day date as ISO `YYYY-MM-DD`. */
+  date: string
+  ranked: RankedSetup[]
+  /** UTC ISO 8601 timestamp. */
+  generated_at: string
+}
+
+export interface MorningPackReadyPayload {
+  date: string
+  ranked_count: number
+}

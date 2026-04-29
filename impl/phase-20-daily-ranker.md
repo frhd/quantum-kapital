@@ -6,9 +6,9 @@ After the EOD detector sweep, send all of today's setups to Sonnet 4.6 in a sing
 
 ## Depends on
 
-- [ ] Phase 13 — EOD scheduler invokes ranker.
-- [ ] Phase 16 — LlmService.
-- [ ] Phase 17 — setups have theses.
+- [x] Phase 13 — EOD scheduler invokes ranker.
+- [x] Phase 16 — LlmService.
+- [x] Phase 17 — setups have theses.
 
 ## Out of scope
 
@@ -19,18 +19,18 @@ After the EOD detector sweep, send all of today's setups to Sonnet 4.6 in a sing
 
 `src-tauri/src/services/daily_ranker/tests.rs`.
 
-- [ ] `builds_request_with_all_todays_setups` — given 12 active setups detected today, request payload includes all 12 (id, symbol, strategy, direction, conviction_signal, thesis_md, conviction_letter, key levels). Older setups excluded.
-- [ ] `forces_emit_morning_pack_tool_use` — `tool_choice = ForceTool("emit_morning_pack")`.
-- [ ] `parses_ranked_top_n` — mock returns `{ranked: [{setup_id, rank, why_top_pick}, ...]}`; service returns a `MorningPack { date, ranked }` with at most `top_n` entries.
-- [ ] `persists_morning_pack_to_db` — store the ranker response in a new table `morning_packs(date PRIMARY KEY, payload JSON, generated_at INTEGER)`.
-- [ ] `dedup_per_date` — second call same date overwrites (latest wins); `morning-pack-ready` event re-emitted.
-- [ ] `respects_budget_kill_switch` — `BudgetExhausted` → emits a `MorningPack` with the naive top-5 (ordered by `conviction_signal` desc) and logs a warn; user still gets a list.
-- [ ] `empty_setups_today_skips_call` — zero setups → no LLM call; emits empty `MorningPackReady`.
+- [x] `builds_request_with_all_todays_setups` — given 12 active setups detected today, request payload includes all 12 (id, symbol, strategy, direction, conviction_signal, thesis_md, conviction_letter, key levels). Older setups excluded.
+- [x] `forces_emit_morning_pack_tool_use` — `tool_choice = ForceTool("emit_morning_pack")`.
+- [x] `parses_ranked_top_n` — mock returns `{ranked: [{setup_id, rank, why_top_pick}, ...]}`; service returns a `MorningPack { date, ranked }` with at most `top_n` entries.
+- [x] `persists_morning_pack_to_db` — store the ranker response in a new table `morning_packs(date PRIMARY KEY, payload JSON, generated_at INTEGER)`.
+- [x] `dedup_per_date` — second call same date overwrites (latest wins); `morning-pack-ready` event re-emitted.
+- [x] `respects_budget_kill_switch` — `BudgetExhausted` → emits a `MorningPack` with the naive top-5 (ordered by `conviction_signal` desc) and logs a warn; user still gets a list.
+- [x] `empty_setups_today_skips_call` — zero setups → no LLM call; emits empty `MorningPackReady`.
 
 ## Implementation tasks
 
-- [ ] Add `morning_packs` table to `schema.sql`. Even though Phase 01 baked all tables upfront, this is one we deferred — log it in `schema-decisions.md`.
-- [ ] Create `src-tauri/src/services/daily_ranker/mod.rs`:
+- [x] Add `morning_packs` table to `schema.sql`. Even though Phase 01 baked all tables upfront, this is one we deferred — log it in `schema-decisions.md`.
+- [x] Create `src-tauri/src/services/daily_ranker/mod.rs`:
   ```rust
   pub struct DailyRanker { llm, db, emitter }
   pub struct MorningPack {
@@ -43,8 +43,8 @@ After the EOD detector sweep, send all of today's setups to Sonnet 4.6 in a sing
       pub async fn rank_today(&self, date: NaiveDate, top_n: usize) -> Result<MorningPack>;
   }
   ```
-- [ ] System prompt (`prompts/ranker_v1.md`): "You are ranking today's swing-trade candidates. The user has a disciplined risk profile (0.5–1% per trade, 5–7 concurrent). Pick the top N with the cleanest setup, freshest catalyst, and best risk/reward — explain *why each beat the others*. Output ONLY through the `emit_morning_pack` tool."
-- [ ] Tool schema (`prompts/ranker_tool.json`):
+- [x] System prompt (`prompts/ranker_v1.md`): "You are ranking today's swing-trade candidates. The user has a disciplined risk profile (0.5–1% per trade, 5–7 concurrent). Pick the top N with the cleanest setup, freshest catalyst, and best risk/reward — explain *why each beat the others*. Output ONLY through the `emit_morning_pack` tool."
+- [x] Tool schema (`prompts/ranker_tool.json`):
   ```json
   { "name": "emit_morning_pack",
     "input_schema": {"type":"object","properties":{
@@ -53,24 +53,24 @@ After the EOD detector sweep, send all of today's setups to Sonnet 4.6 in a sing
         "why_top_pick":{"type":"string"}},"required":["setup_id","rank","why_top_pick"]}}},
     "required":["ranked"]}}
   ```
-- [ ] Hook into `EodScheduler` (Phase 13) — after `runner.run_all` and `expire_ttls`, call `daily_ranker.rank_today(today_et, 5)`.
-- [ ] Update `AppEvent::MorningPackReady` (Phase 15) to carry the full `MorningPack` payload (or its ID — frontend fetches via a new command).
-- [ ] Add Tauri command `tracker_get_morning_pack(date: Option<NaiveDate>) -> Option<MorningPack>` (defaults to most recent).
+- [x] Hook into `EodScheduler` (Phase 13) — after `runner.run_all` and `expire_ttls`, call `daily_ranker.rank_today(today_et, 5)`.
+- [x] Update `AppEvent::MorningPackReady` (Phase 15) to carry the full `MorningPack` payload (or its ID — frontend fetches via a new command).
+- [x] Add Tauri command `tracker_get_morning_pack(date: Option<NaiveDate>) -> Option<MorningPack>` (defaults to most recent).
 
 Frontend:
 
-- [ ] Create `src/features/tracker/components/MorningPack.tsx`:
+- [x] Create `src/features/tracker/components/MorningPack.tsx`:
   - Sticky card at top of Tracker tab.
   - Shows date + 5 ranked rows.
   - Each row: symbol, strategy chip, conviction badge, "why top pick" expandable, "Open analysis" button.
   - Collapsible.
-- [ ] Hook into `useTrackerEvents` to refresh when `morning-pack-ready` fires.
+- [x] Hook into `useTrackerEvents` to refresh when `morning-pack-ready` fires.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml services::daily_ranker` — green.
-- [ ] Manual at 16:05 ET (or with the mocked clock) with at least 5 setups detected today: MorningPack panel appears with explanations.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml services::daily_ranker` — green.
+- [x] Manual at 16:05 ET (or with the mocked clock) with at least 5 setups detected today: MorningPack panel appears with explanations.
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 

@@ -19,6 +19,7 @@ import type {
   NewsItem,
   HistoricalBar,
   BarSize,
+  MorningPack,
 } from "../../features/tracker/types"
 
 export const ibkrApi = {
@@ -143,6 +144,12 @@ export const ibkrApi = {
 
     getNews: async (symbol: string, lookbackHours: number) => {
       return invoke<NewsItem[]>("tracker_get_news", { symbol, lookbackHours })
+    },
+
+    /** Phase 20 — fetch the persisted morning pack. Pass a date (ISO `YYYY-MM-DD`)
+     *  to fetch a specific day; omit to get the most recent pack. */
+    getMorningPack: async (date?: string) => {
+      return invoke<MorningPack | null>("tracker_get_morning_pack", { date: date ?? null })
     },
   },
 }

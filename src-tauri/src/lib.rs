@@ -14,6 +14,7 @@ use std::time::Duration;
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::HistoricalRateLimiter;
+use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
@@ -139,16 +140,29 @@ pub fn run() {
                 .with_thesis_generator(Arc::clone(&thesis_generator)),
             );
 
+            // Phase 20: daily ranker — picks the LLM-ranked top-5 from
+            // today's setups after the EOD sweep, persists to
+            // `morning_packs`, and emits `MorningPackReady`.
+            let daily_ranker = Arc::new(DailyRanker::new(
+                Arc::clone(&llm_service),
+                Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&db),
+                Arc::clone(&ibkr_state.event_emitter),
+            ));
+
             // Phase 13: EOD scheduler. The handle is held on `IbkrState`
             // and started/stopped via the `tracker_start_scheduler` /
             // `tracker_stop_scheduler` commands — auto-start is
             // intentionally off by default (the user opts in from the UI
             // once Phase 15's frontend listeners land).
-            let eod_scheduler = Arc::new(EodScheduler::new(
-                Arc::clone(&tracker_runner),
-                Arc::clone(&ibkr_state.state_machine),
-                Arc::clone(&ibkr_state.event_emitter),
-            ));
+            let eod_scheduler = Arc::new(
+                EodScheduler::new(
+                    Arc::clone(&tracker_runner),
+                    Arc::clone(&ibkr_state.state_machine),
+                    Arc::clone(&ibkr_state.event_emitter),
+                )
+                .with_daily_ranker(Arc::clone(&daily_ranker)),
+            );
 
             // Phase 14: intraday scheduler. Same start/stop command pair
             // as the EOD scheduler. Phase 18 swapped the stub for a real
@@ -174,6 +188,7 @@ pub fn run() {
             app.manage(llm_service);
             app.manage(thesis_generator);
             app.manage(news_interpreter);
+            app.manage(daily_ranker);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -205,6 +220,7 @@ pub fn run() {
             ibkr::commands::tracker_get_setups,
             ibkr::commands::tracker_start_scheduler,
             ibkr::commands::tracker_stop_scheduler,
+            ibkr::commands::tracker_get_morning_pack,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

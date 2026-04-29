@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import type {
+  MorningPackReadyPayload,
   Setup,
   SetupDetectedPayload,
   SetupInvalidatedPayload,
@@ -19,6 +20,7 @@ type TickerStatusChangedEnvelope = TauriEnvelope<
   "TickerStatusChanged",
   TickerStatusChangedPayload
 >
+type MorningPackReadyEnvelope = TauriEnvelope<"MorningPackReady", MorningPackReadyPayload>
 
 const MAX_EVENTS = 100
 
@@ -27,6 +29,9 @@ export interface UseTrackerEventsResult {
   lastSetupDetected: SetupDetectedPayload | null
   lastInvalidated: SetupInvalidatedPayload | null
   lastStatusChanged: TickerStatusChangedPayload | null
+  /// Phase 20 — last `MorningPackReady` event. Consumers re-fetch the
+  /// pack via `ibkrApi.tracker.getMorningPack()` when this changes.
+  lastMorningPackReady: MorningPackReadyPayload | null
   /// Per-symbol latest active setup. Cleared when a setup-invalidated
   /// event arrives for the same symbol. Watchlist rows read this map
   /// to render the SetupBadge without an extra fetch.
@@ -39,6 +44,8 @@ export function useTrackerEvents(): UseTrackerEventsResult {
   const [lastInvalidated, setLastInvalidated] = useState<SetupInvalidatedPayload | null>(null)
   const [lastStatusChanged, setLastStatusChanged] =
     useState<TickerStatusChangedPayload | null>(null)
+  const [lastMorningPackReady, setLastMorningPackReady] =
+    useState<MorningPackReadyPayload | null>(null)
   const [activeSetupBySymbol, setActiveSetupBySymbol] = useState<Record<string, Setup>>({})
   const cancelledRef = useRef(false)
 
@@ -100,6 +107,17 @@ export function useTrackerEvents(): UseTrackerEventsResult {
           return
         }
         unlisteners.push(u3)
+
+        const u4 = await listen<MorningPackReadyEnvelope>("morning-pack-ready", (event) => {
+          const payload = event.payload?.data
+          if (!payload) return
+          setLastMorningPackReady(payload)
+        })
+        if (cancelledRef.current) {
+          u4()
+          return
+        }
+        unlisteners.push(u4)
       } catch (err) {
         console.error("useTrackerEvents: listen failed", err)
       }
@@ -122,6 +140,7 @@ export function useTrackerEvents(): UseTrackerEventsResult {
     lastSetupDetected,
     lastInvalidated,
     lastStatusChanged,
+    lastMorningPackReady,
     activeSetupBySymbol,
   }
 }

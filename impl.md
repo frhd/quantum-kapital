@@ -81,7 +81,7 @@ DONE
 
 DONE
 
-- [ ] **Phase 20** — Daily ranker (Sonnet 4.6) + MorningPack UI — `impl/phase-20-daily-ranker.md`
+- [x] **Phase 20** — Daily ranker (Sonnet 4.6) + MorningPack UI — `impl/phase-20-daily-ranker.md`
 
 ### Polish (21–24)
 

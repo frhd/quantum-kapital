@@ -31,6 +31,7 @@ use tracing::{info, warn};
 
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::StreamHandle;
+use crate::services::daily_ranker::DailyRanker;
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::utils::market_calendar::is_holiday;
@@ -48,6 +49,10 @@ const WINDOW_START: (u32, u32) = (16, 5);
 /// Window end (exclusive): 16:10 ET. Past this and the tick is a no-op even
 /// if `last_run_date` says we haven't run today (we'll catch it tomorrow).
 const WINDOW_END: (u32, u32) = (16, 10);
+
+/// Top-N for the LLM-backed morning pack. Hard-coded for now (Phase 20);
+/// promote to `AppConfig` if/when the user wants to tune it.
+const MORNING_PACK_TOP_N: usize = 5;
 
 fn et_offset() -> FixedOffset {
     FixedOffset::west_opt(5 * 3600).expect("ET offset is valid")
@@ -89,6 +94,12 @@ pub struct EodScheduler {
     runner: Arc<TrackerRunner>,
     state_machine: Arc<TrackerStateMachine>,
     emitter: Arc<EventEmitter>,
+    /// Phase 20: optional LLM-backed daily ranker. When wired, the
+    /// scheduler delegates the `MorningPackReady` emit to the ranker
+    /// (which also persists the structured pack). When `None` (e.g.
+    /// older tests), the scheduler falls back to emitting an empty
+    /// pack itself.
+    daily_ranker: Option<Arc<DailyRanker>>,
     /// Last ET trading-day on which the EOD sweep ran. Guards against
     /// double-runs inside the 5-minute window.
     last_run_date: Arc<RwLock<Option<NaiveDate>>>,
@@ -105,9 +116,15 @@ impl EodScheduler {
             runner,
             state_machine,
             emitter,
+            daily_ranker: None,
             last_run_date: Arc::new(RwLock::new(None)),
             clock: Arc::new(RwLock::new(Clock::Real)),
         }
+    }
+
+    pub fn with_daily_ranker(mut self, ranker: Arc<DailyRanker>) -> Self {
+        self.daily_ranker = Some(ranker);
+        self
     }
 
     #[cfg(test)]
@@ -121,6 +138,7 @@ impl EodScheduler {
             runner,
             state_machine,
             emitter,
+            daily_ranker: None,
             last_run_date: Arc::new(RwLock::new(None)),
             clock: Arc::new(RwLock::new(clock)),
         }
@@ -178,7 +196,25 @@ impl EodScheduler {
             .await
             .map_err(|e| format!("expire_ttls failed: {e}"))?;
 
-        if let Err(e) = self
+        if let Some(ranker) = self.daily_ranker.as_ref() {
+            // The ranker persists the pack and emits `MorningPackReady`
+            // itself; failures bubble up only as warnings so an LLM
+            // outage never blocks the EOD sweep.
+            if let Err(e) = ranker.rank_today(date, MORNING_PACK_TOP_N).await {
+                warn!("daily ranker failed: {e}");
+                // Best-effort fallback so the frontend still sees an event.
+                if let Err(e2) = self
+                    .emitter
+                    .emit(AppEvent::MorningPackReady {
+                        date,
+                        ranked_count: 0,
+                    })
+                    .await
+                {
+                    warn!("MorningPackReady emit failed: {e2}");
+                }
+            }
+        } else if let Err(e) = self
             .emitter
             .emit(AppEvent::MorningPackReady {
                 date,
