@@ -275,7 +275,8 @@ The frontend follows a feature-based architecture in `/src/features/`:
 - `connection/`: IBKR connection management (ConnectionSettings, ConnectionStatus)
 - `portfolio/`: Account and position management (AccountSummary, AccountDetails, StockPositions, OptionPositions)
 - `analysis/`: Fundamental data analysis and forward projections (integrated with Alpha Vantage API)
-- `scanner/`: Market scanner UI consuming the streaming scanner backend; selecting a row deep-links to the analysis tab via the `pendingSymbol` prop on `TickerAnalysis`
+- `scanner/`: Market scanner UI consuming the streaming scanner backend; each row exposes "Analyze" (deep-links to analysis via `pendingSymbol`) and "Add to tracker" (Phase 05) actions
+- `tracker/` (Phase 05): Watchlist UI over the `tracker_*` Tauri commands. `TrackerTab` composes `Watchlist` (table with inline tag editing + remove) and a status filter; mounted as a top-level tab with an unread-count badge in `App.tsx`. `AddToTrackerDialog` is a portal-rendered modal triggered by the manual "Add" button or the scanner row's "Add to tracker"; on duplicate it surfaces an "already tracked" message. `useWatchlist(refreshKey)` owns fetch/CRUD against `ibkrApi.tracker.*` and re-fetches whenever `refreshKey` changes (App.tsx bumps it after every dialog submission). Source-of-truth types live in `src/features/tracker/types.ts` mirroring the Rust enums in snake_case (`watching` / `in_play` / `setup_active` / `cool_down`; `manual` / `scanner` / `news`).
 
 Each feature contains its own components, hooks, and (where relevant) types. Real-time market data and order placement are exposed as backend Tauri commands but do not have dedicated feature directories yet.
 

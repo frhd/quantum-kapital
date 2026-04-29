@@ -15,7 +15,8 @@ import {
 } from "../../../shared/components/ui/table"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
-import { TrendingUp, AlertCircle } from "lucide-react"
+import { Button } from "../../../shared/components/ui/button"
+import { TrendingUp, AlertCircle, LineChart, Plus } from "lucide-react"
 import type { ScannerData } from "../../../shared/types"
 
 interface ScannerResultsProps {
@@ -24,6 +25,7 @@ interface ScannerResultsProps {
   isRunning: boolean
   error: string | null
   onSelectSymbol: (symbol: string) => void
+  onAddToTracker: (row: ScannerData) => void
 }
 
 export function ScannerResults({
@@ -32,6 +34,7 @@ export function ScannerResults({
   isRunning,
   error,
   onSelectSymbol,
+  onAddToTracker,
 }: ScannerResultsProps) {
   return (
     <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
@@ -43,7 +46,7 @@ export function ScannerResults({
         <CardDescription className="text-slate-400">
           {isRunning
             ? `Updates ~every 30 seconds${lastUpdate ? ` — last update ${lastUpdate.toLocaleTimeString()}` : " — waiting for first batch…"}`
-            : "Click a row to open the symbol in Analysis."}
+            : "Use Analyze or Add to tracker on a row."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -77,14 +80,16 @@ export function ScannerResults({
                   <TableHead className="py-2 text-xs text-slate-300">Symbol</TableHead>
                   <TableHead className="py-2 text-xs text-slate-300">Exchange</TableHead>
                   <TableHead className="py-2 text-xs text-slate-300">Currency</TableHead>
+                  <TableHead className="w-48 py-2 text-right text-xs text-slate-300">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {results.map((row) => (
                   <TableRow
                     key={`${row.rank}-${row.contract.contract_id}`}
-                    className="h-10 cursor-pointer border-slate-700 transition-colors hover:bg-slate-700/50"
-                    onClick={() => onSelectSymbol(row.contract.symbol)}
+                    className="h-10 border-slate-700"
                   >
                     <TableCell className="py-2 text-right text-sm text-white">{row.rank}</TableCell>
                     <TableCell className="py-2 font-medium text-white">
@@ -99,6 +104,30 @@ export function ScannerResults({
                     </TableCell>
                     <TableCell className="py-2 text-sm text-slate-300">
                       {row.contract.currency}
+                    </TableCell>
+                    <TableCell className="py-2 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-slate-200 hover:text-white"
+                          onClick={() => onSelectSymbol(row.contract.symbol)}
+                          title="Open in analysis"
+                        >
+                          <LineChart className="h-4 w-4" />
+                          Analyze
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-slate-200 hover:text-white"
+                          onClick={() => onAddToTracker(row)}
+                          title="Add to tracker"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Track
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

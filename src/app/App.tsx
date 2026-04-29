@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "../shared/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../shared/components/ui/tabs"
-import { AlertCircle, BarChart3, Settings, LineChart, Search } from "lucide-react"
+import { AlertCircle, BarChart3, Settings, LineChart, Search, Eye } from "lucide-react"
 
 import { PageHeader } from "../shared/components/layout/PageHeader"
 import { ConnectionSettings } from "../features/connection/components/ConnectionSettings"
@@ -11,6 +11,9 @@ import { OptionPositions } from "../features/portfolio/components/OptionPosition
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
 import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
+import { TrackerTab } from "../features/tracker/components/TrackerTab"
+import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerDialog"
+import type { AddToTrackerPrefill } from "../features/tracker/types"
 
 import { useConnection } from "../features/connection/hooks/useConnection"
 import { useAccountData } from "../features/portfolio/hooks/useAccountData"
@@ -22,12 +25,34 @@ export default function App() {
     symbol: string
     nonce: number
   } | null>(null)
+  const [trackerVersion, setTrackerVersion] = useState(0)
+  const [trackerCount, setTrackerCount] = useState(0)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [addDialogPrefill, setAddDialogPrefill] = useState<AddToTrackerPrefill | null>(null)
 
-  const handleSelectFromScanner = (symbol: string) => {
+  const handleSelectSymbol = useCallback((symbol: string) => {
     nonceRef.current += 1
     setPendingAnalysisSymbol({ symbol, nonce: nonceRef.current })
     setActiveTab("analysis")
-  }
+  }, [])
+
+  const handleRequestAddToTracker = useCallback((prefill: AddToTrackerPrefill) => {
+    setAddDialogPrefill(prefill)
+    setAddDialogOpen(true)
+  }, [])
+
+  const handleAddTrackerManual = useCallback(() => {
+    setAddDialogPrefill({ symbol: "", source: "manual" })
+    setAddDialogOpen(true)
+  }, [])
+
+  const handleDialogClose = useCallback(() => {
+    setAddDialogOpen(false)
+  }, [])
+
+  const handleDialogAdded = useCallback(() => {
+    setTrackerVersion((v) => v + 1)
+  }, [])
 
   const {
     connectionStatus,
@@ -143,6 +168,18 @@ export default function App() {
                 <Search className="mr-2 h-4 w-4" />
                 Scanner
               </TabsTrigger>
+              <TabsTrigger
+                value="tracker"
+                className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Tracker
+                {trackerCount > 0 && (
+                  <span className="ml-2 rounded-full bg-blue-500/30 px-1.5 py-0.5 text-xs text-blue-100">
+                    {trackerCount}
+                  </span>
+                )}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="analysis" className="space-y-4">
@@ -171,11 +208,30 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="scanner" className="space-y-4">
-              <MarketScanner onSelectSymbol={handleSelectFromScanner} />
+              <MarketScanner
+                onSelectSymbol={handleSelectSymbol}
+                onAddToTracker={handleRequestAddToTracker}
+              />
+            </TabsContent>
+
+            <TabsContent value="tracker" className="space-y-4">
+              <TrackerTab
+                refreshKey={trackerVersion}
+                onSelectSymbol={handleSelectSymbol}
+                onAddClick={handleAddTrackerManual}
+                onCountChange={setTrackerCount}
+              />
             </TabsContent>
           </Tabs>
         </>
       )}
+
+      <AddToTrackerDialog
+        open={addDialogOpen}
+        prefill={addDialogPrefill}
+        onClose={handleDialogClose}
+        onAdded={handleDialogAdded}
+      />
     </div>
   )
 }

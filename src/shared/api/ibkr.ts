@@ -11,6 +11,15 @@ import type {
   ProjectionAssumptions,
   ScannerSubscription,
 } from "../types"
+import type {
+  TrackedTicker,
+  TrackerSource,
+  TrackerStatus,
+  StrategyTag,
+  NewsItem,
+  HistoricalBar,
+  BarSize,
+} from "../../features/tracker/types"
 
 export const ibkrApi = {
   connect: async (config: ConnectionConfig) => {
@@ -75,5 +84,59 @@ export const ibkrApi = {
 
   stopScanner: async () => {
     return invoke<void>("ibkr_stop_scanner")
+  },
+
+  tracker: {
+    add: async (params: {
+      symbol: string
+      source: TrackerSource
+      sourceMeta?: Record<string, unknown> | null
+      tags: StrategyTag[]
+      notes?: string | null
+    }) => {
+      return invoke<TrackedTicker>("tracker_add", {
+        symbol: params.symbol,
+        source: params.source,
+        sourceMeta: params.sourceMeta ?? null,
+        tags: params.tags,
+        notes: params.notes ?? null,
+      })
+    },
+
+    remove: async (symbol: string) => {
+      return invoke<void>("tracker_remove", { symbol })
+    },
+
+    list: async (status?: TrackerStatus) => {
+      return invoke<TrackedTicker[]>("tracker_list", { status: status ?? null })
+    },
+
+    get: async (symbol: string) => {
+      return invoke<TrackedTicker | null>("tracker_get", { symbol })
+    },
+
+    setTags: async (symbol: string, tags: StrategyTag[]) => {
+      return invoke<TrackedTicker>("tracker_set_tags", { symbol, tags })
+    },
+
+    setStatus: async (symbol: string, status: TrackerStatus, inPlayUntil?: string | null) => {
+      return invoke<TrackedTicker>("tracker_set_status", {
+        symbol,
+        status,
+        inPlayUntil: inPlayUntil ?? null,
+      })
+    },
+
+    fetchBars: async (symbol: string, barSize: BarSize, lookbackDays: number) => {
+      return invoke<HistoricalBar[]>("tracker_fetch_bars", {
+        symbol,
+        barSize,
+        lookbackDays,
+      })
+    },
+
+    getNews: async (symbol: string, lookbackHours: number) => {
+      return invoke<NewsItem[]>("tracker_get_news", { symbol, lookbackHours })
+    },
   },
 }

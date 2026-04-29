@@ -71,7 +71,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 - [x] **Phase 02** — Historical bars service (`IbkrClient::historical_data` + cache) — `impl/phase-02-historical-bars.md`
 - [x] **Phase 03** — Alpha Vantage news service + cache — `impl/phase-03-news-service.md`
 - [x] **Phase 04** — Tracker persistence (types, service, Tauri commands) — `impl/phase-04-tracker-persistence.md`
-- [ ] **Phase 05** — Tracker UI + scanner "Add to tracker" integration — `impl/phase-05-tracker-frontend.md`
+- [x] **Phase 05** — Tracker UI + scanner "Add to tracker" integration — `impl/phase-05-tracker-frontend.md`
 
 ### Detector framework (6–10)
 

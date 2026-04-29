@@ -13,9 +13,7 @@
       "source": "Reuters",
       "category_within_source": "n/a",
       "source_domain": "reuters.com",
-      "topics": [
-        {"topic": "Technology", "relevance_score": "0.95"}
-      ],
+      "topics": [{ "topic": "Technology", "relevance_score": "0.95" }],
       "overall_sentiment_score": 0.567892,
       "overall_sentiment_label": "Bullish",
       "ticker_sentiment": [
