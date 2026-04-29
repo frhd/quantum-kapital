@@ -26,6 +26,14 @@ pub struct StreamHandle {
 }
 
 impl StreamHandle {
+    pub fn new(name: &'static str, shutdown: Arc<AtomicBool>, join: JoinHandle<()>) -> Self {
+        Self {
+            name,
+            shutdown,
+            join,
+        }
+    }
+
     pub async fn stop(self) {
         self.shutdown.store(true, Ordering::SeqCst);
         if let Err(e) = self.join.await {

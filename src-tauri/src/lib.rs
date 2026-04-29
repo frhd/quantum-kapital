@@ -12,6 +12,7 @@ use std::sync::Arc;
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::HistoricalRateLimiter;
+use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
@@ -92,12 +93,24 @@ pub fn run() {
                 Arc::new(default_registry()),
             ));
 
+            // Phase 13: EOD scheduler. The handle is held on `IbkrState`
+            // and started/stopped via the `tracker_start_scheduler` /
+            // `tracker_stop_scheduler` commands — auto-start is
+            // intentionally off by default (the user opts in from the UI
+            // once Phase 15's frontend listeners land).
+            let eod_scheduler = Arc::new(EodScheduler::new(
+                Arc::clone(&tracker_runner),
+                Arc::clone(&ibkr_state.state_machine),
+                Arc::clone(&ibkr_state.event_emitter),
+            ));
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
             app.manage(hist_service);
             app.manage(financial_service);
             app.manage(tracker_runner);
+            app.manage(eod_scheduler);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -127,6 +140,8 @@ pub fn run() {
             ibkr::commands::tracker_set_status,
             ibkr::commands::tracker_run_now,
             ibkr::commands::tracker_get_setups,
+            ibkr::commands::tracker_start_scheduler,
+            ibkr::commands::tracker_stop_scheduler,
             config::commands::get_settings,
             config::commands::update_settings,
             config::commands::get_settings_path,

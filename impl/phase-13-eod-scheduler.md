@@ -6,9 +6,9 @@ A long-running task that wakes daily at 16:05 ET, runs `TrackerRunner::run_all`,
 
 ## Depends on
 
-- [ ] Phase 10 — `tracker_run_now` machinery exists.
-- [ ] Phase 11 — market calendar.
-- [ ] Phase 12 — state machine (`expire_ttls`).
+- [x] Phase 10 — `tracker_run_now` machinery exists.
+- [x] Phase 11 — market calendar.
+- [x] Phase 12 — state machine (`expire_ttls`).
 
 ## Out of scope
 
@@ -19,17 +19,17 @@ A long-running task that wakes daily at 16:05 ET, runs `TrackerRunner::run_all`,
 
 `src-tauri/src/services/eod_scheduler/tests.rs` — most tests inject a clock to avoid waiting.
 
-- [ ] `does_not_run_outside_eod_window` — clock at 10:00 ET → loop tick is a no-op.
-- [ ] `runs_at_1605_et_on_weekday` — clock at 16:05 ET Tuesday → invokes `runner.run_all`, then `state_machine.expire_ttls`.
-- [ ] `does_not_run_on_weekend` — Sat 16:05 ET → no run.
-- [ ] `does_not_run_on_holiday` — observed July 4 16:05 ET → no run.
-- [ ] `dedup_runs_within_same_day` — two ticks within 16:05–16:09 → only runs once (track `last_eod_run_date`).
-- [ ] `start_replaces_existing_handle` — second `start_eod_scheduler` stops the first (mirrors `state.start_scanner` pattern in `state.rs:92-110`).
-- [ ] `stop_drops_handle` — `stop_eod_scheduler` then `eod_handle.read().is_none()`.
+- [x] `does_not_run_outside_eod_window` — clock at 10:00 ET → loop tick is a no-op.
+- [x] `runs_at_1605_et_on_weekday` — clock at 16:05 ET Tuesday → invokes `runner.run_all`, then `state_machine.expire_ttls`.
+- [x] `does_not_run_on_weekend` — Sat 16:05 ET → no run.
+- [x] `does_not_run_on_holiday` — observed July 4 16:05 ET → no run.
+- [x] `dedup_runs_within_same_day` — two ticks within 16:05–16:09 → only runs once (track `last_eod_run_date`).
+- [x] `start_replaces_existing_handle` — second `start_eod_scheduler` stops the first (mirrors `state.start_scanner` pattern in `state.rs:92-110`).
+- [x] `stop_drops_handle` — `stop_eod_scheduler` then `eod_handle.read().is_none()`.
 
 ## Implementation tasks
 
-- [ ] Create `src-tauri/src/services/eod_scheduler.rs`:
+- [x] Create `src-tauri/src/services/eod_scheduler.rs`:
   ```rust
   pub struct EodScheduler { runner, state_machine, emitter, clock }
   impl EodScheduler {
@@ -44,16 +44,16 @@ A long-running task that wakes daily at 16:05 ET, runs `TrackerRunner::run_all`,
      - Run `state_machine.expire_ttls(now).await`.
      - Emit `AppEvent::MorningPackReady { date }` (real ranker payload added in Phase 20; for now emit an empty marker).
      - Update `last_eod_run_date`.
-- [ ] Add `eod_handle: Arc<RwLock<Option<StreamHandle>>>` to `IbkrState` (mirroring `scanner_handle`).
-- [ ] Add `IbkrState::start_eod_scheduler()` and `stop_eod_scheduler()` mirroring `start_scanner` / `stop_scanner` (state.rs:92-110).
-- [ ] Add Tauri commands `tracker_start_scheduler` / `tracker_stop_scheduler` (single command pair starts both EOD and intraday after Phase 14 lands; for this phase only EOD is wired).
-- [ ] Register in `lib.rs`.
+- [x] Add `eod_handle: Arc<RwLock<Option<StreamHandle>>>` to `IbkrState` (mirroring `scanner_handle`).
+- [x] Add `IbkrState::start_eod_scheduler()` and `stop_eod_scheduler()` mirroring `start_scanner` / `stop_scanner` (state.rs:92-110).
+- [x] Add Tauri commands `tracker_start_scheduler` / `tracker_stop_scheduler` (single command pair starts both EOD and intraday after Phase 14 lands; for this phase only EOD is wired).
+- [x] Register in `lib.rs`.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml services::eod_scheduler` — green.
-- [ ] Manual: temporarily drop the EOD-window check to "any minute past :05" and observe a run within a minute. Restore the real check before commit.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml services::eod_scheduler` — green.
+- [x] Manual: temporarily drop the EOD-window check to "any minute past :05" and observe a run within a minute. Restore the real check before commit.
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 

@@ -8,6 +8,7 @@ use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{
     Setup, StrategyTag, TrackedTicker, TrackerSource, TrackerStatus,
 };
+use crate::services::eod_scheduler::EodScheduler;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
@@ -171,4 +172,23 @@ pub async fn tracker_get_setups(
         .list_setups(symbol.as_deref(), since)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Phase 13 — start the EOD scheduler. The Phase 14 intraday scheduler
+/// will hang off the same command pair once it lands; for now this only
+/// starts the EOD loop. Calling twice is safe — the second call replaces
+/// the existing handle (mirrors the scanner stream pattern).
+#[tauri::command]
+pub async fn tracker_start_scheduler(
+    state: State<'_, IbkrState>,
+    scheduler: State<'_, Arc<EodScheduler>>,
+) -> Result<(), String> {
+    state.start_eod_scheduler(Arc::clone(&scheduler)).await
+}
+
+/// Phase 13 — stop the EOD scheduler if one is running. Idempotent.
+#[tauri::command]
+pub async fn tracker_stop_scheduler(state: State<'_, IbkrState>) -> Result<(), String> {
+    state.stop_eod_scheduler().await;
+    Ok(())
 }

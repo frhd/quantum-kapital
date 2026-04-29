@@ -2,6 +2,7 @@ use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::{IbkrClient, StreamHandle};
 use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position, ScannerSubscription};
 use crate::middleware::RateLimiter;
+use crate::services::eod_scheduler::EodScheduler;
 use crate::services::tracker_service::TrackerService;
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
@@ -43,6 +44,7 @@ pub struct IbkrState {
     pub config: Arc<RwLock<ConnectionConfig>>,
     pub daily_pnl_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
+    pub eod_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub db: Arc<Db>,
     pub tracker: Arc<TrackerService>,
     pub state_machine: Arc<TrackerStateMachine>,
@@ -77,6 +79,7 @@ impl IbkrState {
             config: config_arc,
             daily_pnl_handle: Arc::new(RwLock::new(None)),
             scanner_handle: Arc::new(RwLock::new(None)),
+            eod_handle: Arc::new(RwLock::new(None)),
             db,
             tracker,
             state_machine,
@@ -118,6 +121,21 @@ impl IbkrState {
 
     pub async fn stop_scanner(&self) {
         let handle = self.scanner_handle.write().await.take();
+        if let Some(handle) = handle {
+            handle.stop().await;
+        }
+    }
+
+    pub async fn start_eod_scheduler(&self, scheduler: Arc<EodScheduler>) -> Result<(), String> {
+        // Replace any existing scheduler — same pattern as start_scanner.
+        self.stop_eod_scheduler().await;
+        let handle = scheduler.spawn();
+        *self.eod_handle.write().await = Some(handle);
+        Ok(())
+    }
+
+    pub async fn stop_eod_scheduler(&self) {
+        let handle = self.eod_handle.write().await.take();
         if let Some(handle) = handle {
             handle.stop().await;
         }

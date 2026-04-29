@@ -73,6 +73,15 @@ pub enum AppEvent {
         results: Vec<ScannerData>,
     },
 
+    // Tracker / scheduling events
+    /// Emitted by the EOD scheduler after a successful 16:05 ET sweep.
+    /// `date` is the ISO-8601 ET trading-day date (`YYYY-MM-DD`). The
+    /// payload is intentionally empty for Phase 13 — Phase 20's daily
+    /// ranker will populate ranked candidates here.
+    MorningPackReady {
+        date: String,
+    },
+
     // System events
     RateLimitWarning {
         remaining: u32,
@@ -100,6 +109,7 @@ impl AppEvent {
             AppEvent::PositionUpdate { .. } => "position-update",
             AppEvent::PositionsRefreshed => "positions-refreshed",
             AppEvent::ScannerUpdate { .. } => "scanner-update",
+            AppEvent::MorningPackReady { .. } => "morning-pack-ready",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }
