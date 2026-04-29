@@ -18,22 +18,22 @@ Nothing structurally — this could ship at any time. Sequenced here because Pha
 
 `src-tauri/src/utils/market_calendar/tests.rs`.
 
-- [ ] `is_rth_true_at_1000_et_on_weekday` — Tue 10:00 ET → true.
-- [ ] `is_rth_false_at_0900_et` — pre-open → false.
-- [ ] `is_rth_false_at_1601_et` — post-close → false.
-- [ ] `is_rth_false_on_saturday` — any time → false.
-- [ ] `is_rth_false_on_sunday` — any time → false.
-- [ ] `is_rth_false_on_holiday` — e.g. 2026-07-03 (Friday observed for July 4) → false.
-- [ ] `next_open_at_returns_today_open_when_called_pre_open` — Mon 08:00 ET → Mon 09:30 ET.
-- [ ] `next_open_at_returns_next_business_day_when_called_post_close` — Mon 17:00 ET → Tue 09:30 ET.
-- [ ] `next_open_at_skips_weekend` — Fri 17:00 ET → Mon 09:30 ET.
-- [ ] `next_open_at_skips_holiday` — day before observed July 4 17:00 ET → following business day 09:30 ET.
-- [ ] `next_close_at_within_session` — Tue 14:00 ET → Tue 16:00 ET.
-- [ ] `eod_sweep_target_is_1605_et` — `eod_sweep_target(date)` returns 16:05 ET on that date.
+- [x] `is_rth_true_at_1000_et_on_weekday` — Tue 10:00 ET → true.
+- [x] `is_rth_false_at_0900_et` — pre-open → false.
+- [x] `is_rth_false_at_1601_et` — post-close → false.
+- [x] `is_rth_false_on_saturday` — any time → false.
+- [x] `is_rth_false_on_sunday` — any time → false.
+- [x] `is_rth_false_on_holiday` — e.g. 2026-07-03 (Friday observed for July 4) → false.
+- [x] `next_open_at_returns_today_open_when_called_pre_open` — Mon 08:00 ET → Mon 09:30 ET.
+- [x] `next_open_at_returns_next_business_day_when_called_post_close` — Mon 17:00 ET → Tue 09:30 ET.
+- [x] `next_open_at_skips_weekend` — Fri 17:00 ET → Mon 09:30 ET.
+- [x] `next_open_at_skips_holiday` — day before observed July 4 17:00 ET → following business day 09:30 ET.
+- [x] `next_close_at_within_session` — Tue 14:00 ET → Tue 16:00 ET.
+- [x] `eod_sweep_target_is_1605_et` — `eod_sweep_target(date)` returns 16:05 ET on that date.
 
 ## Implementation tasks
 
-- [ ] Create `src-tauri/src/utils/market_calendar/mod.rs`:
+- [x] Create `src-tauri/src/utils/market_calendar/mod.rs`:
   ```rust
   pub fn is_rth_open(now: DateTime<Utc>) -> bool;
   pub fn is_holiday(date: NaiveDate) -> bool;
@@ -41,15 +41,15 @@ Nothing structurally — this could ship at any time. Sequenced here because Pha
   pub fn next_close_at(now: DateTime<Utc>) -> DateTime<Utc>;
   pub fn eod_sweep_target(date: NaiveDate) -> DateTime<Utc>; // 16:05 ET
   ```
-- [ ] Hardcode US market holidays for the next 3 years in `holidays.rs` as `&[NaiveDate]`. Document in code that this needs annual maintenance.
-- [ ] Use `chrono::FixedOffset::west_opt(5 * 3600).unwrap()` for ET (with a TODO note about EST/EDT — hardcode EST for MVP, since most of the trading day matters and DST adds complexity; revisit only if observed bugs).
-- [ ] Add `pub mod market_calendar;` to `src-tauri/src/utils/mod.rs`.
+- [x] Hardcode US market holidays for the next 3 years in `holidays.rs` as `&[NaiveDate]`. Document in code that this needs annual maintenance.
+- [x] Use `chrono::FixedOffset::west_opt(5 * 3600).unwrap()` for ET (with a TODO note about EST/EDT — hardcode EST for MVP, since most of the trading day matters and DST adds complexity; revisit only if observed bugs).
+- [x] Add `pub mod market_calendar;` to `src-tauri/src/utils/mod.rs`.
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml utils::market_calendar` — all green.
-- [ ] Eyeball a few edge cases manually (holiday list completeness).
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml utils::market_calendar` — all green.
+- [x] Eyeball a few edge cases manually (holiday list completeness).
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 

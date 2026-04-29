@@ -83,7 +83,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 
 ### Scheduling (11–15)
 
-- [ ] **Phase 11** — Market calendar utility (RTH + holidays) — `impl/phase-11-market-calendar.md`
+- [x] **Phase 11** — Market calendar utility (RTH + holidays) — `impl/phase-11-market-calendar.md`
 - [ ] **Phase 12** — Tracker status state machine + transitions — `impl/phase-12-status-state-machine.md`
 - [ ] **Phase 13** — EOD scheduler (16:05 ET full sweep) — `impl/phase-13-eod-scheduler.md`
 - [ ] **Phase 14** — Intraday scheduler (5-min RTH for in-play) — `impl/phase-14-intraday-scheduler.md`

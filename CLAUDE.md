@@ -130,6 +130,7 @@ The Rust backend (`/src-tauri/src`) follows a layered architecture:
     - `tests.rs`: 5 unit tests cover registry ordering, tag filtering, error collection, and target math; `breakout/tests.rs` adds 10 table-driven detector tests; `episodic_pivot/tests.rs` adds 12 table-driven detector tests; `parabolic_short/tests.rs` adds 11 table-driven detector tests; `indicators.rs` carries 11 inline tests including the Wilder-1978 RSI reference fixture.
     - Module-level `#![allow(dead_code, unused_imports)]` is intentional: the framework's public surface is consumed by Phase 07–09 detectors and Phase 13/14 schedulers.
   - `utils/`: Shared utilities
+    - `market_calendar/` (Phase 11): US equity market calendar helpers — `is_rth_open(now: DateTime<Utc>)`, `is_holiday(NaiveDate)`, `next_open_at(now)`, `next_close_at(now)`, `eod_sweep_target(NaiveDate) -> 16:05 ET`. ET is hardcoded as `FixedOffset::west_opt(5 * 3600)` (EST, no DST switching for the MVP — see module-level TODO). Holiday list (`holidays.rs`) is a sorted `&[NaiveDate]` covering 2025–2028 (NYSE full-day closes only, no half-days); `is_holiday` uses `binary_search` so the array MUST stay sorted, and the list needs annual top-up. Module carries `#![allow(dead_code)]` because `next_close_at` / `eod_sweep_target` will be consumed by the Phase 13/14 schedulers. Not registered in `lib.rs` — call sites use `crate::utils::market_calendar::*` directly.
 - **Entry Points**:
   - `main.rs`: Application entry
   - `lib.rs`: Tauri setup, command registration, and state initialization
