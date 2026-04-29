@@ -26,3 +26,4 @@ src-tauri/cache/
 *.njsproj
 *.sln
 *.sw?
+loop.log
