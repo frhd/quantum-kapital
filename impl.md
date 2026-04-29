@@ -97,11 +97,12 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 - [ ] **Phase 19** — News interpreter prompt (Haiku 4.5) — `impl/phase-19-news-interpreter.md`
 - [ ] **Phase 20** — Daily ranker (Sonnet 4.6) + MorningPack UI — `impl/phase-20-daily-ranker.md`
 
-### Polish (21–23)
+### Polish (21–24)
 
 - [ ] **Phase 21** — AlertFeed UI (rolling alerts, mark-as-seen) — `impl/phase-21-alert-feed-ui.md`
 - [ ] **Phase 22** — Configurable detector parameters in settings — `impl/phase-22-detector-config.md`
 - [ ] **Phase 23** — Backtest replay mode — `impl/phase-23-backtest.md`
+- [ ] **Phase 24** — Daily journal skill (`/journal` Claude Code skill + `ibkr_get_executions` command) — `impl/phase-24-daily-journal-skill.md`
 
 ## Out of scope
 
