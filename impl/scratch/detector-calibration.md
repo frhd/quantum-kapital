@@ -13,13 +13,16 @@ Use this when:
 
 | Parameter | Initial value | Source / rationale | Notes after live observation |
 |---|---|---|---|
-| Lookback for high | 20 trading days | Standard "one month" breakout convention | _to fill in Phase 07_ |
-| Volume multiple | 1.5× 20-day avg | Common breakout volume confirmation | _to fill_ |
-| RSI(14) ceiling | 80 | Avoid already-extended names | _to fill_ |
-| ATR period for stop | 14 | Standard | _to fill_ |
-| Stop distance | min(swing_low_10, trigger − 1×ATR) | Tight but not micro-stop | _to fill_ |
+| Lookback for high | 20 trading days, exclusive of today | Standard "one month" breakout convention | Implemented Phase 07; awaits live hits |
+| Volume multiple | ≥ 1.5× 20-day avg (same exclusive window as the high) | Common breakout volume confirmation | _to fill_ |
+| RSI(14) ceiling | strict `< 80` | Avoid already-extended names | _to fill_ |
+| ATR period for stop | 14, Wilder smoothing seeded with SMA of the first 14 TRs | Standard | _to fill_ |
+| Stop distance | `max(swing_low_10, trigger − 1×ATR)` (the *higher* / tighter of the two for longs) | Tight but not micro-stop | _to fill_ |
 | Targets | 2R, 3R | Risk profile (disciplined swing) | _to fill_ |
 | Direction | Long-only (Phase 07) | Bear-side breakouts handled by parabolic-short detector instead | _to fill_ |
+| `min_lookback_days` | 30 | Buffer above the 21 strictly required (20-day high + today, plus 14-period ATR/RSI warm-up) | _to fill_ |
+| Conviction signal | logistic `1 / (1 + exp(−1.2·(vol_mult − 1.5)))`, clamped `[0,1]` | Midpoint at the trigger threshold (1.5×) → conviction = 0.5 there; ≈0.86 at 3.0×; smooth, monotonic | Tweak `k` if backtest shows top-decile clustering |
+| Degenerate-input guard | Returns `None` when `trigger_price ≤ stop_price` (e.g., flat OHLC where ATR = 0 and swing_low = close) | Prevents zero-risk candidates and divide-by-zero in `targets_for_risk_profile` | _to fill_ |
 
 ## Episodic Pivot detector
 

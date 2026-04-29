@@ -6,7 +6,7 @@ A working `BreakoutDetector` that fires long-only on daily-timeframe new-high cl
 
 ## Depends on
 
-- [ ] Phase 06 — `StrategyDetector` trait + `MarketContext` + `SetupCandidate` exist.
+- [x] Phase 06 — `StrategyDetector` trait + `MarketContext` + `SetupCandidate` exist.
 
 ## Out of scope
 
@@ -18,21 +18,21 @@ A working `BreakoutDetector` that fires long-only on daily-timeframe new-high cl
 
 `src-tauri/src/strategies/breakout/tests.rs` with table-driven cases. Each case is a `BarsFixture` (Vec<HistoricalBar>) + expected outcome.
 
-- [ ] `fires_on_new_20d_high_with_volume_confirmation` — synthetic series rises to a new 20d-high close on day T with volume = 2× the 20d avg → `Some(SetupCandidate)` with `direction = Long`, `trigger_price = close[T]`, `stop_price = swing_low_10`, `targets = [2R, 3R]`.
-- [ ] `does_not_fire_without_volume` — same price action but volume = 0.8× avg → `None`.
-- [ ] `does_not_fire_when_not_a_new_high` — price near but not at the 20d high → `None`.
-- [ ] `does_not_fire_when_rsi_above_80` — strong uptrend with RSI(14) at 85 → `None` (overextended).
-- [ ] `requires_min_lookback` — fewer than 20 bars in `daily_bars` → `Err(DetectorError::InsufficientHistory)`.
-- [ ] `stop_uses_min_of_swing_low_and_atr_distance` — case where swing_low_10 = trigger - 0.4×ATR (tighter) → stop = swing_low; case where swing_low_10 = trigger - 1.5×ATR → stop = trigger - 1×ATR.
-- [ ] `targets_are_2r_and_3r_above_trigger_for_long` — given trigger=100, stop=98 → targets `[label='2R', price=104]`, `[label='3R', price=106]`.
-- [ ] `raw_signals_includes_volume_multiple_atr_swing_low` — JSON has keys `lookback_high`, `volume_multiple`, `atr_14`, `swing_low_10`, `rsi_14`.
-- [ ] `conviction_signal_scales_with_volume_multiple` — vol mult 1.5 → ~0.5; vol mult 3.0 → ~0.85; clamped to [0,1].
-- [ ] `degenerate_zero_atr_does_not_panic` — flat-line bars (all close == open == high == low) → `None` rather than divide-by-zero.
+- [x] `fires_on_new_20d_high_with_volume_confirmation` — synthetic series rises to a new 20d-high close on day T with volume = 2× the 20d avg → `Some(SetupCandidate)` with `direction = Long`, `trigger_price = close[T]`, `stop_price = swing_low_10`, `targets = [2R, 3R]`.
+- [x] `does_not_fire_without_volume` — same price action but volume = 0.8× avg → `None`.
+- [x] `does_not_fire_when_not_a_new_high` — price near but not at the 20d high → `None`.
+- [x] `does_not_fire_when_rsi_above_80` — strong uptrend with RSI(14) at 85 → `None` (overextended).
+- [x] `requires_min_lookback` — fewer than 30 bars in `daily_bars` → `Err(DetectorError::InsufficientBars { needed, available })`.
+- [x] `stop_uses_swing_low_when_tighter_than_atr_distance` + `stop_uses_atr_distance_when_swing_low_too_far` — split into two tests that exercise both branches of `max(swing_low_10, trigger − ATR)`.
+- [x] `targets_are_2r_and_3r_above_trigger_for_long` — verifies `targets[0] = trigger + 2R` and `targets[1] = trigger + 3R`.
+- [x] `raw_signals_includes_required_keys` — JSON has keys `lookback_high`, `volume_multiple`, `atr_14`, `swing_low_10`, `rsi_14`.
+- [x] `conviction_signal_scales_with_volume_multiple` — vol mult 1.5 → ~0.5; vol mult 3.0 → ~0.85; clamped to [0,1].
+- [x] `degenerate_zero_atr_does_not_panic` — flat-line bars (all close == open == high == low) → `None` rather than divide-by-zero.
 
 ## Implementation tasks
 
-- [ ] Create `src-tauri/src/strategies/breakout/mod.rs` exposing `BreakoutDetector`.
-- [ ] Create `src-tauri/src/strategies/breakout/detector.rs` implementing `StrategyDetector`:
+- [x] Create `src-tauri/src/strategies/breakout/mod.rs` exposing `BreakoutDetector`.
+- [x] Create `src-tauri/src/strategies/breakout/detector.rs` implementing `StrategyDetector`:
   - `name() = "breakout"`, `tag() = StrategyTag::Breakout`, `timeframe() = BarSize::Day1`, `min_lookback_days() = 30`.
   - `evaluate`:
     1. Validate lookback.
@@ -42,14 +42,14 @@ A working `BreakoutDetector` that fires long-only on daily-timeframe new-high cl
     5. Trigger if `close[-1] >= lookback_high && vol_mult >= 1.5 && rsi_14 < 80`.
     6. `stop = max(swing_low_10, close[-1] - atr_14)` (the *higher* / tighter stop for longs).
     7. Build candidate with `targets_for_risk_profile(Long, trigger, stop)`.
-- [ ] Helper module `src-tauri/src/strategies/indicators.rs` with `atr(bars, period)`, `rsi(bars, period)`, `swing_low(bars, period)`, `swing_high(bars, period)`. Independent unit tests against TA-Lib reference values for known fixtures.
-- [ ] Register the detector in `DetectorRegistry::default()`.
+- [x] Helper module `src-tauri/src/strategies/indicators.rs` with `atr`, `rsi`, `swing_low`, `swing_high`. Inline unit tests cover the Wilder reference fixture, edge cases (all-flat / all-up / all-down), and oversize-window rejection.
+- [x] Register the detector in `default_registry()` (top-level constructor in `strategies/mod.rs`; `DetectorRegistry::default()` itself remains the empty registry).
 
 ## Verification
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml strategies::breakout` — all green.
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml strategies::indicators` — green.
-- [ ] `cargo clippy ...`, `cargo fmt --check`.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml strategies::breakout` — all green.
+- [x] `cargo test --manifest-path src-tauri/Cargo.toml strategies::indicators` — green.
+- [x] `cargo clippy ...`, `cargo fmt --check`.
 
 ## Files
 

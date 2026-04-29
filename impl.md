@@ -76,7 +76,7 @@ Each phase is an independently shippable, test-covered slice. The numbering refl
 ### Detector framework (6–10)
 
 - [x] **Phase 06** — `StrategyDetector` trait, `MarketContext`, `SetupCandidate`, registry — `impl/phase-06-detector-framework.md`
-- [ ] **Phase 07** — Breakout detector + table-driven tests — `impl/phase-07-breakout-detector.md`
+- [x] **Phase 07** — Breakout detector + table-driven tests — `impl/phase-07-breakout-detector.md`
 - [ ] **Phase 08** — Episodic Pivot detector + tests — `impl/phase-08-episodic-pivot-detector.md`
 - [ ] **Phase 09** — Parabolic Short detector + tests — `impl/phase-09-parabolic-short-detector.md`
 - [ ] **Phase 10** — `tracker_run_now` command + setup persistence — `impl/phase-10-run-now.md`
