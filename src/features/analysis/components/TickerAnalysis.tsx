@@ -24,9 +24,11 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
     clearSelection,
   } = useTickerSearch()
 
-  const { results, fundamentalData, loading: projectionsLoading, error: projectionsError } = useProjections(
-    selectedTicker?.symbol || null
-  )
+  const {
+    results,
+    loading: projectionsLoading,
+    error: projectionsError,
+  } = useProjections(selectedTicker?.symbol || null)
 
   useEffect(() => {
     if (pendingSymbol) {
@@ -39,8 +41,8 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
   return (
     <div className="space-y-6">
       {/* Search Input */}
-      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs overflow-visible relative z-50">
-        <CardContent className="pt-6 overflow-visible">
+      <Card className="relative z-50 overflow-visible border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+        <CardContent className="overflow-visible pt-6">
           <TickerSearch
             searchQuery={searchQuery}
             searchResults={searchResults}
@@ -53,9 +55,9 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
 
       {/* Loading State */}
       {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="bg-slate-800/50 border-slate-700">
+            <Card key={i} className="border-slate-700 bg-slate-800/50">
               <CardContent className="pt-6">
                 <Skeleton className="h-24 bg-slate-700" />
               </CardContent>
@@ -71,13 +73,13 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
       {selectedTicker && !loading && (
         <>
           {projectionsLoading ? (
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="border-slate-700 bg-slate-800/50">
               <CardContent className="pt-6">
                 <Skeleton className="h-96 bg-slate-700" />
               </CardContent>
             </Card>
           ) : projectionsError ? (
-            <Alert className="bg-red-900/20 border-red-900/50">
+            <Alert className="border-red-900/50 bg-red-900/20">
               <AlertCircle className="h-4 w-4 text-red-400" />
               <AlertDescription className="text-red-300">
                 Failed to load projections: {projectionsError}

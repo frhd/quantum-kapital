@@ -1,5 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../shared/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../shared/components/ui/table"
 import { Info } from "lucide-react"
 import type { ScenarioProjections, ProjectionAssumptions } from "../../../shared/types"
 import { defaultProjectionAssumptions } from "../../../shared/types"
@@ -9,16 +16,19 @@ interface ProjectionSummaryProps {
   assumptions?: ProjectionAssumptions
 }
 
-export function ProjectionSummary({ projections, assumptions = defaultProjectionAssumptions }: ProjectionSummaryProps) {
+export function ProjectionSummary({
+  projections,
+  assumptions = defaultProjectionAssumptions,
+}: ProjectionSummaryProps) {
   // Get baseline data from the first year of base case projections
   const baseline = projections.base[0]
 
   // Safety check: ensure baseline exists
   if (!baseline) {
     return (
-      <Card className="bg-slate-800/30 border-slate-700/50">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardContent className="pt-6">
-          <p className="text-slate-400 text-center">No projection data available</p>
+          <p className="text-center text-slate-400">No projection data available</p>
         </CardContent>
       </Card>
     )
@@ -33,41 +43,39 @@ export function ProjectionSummary({ projections, assumptions = defaultProjection
   return (
     <div className="space-y-4">
       {/* Baseline Metrics */}
-      <Card className="bg-slate-800/30 border-slate-700/50">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300 flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
             <Info className="h-4 w-4 text-blue-400" />
             Baseline Metrics ({baselineYear})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
             <div>
-              <p className="text-slate-500 text-xs">Revenue</p>
-              <p className="text-white font-semibold">{formatBillions(baseline.revenue)}</p>
+              <p className="text-xs text-slate-500">Revenue</p>
+              <p className="font-semibold text-white">{formatBillions(baseline.revenue)}</p>
             </div>
             <div>
-              <p className="text-slate-500 text-xs">Net Income</p>
-              <p className="text-white font-semibold">{formatBillions(baseline.netIncome)}</p>
+              <p className="text-xs text-slate-500">Net Income</p>
+              <p className="font-semibold text-white">{formatBillions(baseline.netIncome)}</p>
             </div>
             <div>
-              <p className="text-slate-500 text-xs">Net Margin</p>
-              <p className="text-white font-semibold">{formatPercent(baseline.netIncomeMargins)}</p>
+              <p className="text-xs text-slate-500">Net Margin</p>
+              <p className="font-semibold text-white">{formatPercent(baseline.netIncomeMargins)}</p>
             </div>
             <div>
-              <p className="text-slate-500 text-xs">EPS</p>
-              <p className="text-white font-semibold">${baseline.eps.toFixed(2)}</p>
+              <p className="text-xs text-slate-500">EPS</p>
+              <p className="font-semibold text-white">${baseline.eps.toFixed(2)}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Scenario Assumptions */}
-      <Card className="bg-slate-800/30 border-slate-700/50">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300">
-            Scenario Assumptions
-          </CardTitle>
+          <CardTitle className="text-sm font-medium text-slate-300">Scenario Assumptions</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -82,27 +90,32 @@ export function ProjectionSummary({ projections, assumptions = defaultProjection
               </TableHeader>
               <TableBody>
                 <TableRow className="border-slate-700/50">
-                  <TableCell className="text-slate-300 text-sm">Annual Revenue Growth</TableCell>
-                  <TableCell className="text-center text-white text-sm">
+                  <TableCell className="text-sm text-slate-300">Annual Revenue Growth</TableCell>
+                  <TableCell className="text-center text-sm text-white">
                     {formatPercent(assumptions.bearRevenueGrowth)}
                   </TableCell>
-                  <TableCell className="text-center text-white text-sm">
+                  <TableCell className="text-center text-sm text-white">
                     {formatPercent(assumptions.baseRevenueGrowth)}
                   </TableCell>
-                  <TableCell className="text-center text-white text-sm">
+                  <TableCell className="text-center text-sm text-white">
                     {formatPercent(assumptions.bullRevenueGrowth)}
                   </TableCell>
                 </TableRow>
                 <TableRow className="border-slate-700/50">
-                  <TableCell className="text-slate-300 text-sm">Margin Change (ppts/year)</TableCell>
-                  <TableCell className="text-center text-white text-sm">
-                    {assumptions.bearMarginChange > 0 ? '+' : ''}{assumptions.bearMarginChange.toFixed(1)}
+                  <TableCell className="text-sm text-slate-300">
+                    Margin Change (ppts/year)
                   </TableCell>
-                  <TableCell className="text-center text-white text-sm">
-                    {assumptions.baseMarginChange > 0 ? '+' : ''}{assumptions.baseMarginChange.toFixed(1)}
+                  <TableCell className="text-center text-sm text-white">
+                    {assumptions.bearMarginChange > 0 ? "+" : ""}
+                    {assumptions.bearMarginChange.toFixed(1)}
                   </TableCell>
-                  <TableCell className="text-center text-white text-sm">
-                    {assumptions.bullMarginChange > 0 ? '+' : ''}{assumptions.bullMarginChange.toFixed(1)}
+                  <TableCell className="text-center text-sm text-white">
+                    {assumptions.baseMarginChange > 0 ? "+" : ""}
+                    {assumptions.baseMarginChange.toFixed(1)}
+                  </TableCell>
+                  <TableCell className="text-center text-sm text-white">
+                    {assumptions.bullMarginChange > 0 ? "+" : ""}
+                    {assumptions.bullMarginChange.toFixed(1)}
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -110,28 +123,29 @@ export function ProjectionSummary({ projections, assumptions = defaultProjection
           </div>
 
           {/* Valuation Assumptions */}
-          <div className="mt-4 pt-4 border-t border-slate-700/50">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="mt-4 border-t border-slate-700/50 pt-4">
+            <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
               <div>
-                <p className="text-slate-500 text-xs">P/E Range (Profitable)</p>
-                <p className="text-white font-semibold">
+                <p className="text-xs text-slate-500">P/E Range (Profitable)</p>
+                <p className="font-semibold text-white">
                   {formatNumber(assumptions.peLow)} - {formatNumber(assumptions.peHigh)}
                 </p>
               </div>
               <div>
-                <p className="text-slate-500 text-xs">P/S Range (Unprofitable)</p>
-                <p className="text-white font-semibold">
+                <p className="text-xs text-slate-500">P/S Range (Unprofitable)</p>
+                <p className="font-semibold text-white">
                   {formatNumber(assumptions.psLow)} - {formatNumber(assumptions.psHigh)}
                 </p>
               </div>
               <div>
-                <p className="text-slate-500 text-xs">Projection Period</p>
-                <p className="text-white font-semibold">{assumptions.years} years</p>
+                <p className="text-xs text-slate-500">Projection Period</p>
+                <p className="font-semibold text-white">{assumptions.years} years</p>
               </div>
               <div>
-                <p className="text-slate-500 text-xs">Shares Growth</p>
-                <p className="text-white font-semibold">
-                  {assumptions.sharesGrowth > 0 ? '+' : ''}{formatPercent(assumptions.sharesGrowth)}
+                <p className="text-xs text-slate-500">Shares Growth</p>
+                <p className="font-semibold text-white">
+                  {assumptions.sharesGrowth > 0 ? "+" : ""}
+                  {formatPercent(assumptions.sharesGrowth)}
                 </p>
               </div>
             </div>
@@ -140,21 +154,33 @@ export function ProjectionSummary({ projections, assumptions = defaultProjection
       </Card>
 
       {/* Data Sources */}
-      <Card className="bg-slate-800/30 border-slate-700/50">
+      <Card className="border-slate-700/50 bg-slate-800/30">
         <CardContent className="pt-4">
-          <div className="text-xs text-slate-400 space-y-1">
+          <div className="space-y-1 text-xs text-slate-400">
             <p className="font-medium text-slate-300">Data Sources & Methodology:</p>
-            <ul className="list-disc list-inside space-y-0.5 ml-2">
+            <ul className="ml-2 list-inside list-disc space-y-0.5">
               <li>Historical financials: Based on company filings and reported results</li>
               <li>Baseline metrics: Most recent fiscal year data (FY{baselineYear - 1})</li>
-              <li>Analyst estimates: Consensus EPS forecasts from Wall Street analysts (via Alpha Vantage)</li>
-              <li>Growth projections: Scenario-based modeling with varying revenue and margin assumptions</li>
-              <li>Valuation: Hybrid approach - P/E multiples for profitable companies, P/S multiples for unprofitable companies</li>
-              <li>CAGR: Compound annual growth rate from {baselineYear} to {baselineYear + assumptions.years - 1}</li>
+              <li>
+                Analyst estimates: Consensus EPS forecasts from Wall Street analysts (via Alpha
+                Vantage)
+              </li>
+              <li>
+                Growth projections: Scenario-based modeling with varying revenue and margin
+                assumptions
+              </li>
+              <li>
+                Valuation: Hybrid approach - P/E multiples for profitable companies, P/S multiples
+                for unprofitable companies
+              </li>
+              <li>
+                CAGR: Compound annual growth rate from {baselineYear} to{" "}
+                {baselineYear + assumptions.years - 1}
+              </li>
             </ul>
             <p className="mt-2 text-slate-500 italic">
-              Note: These projections are illustrative scenarios based on current data and assumptions.
-              Actual results may vary significantly. Not investment advice.
+              Note: These projections are illustrative scenarios based on current data and
+              assumptions. Actual results may vary significantly. Not investment advice.
             </p>
           </div>
         </CardContent>

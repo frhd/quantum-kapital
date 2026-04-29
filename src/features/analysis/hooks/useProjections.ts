@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react"
 import { ibkrApi } from "../../../shared/api/ibkr"
-import type { ProjectionResults, ProjectionAssumptions, FundamentalData } from "../../../shared/types"
+import type {
+  ProjectionResults,
+  ProjectionAssumptions,
+  FundamentalData,
+} from "../../../shared/types"
 
 export function useProjections(symbol: string | null, assumptions?: ProjectionAssumptions) {
   const [results, setResults] = useState<ProjectionResults | null>(null)
@@ -23,7 +27,7 @@ export function useProjections(symbol: string | null, assumptions?: ProjectionAs
         // Fetch both fundamental data and projection results
         const [fundamentals, projectionResults] = await Promise.all([
           ibkrApi.getFundamentalData(symbol),
-          ibkrApi.generateProjectionResults(symbol, assumptions)
+          ibkrApi.generateProjectionResults(symbol, assumptions),
         ])
 
         setFundamentalData(fundamentals)

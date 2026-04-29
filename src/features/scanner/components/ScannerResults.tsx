@@ -1,5 +1,18 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../shared/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../shared/components/ui/table"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../../shared/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../shared/components/ui/table"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
 import { TrendingUp, AlertCircle } from "lucide-react"
@@ -13,11 +26,17 @@ interface ScannerResultsProps {
   onSelectSymbol: (symbol: string) => void
 }
 
-export function ScannerResults({ results, lastUpdate, isRunning, error, onSelectSymbol }: ScannerResultsProps) {
+export function ScannerResults({
+  results,
+  lastUpdate,
+  isRunning,
+  error,
+  onSelectSymbol,
+}: ScannerResultsProps) {
   return (
-    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
+    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <TrendingUp className="h-5 w-5 text-blue-400" />
           Scanner Results
         </CardTitle>
@@ -43,37 +62,44 @@ export function ScannerResults({ results, lastUpdate, isRunning, error, onSelect
               <Skeleton className="h-8 w-full bg-slate-700/50" />
             </div>
           ) : (
-            <p className="text-slate-400 text-sm py-6 text-center">No results yet. Configure filters and click Start Scan.</p>
+            <p className="py-6 text-center text-sm text-slate-400">
+              No results yet. Configure filters and click Start Scan.
+            </p>
           )
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700 h-8">
-                  <TableHead className="text-slate-300 text-right text-xs py-2 w-16">Rank</TableHead>
-                  <TableHead className="text-slate-300 text-xs py-2">Symbol</TableHead>
-                  <TableHead className="text-slate-300 text-xs py-2">Exchange</TableHead>
-                  <TableHead className="text-slate-300 text-xs py-2">Currency</TableHead>
+                <TableRow className="h-8 border-slate-700">
+                  <TableHead className="w-16 py-2 text-right text-xs text-slate-300">
+                    Rank
+                  </TableHead>
+                  <TableHead className="py-2 text-xs text-slate-300">Symbol</TableHead>
+                  <TableHead className="py-2 text-xs text-slate-300">Exchange</TableHead>
+                  <TableHead className="py-2 text-xs text-slate-300">Currency</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {results.map((row) => (
                   <TableRow
                     key={`${row.rank}-${row.contract.contract_id}`}
-                    className="border-slate-700 h-10 cursor-pointer hover:bg-slate-700/50 transition-colors"
+                    className="h-10 cursor-pointer border-slate-700 transition-colors hover:bg-slate-700/50"
                     onClick={() => onSelectSymbol(row.contract.symbol)}
                   >
-                    <TableCell className="text-right text-white text-sm py-2">{row.rank}</TableCell>
-                    <TableCell className="font-medium text-white py-2">
+                    <TableCell className="py-2 text-right text-sm text-white">{row.rank}</TableCell>
+                    <TableCell className="py-2 font-medium text-white">
                       <div className="text-sm">{row.contract.symbol}</div>
-                      {row.contract.local_symbol && row.contract.local_symbol !== row.contract.symbol && (
-                        <div className="text-xs text-slate-500">{row.contract.local_symbol}</div>
-                      )}
+                      {row.contract.local_symbol &&
+                        row.contract.local_symbol !== row.contract.symbol && (
+                          <div className="text-xs text-slate-500">{row.contract.local_symbol}</div>
+                        )}
                     </TableCell>
-                    <TableCell className="text-slate-300 text-sm py-2">
+                    <TableCell className="py-2 text-sm text-slate-300">
                       {row.contract.primary_exchange || row.contract.exchange}
                     </TableCell>
-                    <TableCell className="text-slate-300 text-sm py-2">{row.contract.currency}</TableCell>
+                    <TableCell className="py-2 text-sm text-slate-300">
+                      {row.contract.currency}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

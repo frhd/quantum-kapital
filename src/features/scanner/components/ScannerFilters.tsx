@@ -1,5 +1,11 @@
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../shared/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../../shared/components/ui/card"
 import { Button } from "../../../shared/components/ui/button"
 import { Input } from "../../../shared/components/ui/input"
 import { Label } from "../../../shared/components/ui/label"
@@ -72,9 +78,9 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
   }
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
+    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="text-white flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-white">
           <Search className="h-5 w-5 text-blue-400" />
           Scanner Filters
         </CardTitle>
@@ -83,9 +89,11 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label htmlFor="scan-code" className="text-slate-300">Scan</Label>
+            <Label htmlFor="scan-code" className="text-slate-300">
+              Scan
+            </Label>
             <select
               id="scan-code"
               className={selectClass}
@@ -94,12 +102,16 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               disabled={isRunning}
             >
               {SCAN_CODES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="location-code" className="text-slate-300">Location</Label>
+            <Label htmlFor="location-code" className="text-slate-300">
+              Location
+            </Label>
             <select
               id="location-code"
               className={selectClass}
@@ -108,12 +120,16 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               disabled={isRunning}
             >
               {LOCATION_CODES.map((l) => (
-                <option key={l.value} value={l.value}>{l.label}</option>
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="row-count" className="text-slate-300">Rows</Label>
+            <Label htmlFor="row-count" className="text-slate-300">
+              Rows
+            </Label>
             <Input
               id="row-count"
               type="number"
@@ -126,42 +142,82 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <div className="space-y-2">
-            <Label htmlFor="above-price" className="text-slate-300">Min Price</Label>
-            <Input id="above-price" type="number" placeholder="—" value={abovePrice}
-              onChange={(e) => setAbovePrice(e.target.value)} disabled={isRunning} />
+            <Label htmlFor="above-price" className="text-slate-300">
+              Min Price
+            </Label>
+            <Input
+              id="above-price"
+              type="number"
+              placeholder="—"
+              value={abovePrice}
+              onChange={(e) => setAbovePrice(e.target.value)}
+              disabled={isRunning}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="below-price" className="text-slate-300">Max Price</Label>
-            <Input id="below-price" type="number" placeholder="—" value={belowPrice}
-              onChange={(e) => setBelowPrice(e.target.value)} disabled={isRunning} />
+            <Label htmlFor="below-price" className="text-slate-300">
+              Max Price
+            </Label>
+            <Input
+              id="below-price"
+              type="number"
+              placeholder="—"
+              value={belowPrice}
+              onChange={(e) => setBelowPrice(e.target.value)}
+              disabled={isRunning}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="above-volume" className="text-slate-300">Min Volume</Label>
-            <Input id="above-volume" type="number" placeholder="—" value={aboveVolume}
-              onChange={(e) => setAboveVolume(e.target.value)} disabled={isRunning} />
+            <Label htmlFor="above-volume" className="text-slate-300">
+              Min Volume
+            </Label>
+            <Input
+              id="above-volume"
+              type="number"
+              placeholder="—"
+              value={aboveVolume}
+              onChange={(e) => setAboveVolume(e.target.value)}
+              disabled={isRunning}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="mcap-above" className="text-slate-300">Min Mkt Cap</Label>
-            <Input id="mcap-above" type="number" placeholder="—" value={marketCapAbove}
-              onChange={(e) => setMarketCapAbove(e.target.value)} disabled={isRunning} />
+            <Label htmlFor="mcap-above" className="text-slate-300">
+              Min Mkt Cap
+            </Label>
+            <Input
+              id="mcap-above"
+              type="number"
+              placeholder="—"
+              value={marketCapAbove}
+              onChange={(e) => setMarketCapAbove(e.target.value)}
+              disabled={isRunning}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="mcap-below" className="text-slate-300">Max Mkt Cap</Label>
-            <Input id="mcap-below" type="number" placeholder="—" value={marketCapBelow}
-              onChange={(e) => setMarketCapBelow(e.target.value)} disabled={isRunning} />
+            <Label htmlFor="mcap-below" className="text-slate-300">
+              Max Mkt Cap
+            </Label>
+            <Input
+              id="mcap-below"
+              type="number"
+              placeholder="—"
+              value={marketCapBelow}
+              onChange={(e) => setMarketCapBelow(e.target.value)}
+              disabled={isRunning}
+            />
           </div>
         </div>
 
         <div className="flex gap-2">
           {!isRunning ? (
             <Button onClick={handleStart} className="bg-blue-600 hover:bg-blue-700">
-              <Search className="h-4 w-4 mr-2" /> Start Scan
+              <Search className="mr-2 h-4 w-4" /> Start Scan
             </Button>
           ) : (
             <Button onClick={onStop} variant="outline" className="border-slate-600 text-slate-200">
-              <Square className="h-4 w-4 mr-2" /> Stop
+              <Square className="mr-2 h-4 w-4" /> Stop
             </Button>
           )}
         </div>

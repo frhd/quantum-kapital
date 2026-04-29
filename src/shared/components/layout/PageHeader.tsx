@@ -9,14 +9,18 @@ interface PageHeaderProps {
   onDisconnect: () => void
 }
 
-export function PageHeader({ connectionStatus, loading, disconnecting, onConnect, onDisconnect }: PageHeaderProps) {
+export function PageHeader({
+  connectionStatus,
+  loading,
+  disconnecting,
+  onConnect,
+  onDisconnect,
+}: PageHeaderProps) {
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h1 className="text-4xl font-bold text-white">
-          The Road to 1M
-        </h1>
-        <p className="text-slate-400 mt-1">Portfolio Dashboard</p>
+        <h1 className="text-4xl font-bold text-white">The Road to 1M</h1>
+        <p className="mt-1 text-slate-400">Portfolio Dashboard</p>
       </div>
       <ConnectionStatus
         connectionStatus={connectionStatus}

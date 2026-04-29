@@ -1,4 +1,11 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../shared/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../shared/components/ui/table"
 import { Badge } from "../../../shared/components/ui/badge"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import type { FinancialProjection, CagrMetrics } from "../../../shared/types"
@@ -6,39 +13,39 @@ import type { FinancialProjection, CagrMetrics } from "../../../shared/types"
 interface ForwardAnalysisTableProps {
   projections: FinancialProjection[]
   cagr: CagrMetrics
-  scenarioType: 'bear' | 'base' | 'bull'
+  scenarioType: "bear" | "base" | "bull"
 }
 
-export function ForwardAnalysisTable({ projections, cagr, scenarioType }: ForwardAnalysisTableProps) {
+export function ForwardAnalysisTable({
+  projections,
+  cagr,
+  scenarioType,
+}: ForwardAnalysisTableProps) {
   // Validate projections array
   if (!projections || projections.length === 0) {
-    return (
-      <div className="text-slate-400 text-center py-8">
-        No projection data available
-      </div>
-    )
+    return <div className="py-8 text-center text-slate-400">No projection data available</div>
   }
 
   const formatBillions = (value: number | null | undefined) =>
-    value != null ? `$${value.toFixed(2)}B` : '—'
+    value != null ? `$${value.toFixed(2)}B` : "—"
   const formatPercent = (value: number | null | undefined) =>
-    value != null ? `${value.toFixed(1)}%` : '—'
+    value != null ? `${value.toFixed(1)}%` : "—"
   const formatDollars = (value: number | null | undefined) =>
-    value != null ? `$${value.toFixed(2)}` : '—'
+    value != null ? `$${value.toFixed(2)}` : "—"
   const formatNumber = (value: number | null | undefined) =>
-    value != null ? value.toFixed(1) : '—'
+    value != null ? value.toFixed(1) : "—"
 
   // Color scheme based on scenario
   const scenarioColors = {
-    bear: 'from-red-500/20 to-orange-500/20',
-    base: 'from-blue-500/20 to-cyan-500/20',
-    bull: 'from-green-500/20 to-emerald-500/20',
+    bear: "from-red-500/20 to-orange-500/20",
+    base: "from-blue-500/20 to-cyan-500/20",
+    bull: "from-green-500/20 to-emerald-500/20",
   }
 
   const textColors = {
-    bear: 'text-red-400',
-    base: 'text-blue-400',
-    bull: 'text-green-400',
+    bear: "text-red-400",
+    base: "text-blue-400",
+    bull: "text-green-400",
   }
 
   return (
@@ -46,13 +53,13 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
       <Table>
         <TableHeader>
           <TableRow className="border-slate-700/50">
-            <TableHead className="text-slate-400 font-semibold">METRIC</TableHead>
+            <TableHead className="font-semibold text-slate-400">METRIC</TableHead>
             {projections.map((proj) => (
-              <TableHead key={proj.year} className="text-center text-slate-300 font-semibold">
+              <TableHead key={proj.year} className="text-center font-semibold text-slate-300">
                 {proj.year}
               </TableHead>
             ))}
-            <TableHead className="text-center text-slate-300 font-semibold">CAGR</TableHead>
+            <TableHead className="text-center font-semibold text-slate-300">CAGR</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -74,7 +81,7 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
             <TableCell className="font-medium text-slate-300">Rev Growth</TableCell>
             {projections.map((proj, idx) => (
               <TableCell key={`revg-${proj.year}`} className="text-center text-slate-400">
-                {idx === 0 ? '—' : formatPercent(proj.revenueGrowth)}
+                {idx === 0 ? "—" : formatPercent(proj.revenueGrowth)}
               </TableCell>
             ))}
             <TableCell className="text-center text-slate-500">—</TableCell>
@@ -125,11 +132,14 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
           </TableRow>
 
           {/* Analyst EPS Estimate Row (if available) */}
-          {projections.some(p => p.analystEpsEstimate != null) && (
-            <TableRow className="border-slate-700/50 hover:bg-slate-800/30 bg-blue-500/5">
-              <TableCell className="font-medium text-slate-300 flex items-center gap-2">
+          {projections.some((p) => p.analystEpsEstimate != null) && (
+            <TableRow className="border-slate-700/50 bg-blue-500/5 hover:bg-slate-800/30">
+              <TableCell className="flex items-center gap-2 font-medium text-slate-300">
                 <span>Analyst Consensus</span>
-                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-blue-400/30 text-blue-400">
+                <Badge
+                  variant="outline"
+                  className="h-4 border-blue-400/30 px-1 py-0 text-[10px] text-blue-400"
+                >
                   Wall St.
                 </Badge>
               </TableCell>
@@ -148,7 +158,8 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
 
                 // Determine sentiment
                 let icon = null
-                let badgeVariant: "default" | "secondary" | "destructive" | "outline-solid" = "secondary"
+                let badgeVariant: "default" | "secondary" | "destructive" | "outline-solid" =
+                  "secondary"
                 let badgeText = ""
 
                 if (Math.abs(diffPercent) < 5) {
@@ -168,10 +179,13 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
                 return (
                   <TableCell key={`analyst-${proj.year}`} className="text-center">
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-blue-300 font-medium">
+                      <span className="font-medium text-blue-300">
                         {formatDollars(proj.analystEpsEstimate)}
                       </span>
-                      <Badge variant={badgeVariant} className="text-[10px] px-1 py-0 h-4 flex items-center gap-0.5">
+                      <Badge
+                        variant={badgeVariant}
+                        className="flex h-4 items-center gap-0.5 px-1 py-0 text-[10px]"
+                      >
                         {icon}
                         {badgeText}
                       </Badge>
@@ -195,10 +209,15 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
           </TableRow>
 
           {/* Share Price Range - Low */}
-          <TableRow className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}>
+          <TableRow
+            className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}
+          >
             <TableCell className="font-medium text-slate-300">Share Price Low</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`spl-${proj.year}`} className={`text-center font-semibold ${textColors[scenarioType]}`}>
+              <TableCell
+                key={`spl-${proj.year}`}
+                className={`text-center font-semibold ${textColors[scenarioType]}`}
+              >
                 {formatDollars(proj.sharePriceLow)}
               </TableCell>
             ))}
@@ -206,10 +225,15 @@ export function ForwardAnalysisTable({ projections, cagr, scenarioType }: Forwar
           </TableRow>
 
           {/* Share Price Range - High */}
-          <TableRow className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}>
+          <TableRow
+            className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}
+          >
             <TableCell className="font-medium text-slate-300">Share Price High</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`sph-${proj.year}`} className={`text-center font-semibold ${textColors[scenarioType]}`}>
+              <TableCell
+                key={`sph-${proj.year}`}
+                className={`text-center font-semibold ${textColors[scenarioType]}`}
+              >
                 {formatDollars(proj.sharePriceHigh)}
               </TableCell>
             ))}

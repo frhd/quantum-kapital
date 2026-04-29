@@ -10,21 +10,27 @@ interface ConnectionStatusProps {
   onDisconnect: () => void
 }
 
-export function ConnectionStatus({ connectionStatus, loading, disconnecting, onConnect, onDisconnect }: ConnectionStatusProps) {
+export function ConnectionStatus({
+  connectionStatus,
+  loading,
+  disconnecting,
+  onConnect,
+  onDisconnect,
+}: ConnectionStatusProps) {
   return (
     <div className="flex items-center gap-4">
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
+      <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2">
         {connectionStatus.connected ? (
           <>
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <div className="h-2 w-2 animate-pulse rounded-full bg-green-400"></div>
             <CheckCircle className="h-4 w-4 text-green-400" />
-            <span className="text-sm text-green-400 font-medium">Connected</span>
+            <span className="text-sm font-medium text-green-400">Connected</span>
           </>
         ) : (
           <>
-            <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+            <div className="h-2 w-2 rounded-full bg-red-400"></div>
             <AlertCircle className="h-4 w-4 text-red-400" />
-            <span className="text-sm text-red-400 font-medium">Disconnected</span>
+            <span className="text-sm font-medium text-red-400">Disconnected</span>
           </>
         )}
       </div>
@@ -33,9 +39,9 @@ export function ConnectionStatus({ connectionStatus, loading, disconnecting, onC
           onClick={onDisconnect}
           disabled={disconnecting}
           variant="outline"
-          className="border-slate-600 hover:bg-slate-800 bg-transparent"
+          className="border-slate-600 bg-transparent hover:bg-slate-800"
         >
-          <WifiOff className="h-4 w-4 mr-2" />
+          <WifiOff className="mr-2 h-4 w-4" />
           {disconnecting ? "Disconnecting..." : "Disconnect"}
         </Button>
       ) : (
@@ -44,7 +50,7 @@ export function ConnectionStatus({ connectionStatus, loading, disconnecting, onC
           disabled={loading}
           className="bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
         >
-          <Wifi className="h-4 w-4 mr-2" />
+          <Wifi className="mr-2 h-4 w-4" />
           {loading ? "Connecting..." : "Connect"}
         </Button>
       )}

@@ -49,7 +49,11 @@ export function useConnection() {
       return status
     } catch (err) {
       console.error("Failed to connect to IBKR:", err)
-      setError(typeof err === 'string' ? err : 'Failed to connect to IBKR. Please ensure TWS/Gateway is running.')
+      setError(
+        typeof err === "string"
+          ? err
+          : "Failed to connect to IBKR. Please ensure TWS/Gateway is running.",
+      )
       throw err
     } finally {
       setLoading(false)
@@ -73,7 +77,7 @@ export function useConnection() {
       console.log("🔴 FRONTEND: Successfully disconnected from IBKR")
     } catch (err) {
       console.error("🔴 FRONTEND: Failed to disconnect:", err)
-      setError(typeof err === 'string' ? err : 'Failed to disconnect from IBKR')
+      setError(typeof err === "string" ? err : "Failed to disconnect from IBKR")
       throw err
     } finally {
       console.log("🔴 FRONTEND: Setting disconnecting = false")

@@ -9,7 +9,7 @@ import type {
   ScenarioProjections,
   ProjectionResults,
   ProjectionAssumptions,
-  ScannerSubscription
+  ScannerSubscription,
 } from "../types"
 
 export const ibkrApi = {
@@ -75,5 +75,5 @@ export const ibkrApi = {
 
   stopScanner: async () => {
     return invoke<void>("ibkr_stop_scanner")
-  }
+  },
 }

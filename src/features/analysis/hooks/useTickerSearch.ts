@@ -42,12 +42,12 @@ export function useTickerSearch() {
 
       // Filter cached tickers by symbol
       const filtered = cachedTickers.filter((ticker) =>
-        ticker.symbol.toLowerCase().includes(query.toLowerCase())
+        ticker.symbol.toLowerCase().includes(query.toLowerCase()),
       )
 
       setSearchResults(filtered)
     },
-    [cachedTickers]
+    [cachedTickers],
   )
 
   const selectTicker = useCallback(async (symbol: string) => {

@@ -1,0 +1,15 @@
+dist
+node_modules
+pnpm-lock.yaml
+
+# CI / infra — out of scope for frontend formatter
+.github
+
+# Rust workspace — formatted by `cargo fmt`; capabilities are Tauri-managed
+src-tauri/target
+src-tauri/gen
+src-tauri/capabilities
+
+# Documentation — preserve hand-authored layout
+*.md
+work

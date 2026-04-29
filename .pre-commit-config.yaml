@@ -16,9 +16,38 @@ repos:
         description: Run clippy on Rust code
         entry: cargo
         language: system
-        args: [clippy, --manifest-path, src-tauri/Cargo.toml, --all-targets, --all-features, --, -D, warnings]
+        args:
+          [
+            clippy,
+            --manifest-path,
+            src-tauri/Cargo.toml,
+            --all-targets,
+            --all-features,
+            --,
+            -D,
+            warnings,
+          ]
         types: [rust]
         pass_filenames: false
+
+  # Frontend formatting and linting
+  - repo: local
+    hooks:
+      - id: prettier-check
+        name: prettier --check
+        description: Check JS/TS/CSS/JSON formatting
+        entry: pnpm exec prettier --check
+        language: system
+        types_or: [ts, tsx, javascript, jsx, css, json]
+        exclude: ^(pnpm-lock\.yaml|src-tauri/(target|gen)/)
+
+      - id: eslint
+        name: eslint
+        description: Lint JS/TS source files
+        entry: pnpm exec eslint
+        language: system
+        files: \.(ts|tsx)$
+        exclude: ^(dist|node_modules|src-tauri/)
 
   # General hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks

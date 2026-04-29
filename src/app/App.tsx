@@ -18,7 +18,10 @@ import { useAccountData } from "../features/portfolio/hooks/useAccountData"
 export default function App() {
   const [activeTab, setActiveTab] = useState("analysis")
   const nonceRef = useRef(0)
-  const [pendingAnalysisSymbol, setPendingAnalysisSymbol] = useState<{ symbol: string; nonce: number } | null>(null)
+  const [pendingAnalysisSymbol, setPendingAnalysisSymbol] = useState<{
+    symbol: string
+    nonce: number
+  } | null>(null)
 
   const handleSelectFromScanner = (symbol: string) => {
     nonceRef.current += 1
@@ -37,13 +40,8 @@ export default function App() {
     disconnect,
   } = useConnection()
 
-  const {
-    accounts,
-    accountSummary,
-    positions,
-    fetchAccountData,
-    clearAccountData,
-  } = useAccountData()
+  const { accounts, accountSummary, positions, fetchAccountData, clearAccountData } =
+    useAccountData()
 
   // Fetch account data when connection is detected on mount
   useEffect(() => {
@@ -59,7 +57,7 @@ export default function App() {
       // The useEffect above watches connectionStatus.connected and runs
       // fetchAccountData(); calling it here too caused parallel calls that
       // raced on ibapi's shared account_updates channel, splitting positions.
-    } catch (err) {
+    } catch {
       // Error is already handled in the hook
     }
   }
@@ -77,7 +75,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 space-y-6">
+    <div className="min-h-screen space-y-6 bg-slate-900 p-4 text-white">
       {/* Header */}
       <PageHeader
         connectionStatus={connectionStatus}
@@ -89,7 +87,7 @@ export default function App() {
 
       {/* Error Alert */}
       {error && (
-        <Card className="bg-red-900/20 border-red-800">
+        <Card className="border-red-800 bg-red-900/20">
           <CardContent className="flex items-center gap-2 p-4">
             <AlertCircle className="h-5 w-5 text-red-400" />
             <p className="text-red-400">{error}</p>
@@ -116,27 +114,33 @@ export default function App() {
 
           {/* Main Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="bg-slate-800/50 border border-slate-700">
+            <TabsList className="border border-slate-700 bg-slate-800/50">
               <TabsTrigger
                 value="analysis"
                 className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
               >
-                <LineChart className="h-4 w-4 mr-2" />
+                <LineChart className="mr-2 h-4 w-4" />
                 Analysis
               </TabsTrigger>
               <TabsTrigger
                 value="positions"
                 className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
               >
-                <BarChart3 className="h-4 w-4 mr-2" />
+                <BarChart3 className="mr-2 h-4 w-4" />
                 Positions
               </TabsTrigger>
-              <TabsTrigger value="account" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-                <Settings className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="account"
+                className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+              >
+                <Settings className="mr-2 h-4 w-4" />
                 Account Details
               </TabsTrigger>
-              <TabsTrigger value="scanner" className="data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-                <Search className="h-4 w-4 mr-2" />
+              <TabsTrigger
+                value="scanner"
+                className="data-[state=active]:bg-slate-700 data-[state=active]:text-white"
+              >
+                <Search className="mr-2 h-4 w-4" />
                 Scanner
               </TabsTrigger>
             </TabsList>
@@ -150,8 +154,8 @@ export default function App() {
               <OptionPositions positions={positions} />
 
               {positions.length === 0 && (
-                <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-xs">
-                  <CardContent className="text-center py-8">
+                <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+                  <CardContent className="py-8 text-center">
                     <p className="text-slate-400">No positions found</p>
                   </CardContent>
                 </Card>

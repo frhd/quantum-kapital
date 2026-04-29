@@ -203,11 +203,18 @@ pre-commit run --all-files
 ### Configured Hooks
 - **cargo fmt --check**: Ensures Rust code formatting compliance
 - **cargo clippy**: Runs Rust linter with warnings as errors (-D warnings)
+- **prettier --check**: Checks JS/TS/CSS/JSON formatting (config in `.prettierrc.json`)
+- **eslint**: Lints `.ts`/`.tsx` source (flat config in `eslint.config.js`); blocks errors only — pre-existing warnings are tracked but non-blocking
 - **trailing-whitespace**: Removes trailing whitespace
 - **end-of-file-fixer**: Ensures files end with newline
 - **check-merge-conflict**: Prevents committing merge conflict markers
 - **check-yaml**: Validates YAML syntax
 - **check-toml**: Validates TOML syntax
+
+### Frontend Scripts
+- `pnpm lint` / `pnpm lint:fix`: ESLint across `.ts`/`.tsx`
+- `pnpm format` / `pnpm format:check`: Prettier across `src/` + root configs (Rust workspace and `*.md` excluded via `.prettierignore`)
+- `pnpm typecheck`: `tsc --noEmit`
 
 ### Development Workflow
 The pre-commit hooks will automatically run when you commit, preventing commits that don't meet quality standards. If hooks fail:
@@ -216,8 +223,10 @@ The pre-commit hooks will automatically run when you commit, preventing commits 
 3. Commit again
 
 Common issues and fixes:
-- **Formatting**: Run `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- **Rust formatting**: Run `cargo fmt --manifest-path src-tauri/Cargo.toml`
 - **Clippy warnings**: Fix the specific warnings reported
+- **JS/TS formatting**: Run `pnpm format`
+- **ESLint errors**: Run `pnpm lint:fix` for auto-fixable issues, otherwise address reported errors
 - **Trailing whitespace**: Pre-commit will fix automatically
 
 ## Backend Development Workflow
