@@ -14,13 +14,11 @@ pub trait QuoteFetcher: Send + Sync {
     async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot>;
 }
 
-#[allow(dead_code)] // wired in lib.rs once Tauri commands land
 pub struct QuoteService {
     fetcher: Arc<dyn QuoteFetcher>,
 }
 
 impl QuoteService {
-    #[allow(dead_code)] // wired in lib.rs once Tauri commands land
     pub fn new(fetcher: Arc<dyn QuoteFetcher>) -> Self {
         Self { fetcher }
     }
@@ -28,7 +26,6 @@ impl QuoteService {
     /// Fetches a `MarketDataSnapshot` and projects it into a `Quote`.
     /// Errors propagate untranslated — the Tauri command layer maps
     /// them to user-facing strings.
-    #[allow(dead_code)] // wired in lib.rs once Tauri commands land
     pub async fn fetch_quote(&self, symbol: &str) -> Result<Quote> {
         let snapshot = self.fetcher.get_market_data_snapshot(symbol).await?;
         Ok(snapshot_to_quote(snapshot))

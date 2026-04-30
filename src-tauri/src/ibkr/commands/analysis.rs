@@ -130,7 +130,6 @@ pub async fn ibkr_get_cached_tickers() -> Result<Vec<String>, String> {
 ///   - `"timeout"`              → IbkrError::Timeout(..)
 ///   - any other variant        → its `Display` form (treated as
 ///                                `fetch_failed` by the UI).
-#[allow(dead_code)] // registered in lib.rs in Task 9
 #[tauri::command]
 pub async fn ibkr_get_quote(
     quote_service: tauri::State<'_, Arc<QuoteService>>,

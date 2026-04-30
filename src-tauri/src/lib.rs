@@ -91,6 +91,16 @@ pub fn run() {
                 hist_rate_limit,
             ));
 
+            // Phase 21: live-quote service. Wraps IbkrClient through
+            // the QuoteFetcher seam so the command + tests share the
+            // same interface, and the snapshot is never cached.
+            let quote_fetcher: Arc<dyn crate::services::quote_service::QuoteFetcher> =
+                Arc::clone(&ibkr_state.client)
+                    as Arc<dyn crate::services::quote_service::QuoteFetcher>;
+            let quote_service = Arc::new(crate::services::quote_service::QuoteService::new(
+                quote_fetcher,
+            ));
+
             // Phase 10: shared FinancialDataService instance (the news
             // half is best-effort and falls back to cached/empty when
             // the API key is missing or rate-limited). The tracker
@@ -216,6 +226,7 @@ pub fn run() {
             app.manage(daily_ranker);
             app.manage(auto_scanner_service);
             app.manage(auto_scanner_scheduler);
+            app.manage(quote_service);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -231,6 +242,7 @@ pub fn run() {
             ibkr::commands::ibkr_place_order,
             ibkr::commands::ibkr_get_executions,
             ibkr::commands::ibkr_get_fundamental_data,
+            ibkr::commands::ibkr_get_quote,
             ibkr::commands::ibkr_generate_projections,
             ibkr::commands::ibkr_generate_projection_results,
             ibkr::commands::ibkr_get_cached_tickers,
