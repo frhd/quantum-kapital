@@ -30,3 +30,6 @@ loop.log
 
 # Daily journal output (rendered by /journal skill)
 journal/
+
+# Git worktrees (isolated workspaces for parallel branches)
+.worktrees/
