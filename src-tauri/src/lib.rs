@@ -69,11 +69,7 @@ pub fn run() {
             ));
 
             // Initialize IBKR state with configuration + shared DB.
-            let ibkr_state = IbkrState::new(
-                config.ibkr.clone().into(),
-                Arc::clone(&db),
-                Arc::clone(&llm_service),
-            );
+            let ibkr_state = IbkrState::new(config.ibkr.clone().into(), Arc::clone(&db));
 
             // Set app handle for event emitter
             let app_handle = app.handle().clone();

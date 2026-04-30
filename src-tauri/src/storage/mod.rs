@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Phase 01: API surface intentionally unused until Phase 04+ wires it through.
-
 pub mod error;
 mod migrations;
 
@@ -40,10 +38,6 @@ impl Db {
         Ok(Self {
             pool: Arc::new(pool),
         })
-    }
-
-    pub fn pool(&self) -> Arc<SqlitePool> {
-        self.pool.clone()
     }
 
     pub async fn with_conn<F, T>(&self, f: F) -> Result<T>

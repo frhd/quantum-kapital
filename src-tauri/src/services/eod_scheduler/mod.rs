@@ -16,11 +16,6 @@
 //! waiting for the 60-second loop. `last_run_date` is exposed for read-only
 //! assertions and de-duplication checks.
 
-// Production callers: Tauri commands + `lib.rs::run`. Phase 20 will read
-// `last_run_date` from the LLM ranker; until then a couple of helpers are
-// only exercised by tests.
-#![allow(dead_code)]
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -65,6 +60,7 @@ fn et_offset() -> FixedOffset {
 #[derive(Clone, Debug)]
 pub enum Clock {
     Real,
+    #[allow(dead_code)] // test seam: tests pin a fixed instant
     Fixed(DateTime<Utc>),
 }
 
@@ -80,6 +76,7 @@ impl Clock {
 /// Outcome of a tick that actually fired the EOD work — returned for
 /// observability + tests.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // fields read by tests; production loop discards
 pub struct EodTickOutcome {
     /// ET trading-day date that ran.
     pub date: NaiveDate,
@@ -144,6 +141,7 @@ impl EodScheduler {
         }
     }
 
+    #[allow(dead_code)] // exposed for test assertions and future UI status surface
     pub async fn last_run_date(&self) -> Option<NaiveDate> {
         *self.last_run_date.read().await
     }

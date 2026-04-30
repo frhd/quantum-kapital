@@ -210,7 +210,7 @@ fn sample_candidate() -> SetupCandidate {
 
 struct Harness {
     _tmp: NamedTempFile,
-    db: Arc<Db>,
+    _db: Arc<Db>,
     tracker: Arc<TrackerService>,
     state_machine: Arc<TrackerStateMachine>,
     runner: Arc<TrackerRunner>,
@@ -245,7 +245,7 @@ fn build_harness(
     ));
     Harness {
         _tmp: tmp,
-        db,
+        _db: db,
         tracker,
         state_machine,
         runner,
@@ -557,12 +557,7 @@ async fn start_replaces_existing_handle() {
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let cfg = AppConfig::default().ibkr.into();
-    let llm = Arc::new(crate::services::llm_service::LlmService::new(
-        String::new(),
-        Arc::clone(&db),
-        0.0,
-    ));
-    let state = IbkrState::new(cfg, Arc::clone(&db), llm);
+    let state = IbkrState::new(cfg, Arc::clone(&db));
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(RecordingBars::new());
     let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
@@ -610,12 +605,7 @@ async fn stop_drops_handle() {
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let cfg = AppConfig::default().ibkr.into();
-    let llm = Arc::new(crate::services::llm_service::LlmService::new(
-        String::new(),
-        Arc::clone(&db),
-        0.0,
-    ));
-    let state = IbkrState::new(cfg, Arc::clone(&db), llm);
+    let state = IbkrState::new(cfg, Arc::clone(&db));
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(RecordingBars::new());
     let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);

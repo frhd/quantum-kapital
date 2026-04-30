@@ -25,11 +25,6 @@
 //! with a real Anthropic-backed implementation; no change to this
 //! scheduler is required.
 
-// Production callers: Tauri commands + `lib.rs::run`. Phase 15/18 will
-// consume more of the public surface; until then a couple of helpers are
-// exercised only by tests.
-#![allow(dead_code)]
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -51,6 +46,7 @@ mod tests;
 
 /// Default cadence: 5 minutes between ticks. Configurable via
 /// `AppConfig.intraday_tick_interval_secs`.
+#[allow(dead_code)] // exported as default for tests / future config defaulting
 pub const DEFAULT_TICK_INTERVAL: Duration = Duration::from_secs(300);
 
 /// Clock seam — production wires `Real` (`Utc::now()`); tests pin a
@@ -59,6 +55,7 @@ pub const DEFAULT_TICK_INTERVAL: Duration = Duration::from_secs(300);
 #[derive(Clone, Debug)]
 pub enum Clock {
     Real,
+    #[allow(dead_code)] // test seam: tests pin a fixed instant
     Fixed(DateTime<Utc>),
 }
 
@@ -75,6 +72,7 @@ impl Clock {
 /// and tests. A no-op tick (outside RTH, before the cadence cursor, or
 /// no in-play tickers) returns `Ok(None)`.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // fields read by tests; production loop discards
 pub struct IntradayTickOutcome {
     /// Symbols the scheduler iterated this tick (i.e. the snapshot of
     /// `state_machine.active_in_play_symbols`). Empty when the
@@ -146,6 +144,7 @@ impl IntradayScheduler {
         *self.clock.write().await = clock;
     }
 
+    #[allow(dead_code)] // exposed for test assertions and future UI status surface
     pub async fn last_tick_at(&self) -> Option<DateTime<Utc>> {
         *self.last_tick_at.read().await
     }
