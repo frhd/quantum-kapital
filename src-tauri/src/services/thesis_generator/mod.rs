@@ -246,7 +246,7 @@ impl ThesisGenerator {
         if let Err(e) = self
             .emitter
             .emit(AppEvent::SetupDetected {
-                setup: updated,
+                setup: Box::new(updated),
                 thesis: Some(thesis.thesis_md.clone()),
             })
             .await

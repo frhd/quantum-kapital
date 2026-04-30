@@ -20,7 +20,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 ```
 config/        AppConfig + SettingsState (JSON persisted to OS app-data dir)
 events/        EventEmitter → Tauri events; AppEvent enum is the contract with the UI
-storage/       SQLite via rusqlite + r2d2 pool, embedded schema.sql + migrations runner
+storage/       SQLite via rusqlite + r2d2 pool, refinery migrations under migrations/
 ibkr/          IBKR adapter: client/ (TWS/Gateway — directory module split by domain:
                  mod.rs struct + connection lifecycle, market_data.rs, orders.rs,
                  historical.rs, streams.rs + StreamHandle),

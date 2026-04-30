@@ -123,6 +123,55 @@ async fn migration_creates_all_baseline_tables() {
 }
 
 #[tokio::test]
+async fn migration_history_records_every_version() {
+    let tmp = temp_db_path();
+    let db = Db::open(tmp.path()).expect("open db");
+
+    let versions: Vec<i32> = db
+        .with_conn(|conn| {
+            let mut stmt =
+                conn.prepare("SELECT version FROM refinery_schema_history ORDER BY version")?;
+            let rows = stmt.query_map([], |row| row.get::<_, i32>(0))?;
+            let mut out = Vec::new();
+            for r in rows {
+                out.push(r?);
+            }
+            Ok(out)
+        })
+        .await
+        .expect("with_conn ok");
+
+    assert!(
+        versions.contains(&1),
+        "V01 must be recorded; have {versions:?}"
+    );
+    assert!(
+        versions.contains(&2),
+        "V02 must be recorded; have {versions:?}"
+    );
+}
+
+#[tokio::test]
+async fn migration_v02_adds_archived_at_columns() {
+    let tmp = temp_db_path();
+    let db = Db::open(tmp.path()).expect("open db");
+
+    db.with_conn(|conn| {
+        for table in ["tracked_tickers", "setups"] {
+            let has_col: bool = conn
+                .prepare(&format!("PRAGMA table_info({table})"))?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .filter_map(|r| r.ok())
+                .any(|name| name == "archived_at");
+            assert!(has_col, "{table}.archived_at must exist after V02");
+        }
+        Ok(())
+    })
+    .await
+    .expect("with_conn ok");
+}
+
+#[tokio::test]
 async fn migration_creates_required_indexes() {
     let tmp = temp_db_path();
     let db = Db::open(tmp.path()).expect("open db");

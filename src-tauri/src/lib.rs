@@ -252,6 +252,8 @@ pub fn run() {
             ibkr::commands::tracker_get_news,
             ibkr::commands::tracker_add,
             ibkr::commands::tracker_remove,
+            ibkr::commands::tracker_archive,
+            ibkr::commands::tracker_unarchive,
             ibkr::commands::tracker_list,
             ibkr::commands::tracker_get,
             ibkr::commands::tracker_set_tags,

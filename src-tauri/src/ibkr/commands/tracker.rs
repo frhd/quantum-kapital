@@ -108,6 +108,31 @@ pub async fn tracker_get(
     state.tracker.get(&symbol).await.map_err(|e| e.to_string())
 }
 
+/// Soft-archive a tracked ticker (and every setup beneath it). Archived
+/// rows drop out of `tracker_list`, the detector pipeline, the state
+/// machine, and alert emission without losing history. Returns
+/// `NotFound` only when the symbol has never been tracked at all.
+#[tauri::command]
+pub async fn tracker_archive(state: State<'_, IbkrState>, symbol: String) -> Result<(), String> {
+    state
+        .tracker
+        .archive_ticker(&symbol)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Inverse of `tracker_archive`. Restores the ticker and its setups to
+/// active reads. Returns `NotFound` only when the symbol has never been
+/// tracked at all.
+#[tauri::command]
+pub async fn tracker_unarchive(state: State<'_, IbkrState>, symbol: String) -> Result<(), String> {
+    state
+        .tracker
+        .unarchive_ticker(&symbol)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn tracker_set_tags(
     state: State<'_, IbkrState>,

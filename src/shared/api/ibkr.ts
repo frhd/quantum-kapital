@@ -115,6 +115,14 @@ export const ibkrApi = {
       return invoke<void>("tracker_remove", { symbol })
     },
 
+    archive: async (symbol: string) => {
+      return invoke<void>("tracker_archive", { symbol })
+    },
+
+    unarchive: async (symbol: string) => {
+      return invoke<void>("tracker_unarchive", { symbol })
+    },
+
     list: async (status?: TrackerStatus) => {
       return invoke<TrackedTicker[]>("tracker_list", { status: status ?? null })
     },

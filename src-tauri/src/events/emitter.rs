@@ -81,7 +81,7 @@ pub enum AppEvent {
     /// thesis prompt; the frontend treats absence as "no narrative
     /// yet".
     SetupDetected {
-        setup: Setup,
+        setup: Box<Setup>,
         thesis: Option<String>,
     },
     /// Emitted by `TrackerStateMachine::mark_invalidated` when a

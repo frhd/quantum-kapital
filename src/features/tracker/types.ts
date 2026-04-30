@@ -30,6 +30,7 @@ export interface TrackedTicker {
   last_checked_at: string | null
   in_play_until: string | null
   cool_down_until: string | null
+  archived_at: string | null
 }
 
 export interface AddToTrackerPrefill {
@@ -122,6 +123,7 @@ export interface Setup {
   status: SetupStatus
   invalidated_at: string | null
   invalidation_reason: string | null
+  archived_at: string | null
 }
 
 // --- Phase 21: Alert feed ---

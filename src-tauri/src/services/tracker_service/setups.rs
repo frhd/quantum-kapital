@@ -75,6 +75,7 @@ impl TrackerService {
             status: SetupStatus::Active,
             invalidated_at: None,
             invalidation_reason: None,
+            archived_at: None,
         })
     }
 
@@ -94,7 +95,8 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 let n = conn.execute(
-                    "UPDATE setups SET thesis = ?1, thesis_json = ?2 WHERE id = ?3",
+                    "UPDATE setups SET thesis = ?1, thesis_json = ?2 \
+                     WHERE id = ?3 AND archived_at IS NULL",
                     rusqlite::params![thesis_md, thesis_json_str, id],
                 )?;
                 Ok(n)
@@ -124,23 +126,18 @@ impl TrackerService {
                 let mut sql = String::from(
                     "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
                             stop_price, targets, raw_signals, thesis, thesis_json, status, \
-                            invalidated_at, invalidation_reason \
-                     FROM setups",
+                            invalidated_at, invalidation_reason, archived_at \
+                     FROM setups WHERE archived_at IS NULL",
                 );
-                let mut clauses: Vec<&'static str> = Vec::new();
                 if symbol.is_some() {
-                    clauses.push("symbol = ?1");
+                    sql.push_str(" AND symbol = ?1");
                 }
                 if since_unix.is_some() {
                     if symbol.is_some() {
-                        clauses.push("detected_at >= ?2");
+                        sql.push_str(" AND detected_at >= ?2");
                     } else {
-                        clauses.push("detected_at >= ?1");
+                        sql.push_str(" AND detected_at >= ?1");
                     }
-                }
-                if !clauses.is_empty() {
-                    sql.push_str(" WHERE ");
-                    sql.push_str(&clauses.join(" AND "));
                 }
                 sql.push_str(" ORDER BY detected_at DESC, id DESC");
 
@@ -174,8 +171,8 @@ impl TrackerService {
                 conn.query_row(
                     "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
                             stop_price, targets, raw_signals, thesis, thesis_json, status, \
-                            invalidated_at, invalidation_reason \
-                     FROM setups WHERE id = ?1",
+                            invalidated_at, invalidation_reason, archived_at \
+                     FROM setups WHERE id = ?1 AND archived_at IS NULL",
                     rusqlite::params![id],
                     setup_row_to_raw,
                 )
@@ -212,7 +209,7 @@ impl TrackerService {
                 conn.query_row(
                     "SELECT id FROM setups \
                      WHERE symbol = ?1 AND strategy = ?2 AND direction = ?3 \
-                       AND detected_at >= ?4 \
+                       AND detected_at >= ?4 AND archived_at IS NULL \
                      ORDER BY detected_at DESC LIMIT 1",
                     rusqlite::params![symbol, strategy, direction_str, cutoff_unix],
                     |row| row.get::<_, i64>(0),
@@ -234,7 +231,8 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 let n: i64 = conn.query_row(
-                    "SELECT COUNT(*) FROM setups WHERE symbol = ?1 AND status = 'active'",
+                    "SELECT COUNT(*) FROM setups \
+                     WHERE symbol = ?1 AND status = 'active' AND archived_at IS NULL",
                     rusqlite::params![symbol],
                     |row| row.get(0),
                 )?;
@@ -263,7 +261,8 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 let n = conn.execute(
-                    "UPDATE setups SET status = ?1, invalidation_reason = ?2, invalidated_at = ?3 WHERE id = ?4",
+                    "UPDATE setups SET status = ?1, invalidation_reason = ?2, invalidated_at = ?3 \
+                     WHERE id = ?4 AND archived_at IS NULL",
                     rusqlite::params![status_str, reason_for_db, invalidated_unix, id],
                 )?;
                 Ok(n)
@@ -295,6 +294,7 @@ type SetupRawRow = (
     String,         // status
     Option<i64>,    // invalidated_at unix
     Option<String>, // invalidation_reason
+    Option<i64>,    // archived_at unix
 );
 
 fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
@@ -313,6 +313,7 @@ fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
         row.get(11)?,
         row.get(12)?,
         row.get(13)?,
+        row.get(14)?,
     ))
 }
 
@@ -332,6 +333,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         status_s,
         invalidated_at,
         invalidation_reason,
+        archived_at,
     ) = r;
     let direction = parse_direction(&direction_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -364,6 +366,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         status,
         invalidated_at: invalidated_at.map(unix_to_utc),
         invalidation_reason,
+        archived_at: archived_at.map(unix_to_utc),
     })
 }
 

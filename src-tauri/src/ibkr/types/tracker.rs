@@ -122,6 +122,7 @@ pub struct TrackedTicker {
     pub last_checked_at: Option<DateTime<Utc>>,
     pub in_play_until: Option<DateTime<Utc>>,
     pub cool_down_until: Option<DateTime<Utc>>,
+    pub archived_at: Option<DateTime<Utc>>,
 }
 
 /// Lifecycle of a persisted strategy setup. Phase 10 only writes
@@ -228,6 +229,7 @@ pub struct Setup {
     pub status: SetupStatus,
     pub invalidated_at: Option<DateTime<Utc>>,
     pub invalidation_reason: Option<String>,
+    pub archived_at: Option<DateTime<Utc>>,
 }
 
 #[cfg(test)]

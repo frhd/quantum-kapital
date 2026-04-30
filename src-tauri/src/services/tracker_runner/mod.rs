@@ -311,7 +311,7 @@ impl TrackerRunner {
                                 let _ = self
                                     .emitter
                                     .emit(AppEvent::SetupDetected {
-                                        setup: setup.clone(),
+                                        setup: Box::new(setup.clone()),
                                         thesis: None,
                                     })
                                     .await;

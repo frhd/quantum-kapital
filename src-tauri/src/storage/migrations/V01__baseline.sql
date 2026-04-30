@@ -1,3 +1,11 @@
+-- V01 — baseline schema. Folds together what was previously in
+-- src/storage/schema.sql plus the three idempotent ALTERs that the
+-- old hand-rolled runner appended (`tracked_tickers.cool_down_until`,
+-- `setups.thesis_json`, `news_cache.news_verdict_json`). All guards stay
+-- `IF NOT EXISTS` so this file is a no-op on databases that already
+-- carry the pre-refinery shape — refinery still records V01 as applied
+-- in `refinery_schema_history`, and V02+ can rely on a known baseline.
+
 CREATE TABLE IF NOT EXISTS tracked_tickers (
     symbol         TEXT PRIMARY KEY,
     source         TEXT NOT NULL,

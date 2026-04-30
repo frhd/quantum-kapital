@@ -109,6 +109,7 @@ fn sample_setup() -> Setup {
         status: SetupStatus::Active,
         invalidated_at: None,
         invalidation_reason: None,
+        archived_at: None,
     }
 }
 

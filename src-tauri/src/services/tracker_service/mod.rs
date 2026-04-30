@@ -17,6 +17,7 @@ use crate::storage::error::StorageError;
 use crate::storage::Db;
 use crate::utils::helpers::unix_to_utc;
 
+mod archive;
 mod setups;
 
 #[cfg(test)]
@@ -75,6 +76,7 @@ impl TrackerService {
             last_checked_at: None,
             in_play_until: None,
             cool_down_until: None,
+            archived_at: None,
         };
 
         let source_str = source.as_str().to_string();
@@ -146,16 +148,16 @@ impl TrackerService {
                 let iter = match &filter {
                     Some(s) => {
                         stmt = conn.prepare(
-                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until \
-                             FROM tracked_tickers WHERE status = ?1 ORDER BY added_at DESC",
+                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at \
+                             FROM tracked_tickers WHERE status = ?1 AND archived_at IS NULL ORDER BY added_at DESC",
                         )?;
                         stmt.query_map(rusqlite::params![s], row_to_raw)?
                             .collect::<rusqlite::Result<Vec<_>>>()?
                     }
                     None => {
                         stmt = conn.prepare(
-                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until \
-                             FROM tracked_tickers ORDER BY added_at DESC",
+                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at \
+                             FROM tracked_tickers WHERE archived_at IS NULL ORDER BY added_at DESC",
                         )?;
                         stmt.query_map([], row_to_raw)?
                             .collect::<rusqlite::Result<Vec<_>>>()?
@@ -174,8 +176,8 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 conn.query_row(
-                    "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until \
-                     FROM tracked_tickers WHERE symbol = ?1",
+                    "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at \
+                     FROM tracked_tickers WHERE symbol = ?1 AND archived_at IS NULL",
                     rusqlite::params![symbol],
                     row_to_raw,
                 )
@@ -197,7 +199,8 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 let n = conn.execute(
-                    "UPDATE tracked_tickers SET tags = ?1 WHERE symbol = ?2",
+                    "UPDATE tracked_tickers SET tags = ?1 \
+                     WHERE symbol = ?2 AND archived_at IS NULL",
                     rusqlite::params![tags_json, symbol_for_db],
                 )?;
                 Ok(n)
@@ -228,7 +231,8 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 let n = conn.execute(
-                    "UPDATE tracked_tickers SET status = ?1, in_play_until = ?2, cool_down_until = ?3 WHERE symbol = ?4",
+                    "UPDATE tracked_tickers SET status = ?1, in_play_until = ?2, cool_down_until = ?3 \
+                     WHERE symbol = ?4 AND archived_at IS NULL",
                     rusqlite::params![status_str, in_play_unix, cool_down_unix, symbol_for_db],
                 )?;
                 Ok(n)
@@ -251,7 +255,8 @@ impl TrackerService {
         self.db
             .with_conn(move |conn| {
                 conn.execute(
-                    "UPDATE tracked_tickers SET last_checked_at = ?1 WHERE symbol = ?2",
+                    "UPDATE tracked_tickers SET last_checked_at = ?1 \
+                     WHERE symbol = ?2 AND archived_at IS NULL",
                     rusqlite::params![now_unix, symbol],
                 )?;
                 Ok(())
@@ -277,9 +282,10 @@ type RawRow = (
     Option<i64>,    // last_checked_at unix
     Option<i64>,    // in_play_until unix
     Option<i64>,    // cool_down_until unix
+    Option<i64>,    // archived_at unix
 );
 
-fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
+pub(super) fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
     Ok((
         row.get(0)?,
         row.get(1)?,
@@ -291,10 +297,11 @@ fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         row.get(7)?,
         row.get(8)?,
         row.get(9)?,
+        row.get(10)?,
     ))
 }
 
-fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
+pub(super) fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
     let (
         symbol,
         source_s,
@@ -306,6 +313,7 @@ fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
         last_checked,
         in_play,
         cool_down,
+        archived,
     ) = r;
     let source = TrackerSource::parse(&source_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -333,5 +341,6 @@ fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
         last_checked_at: last_checked.map(unix_to_utc),
         in_play_until: in_play.map(unix_to_utc),
         cool_down_until: cool_down.map(unix_to_utc),
+        archived_at: archived.map(unix_to_utc),
     })
 }
