@@ -45,6 +45,13 @@ fn snapshot_to_quote(snapshot: MarketDataSnapshot) -> Quote {
     }
 }
 
+#[async_trait]
+impl QuoteFetcher for crate::ibkr::client::IbkrClient {
+    async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {
+        crate::ibkr::client::IbkrClient::get_market_data_snapshot(self, symbol).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
