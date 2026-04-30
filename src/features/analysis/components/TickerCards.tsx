@@ -71,9 +71,7 @@ export function TickerCards({ ticker, quote, quoteError }: TickerCardsProps) {
                 </span>
               </div>
             )}
-            {statusMessage && (
-              <p className="text-muted-foreground text-xs">{statusMessage}</p>
-            )}
+            {statusMessage && <p className="text-muted-foreground text-xs">{statusMessage}</p>}
           </div>
         </CardContent>
       </Card>

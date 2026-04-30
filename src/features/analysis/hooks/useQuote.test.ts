@@ -89,9 +89,7 @@ describe("useQuote", () => {
     await act(async () => {
       vi.advanceTimersByTime(5_000)
     })
-    await waitFor(() =>
-      expect(result.current.error).toBe("fetch_failed"),
-    )
+    await waitFor(() => expect(result.current.error).toBe("fetch_failed"))
     // last good quote unchanged
     expect(result.current.quote?.lastPrice).toBe(202.49)
 

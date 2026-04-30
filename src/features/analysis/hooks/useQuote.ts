@@ -3,11 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { ibkrApi } from "../../../shared/api/ibkr"
 import type { Quote } from "../../../shared/types"
 
-export type QuoteError =
-  | "disconnected"
-  | "no_permission"
-  | "timeout"
-  | "fetch_failed"
+export type QuoteError = "disconnected" | "no_permission" | "timeout" | "fetch_failed"
 
 interface ConnectionStatusEvent {
   type: "ConnectionStatusChanged"
@@ -17,7 +13,7 @@ interface ConnectionStatusEvent {
 const POLL_MS = 5_000
 
 function classifyError(raw: unknown): QuoteError {
-  const message = typeof raw === "string" ? raw : (raw as Error)?.message ?? ""
+  const message = typeof raw === "string" ? raw : ((raw as Error)?.message ?? "")
   switch (message) {
     case "disconnected":
       return "disconnected"
