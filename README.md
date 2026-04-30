@@ -18,7 +18,7 @@ A professional cross-platform algorithmic trading application built with Tauri a
 ## Architecture
 
 ### Frontend (React + TypeScript)
-- **UI Framework**: React 18 with TypeScript
+- **UI Framework**: React 19 with TypeScript
 - **Component Library**: Custom shadcn/ui components with Tailwind CSS
 - **State Management**: React hooks with async Tauri command invocation
 - **Icons**: Lucide React for consistent iconography
@@ -216,10 +216,10 @@ pre-commit run --all-files
 ## Technologies Used
 
 ### Frontend
-- React 18.3
-- TypeScript 5
-- Tailwind CSS 3.4
-- Vite 6
+- React 19.2
+- TypeScript 6
+- Tailwind CSS 4.2
+- Vite 8
 - shadcn/ui-style components (Alert, Badge, Button, Card, Input, Label, Skeleton, Table, Tabs)
 - Lucide React icons
 

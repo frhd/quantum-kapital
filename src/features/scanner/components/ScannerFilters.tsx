@@ -45,6 +45,8 @@ interface ScannerFiltersProps {
 const selectClass =
   "h-9 w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 text-sm text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
 
+const inputClass = "border-slate-600 bg-slate-900/50 text-white placeholder:text-slate-500"
+
 export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersProps) {
   const [scanCode, setScanCode] = useState<ScanCode>("TOP_PERC_GAIN")
   const [locationCode, setLocationCode] = useState<LocationCode>("STK.US.MAJOR")
@@ -102,7 +104,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               disabled={isRunning}
             >
               {SCAN_CODES.map((s) => (
-                <option key={s.value} value={s.value}>
+                <option key={s.value} value={s.value} className="bg-slate-800 text-white">
                   {s.label}
                 </option>
               ))}
@@ -120,7 +122,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               disabled={isRunning}
             >
               {LOCATION_CODES.map((l) => (
-                <option key={l.value} value={l.value}>
+                <option key={l.value} value={l.value} className="bg-slate-800 text-white">
                   {l.label}
                 </option>
               ))}
@@ -138,6 +140,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               value={numberOfRows}
               onChange={(e) => setNumberOfRows(e.target.value)}
               disabled={isRunning}
+              className={inputClass}
             />
           </div>
         </div>
@@ -154,6 +157,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               value={abovePrice}
               onChange={(e) => setAbovePrice(e.target.value)}
               disabled={isRunning}
+              className={inputClass}
             />
           </div>
           <div className="space-y-2">
@@ -167,6 +171,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               value={belowPrice}
               onChange={(e) => setBelowPrice(e.target.value)}
               disabled={isRunning}
+              className={inputClass}
             />
           </div>
           <div className="space-y-2">
@@ -180,6 +185,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               value={aboveVolume}
               onChange={(e) => setAboveVolume(e.target.value)}
               disabled={isRunning}
+              className={inputClass}
             />
           </div>
           <div className="space-y-2">
@@ -193,6 +199,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               value={marketCapAbove}
               onChange={(e) => setMarketCapAbove(e.target.value)}
               disabled={isRunning}
+              className={inputClass}
             />
           </div>
           <div className="space-y-2">
@@ -206,6 +213,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               value={marketCapBelow}
               onChange={(e) => setMarketCapBelow(e.target.value)}
               disabled={isRunning}
+              className={inputClass}
             />
           </div>
         </div>
