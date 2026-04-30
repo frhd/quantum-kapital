@@ -1,10 +1,12 @@
 use crate::ibkr::types::{
-    FundamentalData, ProjectionAssumptions, ProjectionResults, ScenarioProjections,
+    FundamentalData, ProjectionAssumptions, ProjectionResults, Quote, ScenarioProjections,
 };
 use crate::services::cache_service::CacheService;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::projection_service::ProjectionService;
+use crate::services::quote_service::QuoteService;
 use std::collections::HashSet;
+use std::sync::Arc;
 use tauri::State;
 use tracing::{info, warn};
 
@@ -119,4 +121,27 @@ pub async fn ibkr_get_cached_tickers() -> Result<Vec<String>, String> {
 
     info!("Found {} cached tickers", ticker_list.len());
     Ok(ticker_list)
+}
+
+/// Fetches a one-shot live quote from IBKR. Maps typed errors to
+/// stable string discriminants the frontend can switch on:
+///   - `"disconnected"`         → IbkrError::NotConnected
+///   - `"no_permission"`        → IbkrError::MarketDataPermissionDenied
+///   - `"timeout"`              → IbkrError::Timeout(..)
+///   - any other variant        → its `Display` form (treated as
+///                                `fetch_failed` by the UI).
+#[tauri::command]
+pub async fn ibkr_get_quote(
+    quote_service: tauri::State<'_, Arc<QuoteService>>,
+    symbol: String,
+) -> Result<Quote, String> {
+    use crate::ibkr::error::IbkrError;
+
+    match quote_service.fetch_quote(&symbol).await {
+        Ok(quote) => Ok(quote),
+        Err(IbkrError::NotConnected) => Err("disconnected".to_string()),
+        Err(IbkrError::MarketDataPermissionDenied) => Err("no_permission".to_string()),
+        Err(IbkrError::Timeout(_)) => Err("timeout".to_string()),
+        Err(other) => Err(other.to_string()),
+    }
 }

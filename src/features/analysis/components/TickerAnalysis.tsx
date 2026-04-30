@@ -7,6 +7,7 @@ import { TickerCards } from "./TickerCards"
 import { ProjectionView } from "./ProjectionView"
 import { useTickerSearch } from "../hooks/useTickerSearch"
 import { useProjections } from "../hooks/useProjections"
+import { useQuote } from "../hooks/useQuote"
 import { AlertCircle } from "lucide-react"
 
 interface TickerAnalysisProps {
@@ -29,6 +30,8 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
     loading: projectionsLoading,
     error: projectionsError,
   } = useProjections(selectedTicker?.symbol || null)
+
+  const { quote, error: quoteError } = useQuote(selectedTicker?.symbol || null)
 
   useEffect(() => {
     if (pendingSymbol) {
@@ -67,7 +70,9 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
       )}
 
       {/* Ticker Cards */}
-      {selectedTicker && !loading && <TickerCards ticker={selectedTicker} />}
+      {selectedTicker && !loading && (
+        <TickerCards ticker={selectedTicker} quote={quote} quoteError={quoteError} />
+      )}
 
       {/* Forward Analysis - Projections */}
       {selectedTicker && !loading && (

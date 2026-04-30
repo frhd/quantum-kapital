@@ -66,12 +66,6 @@ export function useTickerSearch() {
         name: fundamentalData.currentMetrics.name || normalizedSymbol,
         exchange: fundamentalData.currentMetrics.exchange || "Unknown",
         type: "Stock",
-        price: fundamentalData.currentMetrics.price,
-        // Note: Alpha Vantage OVERVIEW doesn't provide change/changePercent or volume
-        // These would require a separate real-time quote endpoint
-        change: undefined,
-        changePercent: undefined,
-        volume: undefined,
         marketCap: fundamentalData.currentMetrics.marketCap || undefined,
         pe: fundamentalData.currentMetrics.peRatio,
         yield: fundamentalData.currentMetrics.dividendYield,

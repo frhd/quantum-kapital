@@ -10,10 +10,6 @@ export interface TickerData {
   name: string
   exchange: string
   type: string
-  price?: number
-  change?: number
-  changePercent?: number
-  volume?: number
   marketCap?: string
   pe?: number
   yield?: number

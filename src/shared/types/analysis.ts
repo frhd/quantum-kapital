@@ -80,7 +80,7 @@ export interface AnalystEstimates {
 }
 
 export interface CurrentMetrics {
-  price: number
+  price?: number
   peRatio: number
   sharesOutstanding: number // in millions
   name?: string
@@ -121,3 +121,12 @@ export const defaultProjectionAssumptions: ProjectionAssumptions = {
 }
 
 export type ScenarioType = "bear" | "base" | "bull"
+
+export interface Quote {
+  symbol: string
+  lastPrice?: number
+  prevClose?: number
+  volume?: number
+  /** Unix epoch seconds when the snapshot completed. */
+  timestamp: number
+}

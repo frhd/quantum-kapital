@@ -1,13 +1,44 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card"
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart, Percent } from "lucide-react"
 import type { TickerData } from "../types"
+import type { Quote } from "../../../shared/types"
+import type { QuoteError } from "../hooks/useQuote"
 
 interface TickerCardsProps {
   ticker: TickerData
+  quote: Quote | null
+  quoteError: QuoteError | null
 }
 
-export function TickerCards({ ticker }: TickerCardsProps) {
-  const isPositive = (ticker.change ?? 0) >= 0
+function formatVolume(volume: number): string {
+  return (volume / 1_000_000).toFixed(2) + "M"
+}
+
+function quoteStatusMessage(error: QuoteError | null): string | null {
+  switch (error) {
+    case "disconnected":
+      return "Live quote unavailable — TWS not connected"
+    case "no_permission":
+      return "No live data permission for this symbol"
+    case "timeout":
+    case "fetch_failed":
+      return null // em-dashes only; not worth a UI message for transient errors
+    case null:
+      return null
+  }
+}
+
+export function TickerCards({ ticker, quote, quoteError }: TickerCardsProps) {
+  const lastPrice = quote?.lastPrice
+  const prevClose = quote?.prevClose
+  const change =
+    lastPrice !== undefined && prevClose !== undefined ? lastPrice - prevClose : undefined
+  const changePercent =
+    change !== undefined && prevClose !== undefined && prevClose !== 0
+      ? (change / prevClose) * 100
+      : undefined
+  const isPositive = (change ?? 0) >= 0
+  const statusMessage = quoteStatusMessage(quoteError)
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -21,8 +52,10 @@ export function TickerCards({ ticker }: TickerCardsProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="text-foreground text-3xl font-bold">${ticker.price?.toFixed(2) ?? "—"}</p>
-            {ticker.change !== undefined && ticker.changePercent !== undefined && (
+            <p className="text-foreground text-3xl font-bold">
+              {lastPrice !== undefined ? `$${lastPrice.toFixed(2)}` : "—"}
+            </p>
+            {change !== undefined && changePercent !== undefined && (
               <div
                 className={`flex items-center gap-1 text-sm ${isPositive ? "text-green-400" : "text-red-400"}`}
               >
@@ -33,11 +66,12 @@ export function TickerCards({ ticker }: TickerCardsProps) {
                 )}
                 <span>
                   {isPositive ? "+" : ""}
-                  {ticker.change.toFixed(2)} ({isPositive ? "+" : ""}
-                  {ticker.changePercent.toFixed(2)}%)
+                  {change.toFixed(2)} ({isPositive ? "+" : ""}
+                  {changePercent.toFixed(2)}%)
                 </span>
               </div>
             )}
+            {statusMessage && <p className="text-muted-foreground text-xs">{statusMessage}</p>}
           </div>
         </CardContent>
       </Card>
@@ -53,7 +87,7 @@ export function TickerCards({ ticker }: TickerCardsProps) {
         <CardContent>
           <div className="space-y-1">
             <p className="text-foreground text-3xl font-bold">
-              {ticker.volume !== undefined ? (ticker.volume / 1_000_000).toFixed(2) + "M" : "—"}
+              {quote?.volume !== undefined ? formatVolume(quote.volume) : "—"}
             </p>
             <p className="text-muted-foreground text-sm">Trading Volume</p>
           </div>

@@ -11,7 +11,7 @@ pub struct MarketDataSnapshot {
     pub last_size: Option<i32>,
     pub high: Option<f64>,
     pub low: Option<f64>,
-    pub volume: Option<i32>,
+    pub volume: Option<i64>,
     pub close: Option<f64>,
     pub open: Option<f64>,
     pub timestamp: i64,

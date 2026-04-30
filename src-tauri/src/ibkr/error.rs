@@ -18,6 +18,12 @@ pub enum IbkrError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 
+    #[error("Market data not subscribed for symbol")]
+    MarketDataPermissionDenied,
+
+    #[error("Request timed out after {0}ms")]
+    Timeout(u64),
+
     #[error("Unknown error: {0}")]
     Unknown(String),
 }
