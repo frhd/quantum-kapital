@@ -13,7 +13,7 @@ pub trait IbkrClientTrait: Send + Sync {
     async fn get_account_summary(&self, account: &str) -> Result<Vec<AccountSummary>>;
     async fn get_positions(&self, account: &str) -> Result<Vec<Position>>;
     async fn subscribe_market_data(&self, contract_id: i32, symbol: &str) -> Result<()>;
-    async fn place_order(&self, order: OrderRequest) -> Result<OrderStatus>;
+    async fn place_order(&self, order: OrderRequest) -> Result<i32>;
 
     // New interface methods
     async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot>;
@@ -158,19 +158,13 @@ impl IbkrClientTrait for MockIbkrClient {
         Ok(())
     }
 
-    async fn place_order(&self, order: OrderRequest) -> Result<OrderStatus> {
+    async fn place_order(&self, _order: OrderRequest) -> Result<i32> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
         }
 
-        Ok(OrderStatus {
-            order_id: 12345,
-            status: "Submitted".to_string(),
-            filled: 0.0,
-            remaining: order.quantity,
-            average_fill_price: None,
-        })
+        Ok(12345)
     }
 
     async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {

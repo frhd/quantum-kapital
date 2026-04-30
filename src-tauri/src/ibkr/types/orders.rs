@@ -42,15 +42,6 @@ pub enum OrderType {
     StopLimit,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OrderStatus {
-    pub order_id: i32,
-    pub status: String,
-    pub filled: f64,
-    pub remaining: f64,
-    pub average_fill_price: Option<f64>,
-}
-
 #[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {

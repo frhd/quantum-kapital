@@ -100,12 +100,9 @@ async fn test_place_order() {
     client.connect().await.unwrap();
 
     let order = test_fixtures::sample_order_request();
-    let result = client.place_order(order).await.unwrap();
+    let order_id = client.place_order(order).await.unwrap();
 
-    assert_eq!(result.order_id, 12345);
-    assert_eq!(result.status, "Submitted");
-    assert_eq!(result.filled, 0.0);
-    assert_eq!(result.remaining, 100.0);
+    assert_eq!(order_id, 12345);
 }
 
 #[tokio::test]

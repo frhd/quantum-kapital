@@ -61,9 +61,8 @@ async fn test_full_trading_session_flow() {
         price: Some(200.0),
     };
 
-    let order_result = client.place_order(order).await.unwrap();
-    assert_eq!(order_result.status, "Submitted");
-    assert_eq!(order_result.remaining, 10.0);
+    let order_id = client.place_order(order).await.unwrap();
+    assert_eq!(order_id, 12345);
 
     // Step 7: Disconnect
     let disconnect_result = client.disconnect().await;

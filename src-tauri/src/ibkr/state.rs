@@ -1,7 +1,6 @@
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::{IbkrClient, StreamHandle};
 use crate::ibkr::types::{ConnectionConfig, MarketDataSnapshot, Position, ScannerSubscription};
-use crate::middleware::RateLimiter;
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::intraday_scheduler::IntradayScheduler;
 use crate::services::llm_service::LlmService;
@@ -39,7 +38,6 @@ pub struct PositionCache {
 pub struct IbkrState {
     pub client: Arc<IbkrClient>,
     pub event_emitter: Arc<EventEmitter>,
-    pub rate_limiter: Arc<RateLimiter>,
     pub connection_info: Arc<RwLock<ConnectionInfo>>,
     pub market_data_cache: Arc<RwLock<MarketDataCache>>,
     pub position_cache: Arc<RwLock<PositionCache>>,
@@ -68,7 +66,6 @@ impl IbkrState {
         Self {
             client: Arc::new(IbkrClient::with_shared_config(Arc::clone(&config_arc))),
             event_emitter,
-            rate_limiter: Arc::new(RateLimiter::new(50)), // Default 50 requests per second
             connection_info: Arc::new(RwLock::new(ConnectionInfo {
                 connected: false,
                 last_attempt: None,
