@@ -31,6 +31,8 @@
 - `src-tauri/src/lib.rs` — construct `QuoteService`, manage it, register the command.
 
 **Frontend — created:**
+- `vitest.config.ts` — vitest harness (Task 0).
+- `src/test/setup.ts` — jest-dom matchers wiring (Task 0).
 - `src/features/analysis/hooks/useQuote.ts` — polling hook.
 - `src/features/analysis/hooks/useQuote.test.ts` — vitest unit tests.
 
@@ -41,6 +43,141 @@
 - `src/features/analysis/hooks/useTickerSearch.ts` — drop the same fields from the mapping.
 - `src/features/analysis/components/TickerCards.tsx` — accept a `quote` prop, render four states.
 - `src/features/analysis/components/TickerAnalysis.tsx` — call `useQuote`, pass `quote` into `TickerCards`.
+
+---
+
+## Task 0: Set up frontend test harness (vitest + RTL)
+
+The project has no frontend tests today — `package.json` has no `test` script and none of `vitest`, `@testing-library/react`, or `jsdom` are installed. The `useQuote` hook in Task 12 needs all of them. This task adds the harness once so every future hook test gets it for free.
+
+**Files:**
+- Modify: `package.json`
+- Create: `vitest.config.ts`
+- Create: `src/test/setup.ts`
+- Modify: `.gitignore`
+- Modify: `tsconfig.json` (only if needed — see Step 5)
+
+- [ ] **Step 1: Install dev dependencies**
+
+Run from the repo root:
+
+```bash
+pnpm add -D vitest @vitest/ui @testing-library/react @testing-library/jest-dom @testing-library/dom jsdom @types/jsdom
+```
+
+Expected: pnpm updates `package.json` and `pnpm-lock.yaml`. (No version pinning — pnpm picks compatible majors against the existing React 19 / Vite 8.)
+
+- [ ] **Step 2: Add `test` scripts to `package.json`**
+
+Edit `package.json` to add two scripts in the `"scripts"` object, alphabetically near the others:
+
+```json
+"test": "vitest",
+"test:run": "vitest run",
+```
+
+- [ ] **Step 3: Create `vitest.config.ts`**
+
+Create `vitest.config.ts` at the repo root (a separate file rather than extending `vite.config.ts` because vitest globals shouldn't leak into the production bundle):
+
+```ts
+import { defineConfig } from "vitest/config"
+import react from "@vitejs/plugin-react"
+import { fileURLToPath, URL } from "node:url"
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+    css: false,
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+  },
+})
+```
+
+- [ ] **Step 4: Create the setup file**
+
+Create `src/test/setup.ts`:
+
+```ts
+import "@testing-library/jest-dom/vitest"
+```
+
+This wires up `jest-dom`'s assertion matchers (`toBeInTheDocument`, etc.) into vitest's `expect`. The `useQuote` hook tests in Task 12 don't strictly need them, but every future component test will.
+
+- [ ] **Step 5: Make TypeScript aware of vitest globals**
+
+Check `tsconfig.json` for an existing `types` field. If `compilerOptions.types` exists, add `"vitest/globals"` and `"@testing-library/jest-dom"` to it. If it doesn't exist, leave the file alone — the explicit imports in test files are enough; the globals in `vitest.config.ts` are runtime, not type-system.
+
+Verify with:
+
+```bash
+grep -n '"types"' tsconfig.json
+```
+
+If you see a `types` array, add the two entries. If not, skip.
+
+- [ ] **Step 6: Add `coverage/` to `.gitignore`**
+
+Edit `.gitignore`. Append a section near the existing dev-tooling block:
+
+```
+# Vitest coverage output
+coverage/
+```
+
+(vitest writes coverage there if anyone runs `vitest --coverage`; better to ignore it preemptively than to discover it tracked later.)
+
+- [ ] **Step 7: Smoke-test the harness with one trivial test**
+
+Create `src/test/smoke.test.ts` (will be deleted in Step 9 — this is just to prove vitest finds tests):
+
+```ts
+import { describe, it, expect } from "vitest"
+
+describe("vitest smoke test", () => {
+  it("runs", () => {
+    expect(1 + 1).toBe(2)
+  })
+})
+```
+
+Run: `pnpm test:run`
+Expected: 1 test passes; vitest exits 0.
+
+- [ ] **Step 8: Verify typecheck and lint still pass**
+
+Run:
+
+```bash
+pnpm typecheck
+pnpm lint
+```
+
+Expected: both PASS. If `pnpm lint` flags `src/test/setup.ts` for being unused or some such, add a `// eslint-disable-next-line ...` if absolutely needed — but the file should pass cleanly.
+
+- [ ] **Step 9: Delete the smoke test**
+
+```bash
+rm src/test/smoke.test.ts
+```
+
+The file existed only to verify the harness; future tests live next to their hooks/components.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add package.json pnpm-lock.yaml vitest.config.ts src/test/setup.ts .gitignore
+# tsconfig.json only if Step 5 modified it
+git commit -m "chore: add vitest + RTL frontend test harness"
+```
 
 ---
 
