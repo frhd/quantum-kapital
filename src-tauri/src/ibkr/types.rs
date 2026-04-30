@@ -7,6 +7,7 @@ pub mod fundamentals;
 pub mod market_data;
 pub mod orders;
 pub mod positions;
+pub mod quote;
 
 pub mod historical;
 pub mod news;
@@ -20,6 +21,8 @@ pub use fundamentals::*;
 pub use market_data::*;
 pub use orders::*;
 pub use positions::*;
+#[allow(unused_imports)]
+pub use quote::*;
 
 #[allow(unused_imports)]
 pub use historical::*;
