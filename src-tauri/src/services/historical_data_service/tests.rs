@@ -174,7 +174,7 @@ async fn bars_round_trip_through_sqlite_preserve_floats_and_volume() {
         .await;
     }
 
-    let read_back = super::read_cache_for_test(
+    let read_back = super::cache::read_cache(
         &db,
         "AAPL",
         BarSize::Day1,
