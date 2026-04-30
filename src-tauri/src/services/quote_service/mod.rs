@@ -55,6 +55,10 @@ mod tests {
 
     /// Programmable mock for `QuoteFetcher`. Tests inject either a
     /// canned snapshot or a canned error.
+    ///
+    /// Single-shot: instantiate one stub per service call. The internal
+    /// `Mutex<Option<...>>::take()` panics if `get_market_data_snapshot`
+    /// is invoked twice on the same stub.
     struct StubFetcher {
         result: Mutex<Option<Result<MarketDataSnapshot>>>,
     }
@@ -158,5 +162,33 @@ mod tests {
 
         let err = service.fetch_quote("AAPL").await.expect_err("err");
         assert!(matches!(err, IbkrError::Timeout(5_000)));
+    }
+
+    #[tokio::test]
+    async fn quote_service_works_with_mock_ibkr_client() {
+        use crate::ibkr::mocks::MockIbkrClient;
+
+        let mock = Arc::new(MockIbkrClient::new());
+        mock.set_connected(true).await;
+
+        let service = QuoteService::new(mock as Arc<dyn QuoteFetcher>);
+        let quote = service.fetch_quote("AAPL").await.expect("ok");
+
+        // Mock canned values from mocks.rs
+        assert_eq!(quote.last_price, Some(150.35));
+        assert_eq!(quote.prev_close, Some(149.80));
+        assert_eq!(quote.volume, Some(1_234_567));
+    }
+
+    #[tokio::test]
+    async fn quote_service_fails_when_mock_disconnected() {
+        use crate::ibkr::mocks::MockIbkrClient;
+
+        let mock = Arc::new(MockIbkrClient::new());
+        // do not connect
+
+        let service = QuoteService::new(mock as Arc<dyn QuoteFetcher>);
+        let err = service.fetch_quote("AAPL").await.expect_err("err");
+        assert!(matches!(err, IbkrError::NotConnected));
     }
 }

@@ -360,6 +360,14 @@ impl IbkrClientTrait for MockIbkrClient {
     }
 }
 
+#[async_trait]
+impl crate::services::quote_service::QuoteFetcher for MockIbkrClient {
+    async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {
+        // Delegate to the inherent trait impl already on this type.
+        <Self as IbkrClientTrait>::get_market_data_snapshot(self, symbol).await
+    }
+}
+
 pub mod test_fixtures {
     use super::*;
 
