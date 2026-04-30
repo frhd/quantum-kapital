@@ -1,6 +1,62 @@
-use crate::ibkr::types::{CagrMetrics, FinancialProjection};
+use crate::ibkr::types::{
+    CagrMetrics, FinancialProjection, FundamentalData, ProjectionAssumptions,
+};
 
-/// Parameters for generating scenario projections
+/// The three projected scenarios produced from one fundamental input.
+pub(super) struct ScenarioBatch {
+    pub(super) bear: Vec<FinancialProjection>,
+    pub(super) base: Vec<FinancialProjection>,
+    pub(super) bull: Vec<FinancialProjection>,
+}
+
+/// Run the bear/base/bull projection trio against shared inputs.
+///
+/// Both `generate_projections` and `generate_projection_results` take the
+/// same baseline + assumptions and only differ in how they shape the
+/// output. This helper centralizes the scenario configuration so the two
+/// public methods stay in sync.
+pub(super) fn generate_three_scenarios(
+    fundamental: &FundamentalData,
+    assumptions: &ProjectionAssumptions,
+    initial_revenue: f64,
+    initial_net_income: f64,
+    projection_start_year: u32,
+) -> ScenarioBatch {
+    let scenario = |revenue_growth: f64, margin_change: f64| {
+        generate_scenario_projection(ScenarioParams {
+            initial_revenue,
+            initial_net_income,
+            initial_shares: fundamental.current_metrics.shares_outstanding,
+            revenue_growth_rate: revenue_growth,
+            margin_change_rate: margin_change,
+            pe_low: assumptions.pe_low,
+            pe_high: assumptions.pe_high,
+            ps_low: assumptions.ps_low,
+            ps_high: assumptions.ps_high,
+            shares_growth_rate: assumptions.shares_growth,
+            start_year: projection_start_year,
+            num_years: assumptions.years,
+            analyst_estimates: fundamental.analyst_estimates.as_ref(),
+        })
+    };
+
+    ScenarioBatch {
+        bear: scenario(
+            assumptions.bear_revenue_growth,
+            assumptions.bear_margin_change,
+        ),
+        base: scenario(
+            assumptions.base_revenue_growth,
+            assumptions.base_margin_change,
+        ),
+        bull: scenario(
+            assumptions.bull_revenue_growth,
+            assumptions.bull_margin_change,
+        ),
+    }
+}
+
+/// Parameters for generating projections for a single scenario
 pub(super) struct ScenarioParams<'a> {
     pub(super) initial_revenue: f64,
     pub(super) initial_net_income: f64,
@@ -17,8 +73,7 @@ pub(super) struct ScenarioParams<'a> {
     pub(super) analyst_estimates: Option<&'a crate::ibkr::types::AnalystEstimates>,
 }
 
-/// Generate projections for a single scenario
-pub(super) fn generate_scenario_projection(params: ScenarioParams<'_>) -> Vec<FinancialProjection> {
+fn generate_scenario_projection(params: ScenarioParams<'_>) -> Vec<FinancialProjection> {
     let mut projections = Vec::new();
     let mut revenue = params.initial_revenue;
     let mut shares = params.initial_shares;

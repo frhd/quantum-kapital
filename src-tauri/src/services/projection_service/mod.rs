@@ -6,7 +6,7 @@ use crate::ibkr::types::{
 
 mod scenarios;
 
-use scenarios::{calculate_cagr, generate_scenario_projection, ScenarioParams};
+use scenarios::{calculate_cagr, generate_three_scenarios, ScenarioBatch};
 
 /// Service for calculating financial projections based on fundamental data
 pub struct ProjectionService;
@@ -17,61 +17,27 @@ impl ProjectionService {
         fundamental: &FundamentalData,
         assumptions: &ProjectionAssumptions,
     ) -> Result<ScenarioProjections> {
-        // Get the most recent historical data as baseline
         let baseline = fundamental.historical.last().ok_or_else(|| {
             crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string())
         })?;
 
-        // Start projections from the year after the baseline
-        // This ensures we don't mislabel historical data as projections
-        let projection_start_year = baseline.year + 1;
-
-        // Bear/base/bull share every input except (revenue_growth, margin_change).
-        let scenario = |revenue_growth: f64, margin_change: f64| {
-            generate_scenario_projection(ScenarioParams {
-                initial_revenue: baseline.revenue,
-                initial_net_income: baseline.net_income,
-                initial_shares: fundamental.current_metrics.shares_outstanding,
-                revenue_growth_rate: revenue_growth,
-                margin_change_rate: margin_change,
-                pe_low: assumptions.pe_low,
-                pe_high: assumptions.pe_high,
-                ps_low: assumptions.ps_low,
-                ps_high: assumptions.ps_high,
-                shares_growth_rate: assumptions.shares_growth,
-                start_year: projection_start_year,
-                num_years: assumptions.years,
-                analyst_estimates: fundamental.analyst_estimates.as_ref(),
-            })
-        };
-
-        let bear = scenario(
-            assumptions.bear_revenue_growth,
-            assumptions.bear_margin_change,
+        let ScenarioBatch { bear, base, bull } = generate_three_scenarios(
+            fundamental,
+            assumptions,
+            baseline.revenue,
+            baseline.net_income,
+            baseline.year + 1,
         );
-        let base = scenario(
-            assumptions.base_revenue_growth,
-            assumptions.base_margin_change,
-        );
-        let bull = scenario(
-            assumptions.bull_revenue_growth,
-            assumptions.bull_margin_change,
-        );
-
-        // Calculate CAGR for each scenario
-        let bear_cagr = calculate_cagr(&bear);
-        let base_cagr = calculate_cagr(&base);
-        let bull_cagr = calculate_cagr(&bull);
 
         Ok(ScenarioProjections {
+            cagr: ScenarioCagr {
+                bear: calculate_cagr(&bear),
+                base: calculate_cagr(&base),
+                bull: calculate_cagr(&bull),
+            },
             bear,
             base,
             bull,
-            cagr: ScenarioCagr {
-                bear: bear_cagr,
-                base: base_cagr,
-                bull: bull_cagr,
-            },
         })
     }
 
@@ -81,54 +47,24 @@ impl ProjectionService {
         fundamental: &FundamentalData,
         assumptions: &ProjectionAssumptions,
     ) -> Result<ProjectionResults> {
-        // Get the most recent historical data as baseline
         let baseline_data = fundamental.historical.last().ok_or_else(|| {
             crate::ibkr::error::IbkrError::Unknown("No historical data available".to_string())
         })?;
 
-        // Create baseline projection (actual data, not a projection)
         let baseline = Self::create_baseline_projection(
             baseline_data,
             fundamental.current_metrics.shares_outstanding,
             fundamental.current_metrics.price,
         );
 
-        // Start projections from the year after the baseline
-        let projection_start_year = baseline_data.year + 1;
-
-        // Bear/base/bull share every input except (revenue_growth, margin_change).
-        let scenario = |revenue_growth: f64, margin_change: f64| {
-            generate_scenario_projection(ScenarioParams {
-                initial_revenue: baseline_data.revenue,
-                initial_net_income: baseline_data.net_income,
-                initial_shares: fundamental.current_metrics.shares_outstanding,
-                revenue_growth_rate: revenue_growth,
-                margin_change_rate: margin_change,
-                pe_low: assumptions.pe_low,
-                pe_high: assumptions.pe_high,
-                ps_low: assumptions.ps_low,
-                ps_high: assumptions.ps_high,
-                shares_growth_rate: assumptions.shares_growth,
-                start_year: projection_start_year,
-                num_years: assumptions.years,
-                analyst_estimates: fundamental.analyst_estimates.as_ref(),
-            })
-        };
-
-        let bear = scenario(
-            assumptions.bear_revenue_growth,
-            assumptions.bear_margin_change,
-        );
-        let base = scenario(
-            assumptions.base_revenue_growth,
-            assumptions.base_margin_change,
-        );
-        let bull = scenario(
-            assumptions.bull_revenue_growth,
-            assumptions.bull_margin_change,
+        let ScenarioBatch { bear, base, bull } = generate_three_scenarios(
+            fundamental,
+            assumptions,
+            baseline_data.revenue,
+            baseline_data.net_income,
+            baseline_data.year + 1,
         );
 
-        // Group projections by year
         let mut projections = Vec::new();
         for i in 0..assumptions.years as usize {
             if let (Some(bear_proj), Some(base_proj), Some(bull_proj)) =
@@ -143,18 +79,13 @@ impl ProjectionService {
             }
         }
 
-        // Calculate CAGR for each scenario
-        let bear_cagr = calculate_cagr(&bear);
-        let base_cagr = calculate_cagr(&base);
-        let bull_cagr = calculate_cagr(&bull);
-
         Ok(ProjectionResults {
             baseline,
             projections,
             cagr: ScenarioCagr {
-                bear: bear_cagr,
-                base: base_cagr,
-                bull: bull_cagr,
+                bear: calculate_cagr(&bear),
+                base: calculate_cagr(&base),
+                bull: calculate_cagr(&bull),
             },
         })
     }
