@@ -1,4 +1,5 @@
 pub mod alerts;
+pub mod auto_scanner;
 pub mod cache_service;
 pub mod daily_ranker;
 pub mod decay_watcher;

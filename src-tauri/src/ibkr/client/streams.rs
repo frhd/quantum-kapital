@@ -82,6 +82,38 @@ impl IbkrClient {
         Ok(StreamHandle::new("Daily PnL", shutdown, join))
     }
 
+    /// One-shot scanner call: subscribe, take the first batch IBKR
+    /// returns, cancel. Built on top of the same `scanner_subscription`
+    /// API as [`Self::start_scanner_stream`] but with a bounded wait —
+    /// suitable for callers that want a snapshot rather than a live
+    /// feed (e.g. the auto-scanner scheduler tick). `timeout` is the
+    /// max time we'll wait for the first batch; in practice IBKR
+    /// returns within a couple of seconds.
+    pub async fn scan_one_shot(
+        &self,
+        opts: ScannerSubscription,
+        timeout: Duration,
+    ) -> Result<Vec<ScannerData>> {
+        let client_clone = self.ibapi_client().await?;
+        let task = tokio::task::spawn_blocking(move || -> Result<Vec<ScannerData>> {
+            let ib_sub = to_ibapi_scanner_subscription(&opts);
+            let filter = scanner_filter_options(&opts);
+            let subscription = client_clone
+                .scanner_subscription(&ib_sub, &filter)
+                .map_err(|e| crate::ibkr::error::IbkrError::RequestFailed(e.to_string()))?;
+            let rows = subscription.next_timeout(timeout).unwrap_or_default();
+            let results: Vec<ScannerData> = rows.iter().map(from_ibapi_scanner_data).collect();
+            subscription.cancel();
+            Ok(results)
+        });
+        match task.await {
+            Ok(inner) => inner,
+            Err(e) => Err(crate::ibkr::error::IbkrError::RequestFailed(format!(
+                "scan_one_shot join error: {e}"
+            ))),
+        }
+    }
+
     pub async fn start_scanner_stream(
         &self,
         opts: ScannerSubscription,
@@ -97,7 +129,7 @@ impl IbkrClient {
 
         let join = tokio::task::spawn_blocking(move || {
             let ib_sub = to_ibapi_scanner_subscription(&opts);
-            let filter: Vec<ibapi::orders::TagValue> = Vec::new();
+            let filter = scanner_filter_options(&opts);
 
             let subscription = match client_clone.scanner_subscription(&ib_sub, &filter) {
                 Ok(s) => s,
@@ -129,6 +161,21 @@ impl IbkrClient {
 
         Ok(StreamHandle::new("Scanner", shutdown, join))
     }
+}
+
+/// Build the `scannerSubscriptionFilterOptions` `TagValue` list for a
+/// scanner subscription. Today the only filter we surface is
+/// `industryLike`; new filters get added here so the manual UI scanner
+/// and the auto-scanner share a single conversion.
+pub(crate) fn scanner_filter_options(s: &ScannerSubscription) -> Vec<ibapi::orders::TagValue> {
+    let mut out = Vec::new();
+    if let Some(industry) = s.industry_filter.as_deref() {
+        out.push(ibapi::orders::TagValue {
+            tag: "industryLike".to_string(),
+            value: industry.to_string(),
+        });
+    }
+    out
 }
 
 fn to_ibapi_scanner_subscription(s: &ScannerSubscription) -> ibapi::scanner::ScannerSubscription {

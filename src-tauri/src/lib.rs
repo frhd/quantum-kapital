@@ -14,6 +14,7 @@ use std::time::Duration;
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::HistoricalRateLimiter;
+use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketScanner};
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
@@ -173,6 +174,34 @@ pub fn run() {
                 Duration::from_secs(config.tracker.intraday_tick_interval_secs),
             ));
 
+            // First automation step: scheduled IBKR scanner that
+            // promotes top-ranked rows into the watchlist with
+            // `source = auto_scanner`. Ships dark — auto-start only
+            // fires when the user has flipped `auto_scanner.enabled`
+            // to true in settings. Otherwise the scheduler stays
+            // available for manual `auto_scanner_start`.
+            let market_scanner: Arc<dyn MarketScanner> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn MarketScanner>;
+            let auto_scanner_service = Arc::new(AutoScannerService::new(
+                market_scanner,
+                Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&db),
+                config.auto_scanner.clone(),
+            ));
+            let auto_scanner_scheduler = Arc::new(AutoScannerScheduler::new(
+                Arc::clone(&auto_scanner_service),
+                Duration::from_secs(60),
+            ));
+            if config.auto_scanner.enabled {
+                let scheduler = Arc::clone(&auto_scanner_scheduler);
+                let state_for_spawn = ibkr_state.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = state_for_spawn.start_auto_scanner(scheduler).await {
+                        tracing::warn!("auto-scanner auto-start failed: {e}");
+                    }
+                });
+            }
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
@@ -185,6 +214,8 @@ pub fn run() {
             app.manage(thesis_generator);
             app.manage(news_interpreter);
             app.manage(daily_ranker);
+            app.manage(auto_scanner_service);
+            app.manage(auto_scanner_scheduler);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -220,6 +251,11 @@ pub fn run() {
             ibkr::commands::tracker_get_morning_pack,
             ibkr::commands::tracker_list_alerts,
             ibkr::commands::tracker_mark_alerts_seen,
+            ibkr::commands::auto_scanner_start,
+            ibkr::commands::auto_scanner_stop,
+            ibkr::commands::auto_scanner_get_config,
+            ibkr::commands::auto_scanner_set_config,
+            ibkr::commands::auto_scanner_run_once,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

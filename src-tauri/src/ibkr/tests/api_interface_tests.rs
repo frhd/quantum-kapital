@@ -160,6 +160,98 @@ async fn test_market_scanner() {
     }
 }
 
+fn scanner_row(rank: i32, symbol: &str) -> ScannerData {
+    ScannerData {
+        rank,
+        contract: ContractDetails {
+            symbol: symbol.to_string(),
+            sec_type: SecurityType::Stock,
+            exchange: "SMART".to_string(),
+            primary_exchange: "NASDAQ".to_string(),
+            currency: "USD".to_string(),
+            local_symbol: symbol.to_string(),
+            trading_class: symbol.to_string(),
+            contract_id: 100 + rank,
+            min_tick: 0.01,
+            multiplier: String::new(),
+            price_magnifier: 1,
+        },
+        leg: String::new(),
+    }
+}
+
+#[tokio::test]
+async fn scan_market_returns_programmed_results_for_matching_scan_code() {
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap();
+
+    client
+        .set_scan_results(
+            "TOP_PERC_GAIN",
+            None,
+            vec![scanner_row(1, "NVDA"), scanner_row(2, "AMD")],
+        )
+        .await;
+
+    let mut sub = test_fixtures::sample_scanner_subscription();
+    sub.scan_code = "TOP_PERC_GAIN".to_string();
+    sub.industry_filter = None;
+
+    let results = client.scan_market(sub).await.unwrap();
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].contract.symbol, "NVDA");
+    assert_eq!(results[1].contract.symbol, "AMD");
+}
+
+#[tokio::test]
+async fn scan_market_routes_by_industry_filter() {
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap();
+
+    client
+        .set_scan_results("TOP_PERC_GAIN", None, vec![scanner_row(1, "BROAD")])
+        .await;
+    client
+        .set_scan_results(
+            "TOP_PERC_GAIN",
+            Some("Semiconductors"),
+            vec![scanner_row(1, "NVDA")],
+        )
+        .await;
+
+    let mut broad = test_fixtures::sample_scanner_subscription();
+    broad.scan_code = "TOP_PERC_GAIN".to_string();
+    broad.industry_filter = None;
+
+    let mut semi = test_fixtures::sample_scanner_subscription();
+    semi.scan_code = "TOP_PERC_GAIN".to_string();
+    semi.industry_filter = Some("Semiconductors".to_string());
+
+    let broad_rows = client.scan_market(broad).await.unwrap();
+    let semi_rows = client.scan_market(semi).await.unwrap();
+    assert_eq!(broad_rows.len(), 1);
+    assert_eq!(broad_rows[0].contract.symbol, "BROAD");
+    assert_eq!(semi_rows.len(), 1);
+    assert_eq!(semi_rows[0].contract.symbol, "NVDA");
+}
+
+#[tokio::test]
+async fn scan_market_returns_empty_for_unprogrammed_key_once_programmed() {
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap();
+
+    client
+        .set_scan_results("TOP_PERC_GAIN", None, vec![scanner_row(1, "NVDA")])
+        .await;
+
+    let mut other = test_fixtures::sample_scanner_subscription();
+    other.scan_code = "HOT_BY_VOLUME".to_string();
+    other.industry_filter = None;
+
+    let results = client.scan_market(other).await.unwrap();
+    assert!(results.is_empty());
+}
+
 #[tokio::test]
 async fn test_real_time_data_simulation() {
     let client = MockIbkrClient::new();

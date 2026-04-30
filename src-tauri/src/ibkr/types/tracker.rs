@@ -14,6 +14,7 @@ pub enum TrackerSource {
     Scanner,
     Manual,
     News,
+    AutoScanner,
 }
 
 impl TrackerSource {
@@ -22,6 +23,7 @@ impl TrackerSource {
             TrackerSource::Scanner => "scanner",
             TrackerSource::Manual => "manual",
             TrackerSource::News => "news",
+            TrackerSource::AutoScanner => "auto_scanner",
         }
     }
 
@@ -30,6 +32,7 @@ impl TrackerSource {
             "scanner" => Some(TrackerSource::Scanner),
             "manual" => Some(TrackerSource::Manual),
             "news" => Some(TrackerSource::News),
+            "auto_scanner" => Some(TrackerSource::AutoScanner),
             _ => None,
         }
     }
@@ -239,6 +242,23 @@ mod tests {
         );
         let parsed: TrackerSource = serde_json::from_str("\"news\"").unwrap();
         assert_eq!(parsed, TrackerSource::News);
+    }
+
+    #[test]
+    fn tracker_source_auto_scanner_round_trips() {
+        // Distinct from `Scanner` (manual UI scanner adds) so the daily-cap
+        // counter and analytics can separate human and automated promotions.
+        assert_eq!(
+            serde_json::to_string(&TrackerSource::AutoScanner).unwrap(),
+            "\"auto_scanner\""
+        );
+        let parsed: TrackerSource = serde_json::from_str("\"auto_scanner\"").unwrap();
+        assert_eq!(parsed, TrackerSource::AutoScanner);
+        assert_eq!(TrackerSource::AutoScanner.as_str(), "auto_scanner");
+        assert_eq!(
+            TrackerSource::parse("auto_scanner"),
+            Some(TrackerSource::AutoScanner)
+        );
     }
 
     #[test]

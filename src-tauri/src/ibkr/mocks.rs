@@ -1,8 +1,18 @@
 use crate::ibkr::error::{IbkrError, Result};
 use crate::ibkr::types::*;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// Lookup key for [`MockIbkrClient`] scanner programming. Tests set
+/// canned `Vec<ScannerData>` results per `(scan_code, industry_filter)`
+/// pair so a single mock instance can serve multiple parallel scans.
+type ScanKey = (String, Option<String>);
+
+/// Programmable canned-results store. `None` until a test first calls
+/// `set_scan_results`, after which lookup is per [`ScanKey`].
+type ScanResultStore = Arc<RwLock<Option<HashMap<ScanKey, Vec<ScannerData>>>>>;
 
 #[async_trait]
 pub trait IbkrClientTrait: Send + Sync {
@@ -35,6 +45,9 @@ pub struct MockIbkrClient {
     account_summary: Arc<RwLock<Vec<AccountSummary>>>,
     executions: Arc<RwLock<Vec<IbkrExecution>>>,
     error_mode: Arc<RwLock<Option<IbkrError>>>,
+    /// Canned `scan_market` results. See [`ScanResultStore`] for
+    /// initialization semantics.
+    scan_results: ScanResultStore,
 }
 
 impl MockIbkrClient {
@@ -46,6 +59,7 @@ impl MockIbkrClient {
             account_summary: Arc::new(RwLock::new(Vec::new())),
             executions: Arc::new(RwLock::new(Vec::new())),
             error_mode: Arc::new(RwLock::new(None)),
+            scan_results: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -73,6 +87,25 @@ impl MockIbkrClient {
 
     pub async fn set_executions(&self, executions: Vec<IbkrExecution>) {
         *self.executions.write().await = executions;
+    }
+
+    /// Program canned `scan_market` results for a `(scan_code, industry)`
+    /// pair. The first call flips the mock from "default canned AAPL row"
+    /// mode into programmed mode, after which any unprogrammed key
+    /// returns an empty vec — letting tests assert "this profile yields
+    /// nothing" without injecting a placeholder.
+    pub async fn set_scan_results(
+        &self,
+        scan_code: &str,
+        industry_filter: Option<&str>,
+        results: Vec<ScannerData>,
+    ) {
+        let mut guard = self.scan_results.write().await;
+        let map = guard.get_or_insert_with(HashMap::new);
+        map.insert(
+            (scan_code.to_string(), industry_filter.map(str::to_string)),
+            results,
+        );
     }
 
     /// Returns injected fills filtered to the requested ET trading date.
@@ -296,10 +329,15 @@ impl IbkrClientTrait for MockIbkrClient {
         ])
     }
 
-    async fn scan_market(&self, _subscription: ScannerSubscription) -> Result<Vec<ScannerData>> {
+    async fn scan_market(&self, subscription: ScannerSubscription) -> Result<Vec<ScannerData>> {
         self.check_error().await?;
         if !self.is_connected().await {
             return Err(IbkrError::NotConnected);
+        }
+
+        if let Some(map) = self.scan_results.read().await.as_ref() {
+            let key = (subscription.scan_code.clone(), subscription.industry_filter);
+            return Ok(map.get(&key).cloned().unwrap_or_default());
         }
 
         Ok(vec![ScannerData {
@@ -433,6 +471,7 @@ pub mod test_fixtures {
             above_volume: Some(100000),
             market_cap_above: Some(1000000000.0),
             market_cap_below: None,
+            industry_filter: None,
         }
     }
 }

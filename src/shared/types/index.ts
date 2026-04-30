@@ -83,6 +83,8 @@ export interface ScannerSubscription {
   above_volume?: number
   market_cap_above?: number
   market_cap_below?: number
+  /** IBKR `industryLike` filter (e.g. "Semiconductors"). Omit for broad-market scans. */
+  industry_filter?: string
 }
 
 export interface ScannerData {

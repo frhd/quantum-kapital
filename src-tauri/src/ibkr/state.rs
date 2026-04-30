@@ -1,6 +1,7 @@
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::{IbkrClient, StreamHandle};
 use crate::ibkr::types::{ConnectionConfig, ScannerSubscription};
+use crate::services::auto_scanner::AutoScannerScheduler;
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::intraday_scheduler::IntradayScheduler;
 use crate::services::tracker_service::TrackerService;
@@ -18,6 +19,7 @@ pub struct IbkrState {
     pub scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub eod_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub intraday_handle: Arc<RwLock<Option<StreamHandle>>>,
+    pub auto_scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub tracker: Arc<TrackerService>,
     pub state_machine: Arc<TrackerStateMachine>,
 }
@@ -40,6 +42,7 @@ impl IbkrState {
             scanner_handle: Arc::new(RwLock::new(None)),
             eod_handle: Arc::new(RwLock::new(None)),
             intraday_handle: Arc::new(RwLock::new(None)),
+            auto_scanner_handle: Arc::new(RwLock::new(None)),
             tracker,
             state_machine,
         }
@@ -117,6 +120,25 @@ impl IbkrState {
     #[allow(dead_code)] // scheduler API surface — UI wiring on roadmap
     pub async fn stop_intraday_scheduler(&self) {
         let handle = self.intraday_handle.write().await.take();
+        if let Some(handle) = handle {
+            handle.stop().await;
+        }
+    }
+
+    pub async fn start_auto_scanner(
+        &self,
+        scheduler: Arc<AutoScannerScheduler>,
+    ) -> Result<(), String> {
+        // Replace any running loop — same idempotent pattern as the
+        // other scheduler handles.
+        self.stop_auto_scanner().await;
+        let handle = scheduler.spawn();
+        *self.auto_scanner_handle.write().await = Some(handle);
+        Ok(())
+    }
+
+    pub async fn stop_auto_scanner(&self) {
+        let handle = self.auto_scanner_handle.write().await.take();
         if let Some(handle) = handle {
             handle.stop().await;
         }
