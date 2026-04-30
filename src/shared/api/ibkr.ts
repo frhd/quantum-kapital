@@ -10,6 +10,7 @@ import type {
   ProjectionResults,
   ProjectionAssumptions,
   ScannerSubscription,
+  Quote,
 } from "../types"
 import type {
   Alert,
@@ -67,6 +68,10 @@ export const ibkrApi = {
 
   getFundamentalData: async (symbol: string) => {
     return invoke<FundamentalData>("ibkr_get_fundamental_data", { symbol })
+  },
+
+  getQuote: async (symbol: string) => {
+    return invoke<Quote>("ibkr_get_quote", { symbol })
   },
 
   generateProjections: async (symbol: string, assumptions?: ProjectionAssumptions) => {
