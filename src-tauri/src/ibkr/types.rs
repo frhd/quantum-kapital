@@ -21,7 +21,6 @@ pub use fundamentals::*;
 pub use market_data::*;
 pub use orders::*;
 pub use positions::*;
-#[allow(unused_imports)]
 pub use quote::*;
 
 #[allow(unused_imports)]

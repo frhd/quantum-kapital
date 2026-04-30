@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 /// `MarketDataSnapshot` via `QuoteService`. Distinct from
 /// `MarketDataSnapshot` because the UI only needs four fields and
 /// because future quote sources need not match the snapshot shape.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Quote {

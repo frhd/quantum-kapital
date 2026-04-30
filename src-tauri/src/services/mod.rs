@@ -10,6 +10,7 @@ pub mod intraday_scheduler;
 pub mod llm_service;
 pub mod news_interpreter;
 pub mod projection_service;
+pub mod quote_service;
 pub mod thesis_generator;
 pub mod tracker_runner;
 pub mod tracker_service;
