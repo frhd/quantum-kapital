@@ -89,14 +89,14 @@ export function MorningPackPanel({
   }
 
   return (
-    <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-slate-800/50 backdrop-blur-xs">
+    <Card className="border-amber-500/30 bg-amber-500/5">
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-amber-300" />
             <div>
-              <CardTitle className="text-white">Morning Pack</CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardTitle className="text-foreground">Morning Pack</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 {pack
                   ? `Top ${pack.ranked.length} for ${formatPackDate(pack.date)} — generated ${formatGenerated(pack.generated_at)}`
                   : "No pack yet — runs after the EOD sweep at 16:05 ET."}
@@ -145,7 +145,9 @@ export function MorningPackPanel({
             </div>
           )}
           {pack && pack.ranked.length === 0 && (
-            <p className="text-sm text-slate-400">No setups detected for this trading day.</p>
+            <p className="text-muted-foreground text-sm">
+              No setups detected for this trading day.
+            </p>
           )}
           {pack &&
             pack.ranked.map((row) => {
@@ -159,7 +161,7 @@ export function MorningPackPanel({
               return (
                 <div
                   key={row.setup_id}
-                  className="rounded border border-slate-700 bg-slate-900/40 px-3 py-2"
+                  className="border-border bg-background/40 rounded border px-3 py-2"
                 >
                   <button
                     type="button"
@@ -173,16 +175,16 @@ export function MorningPackPanel({
                       >
                         #{row.rank}
                       </Badge>
-                      <span className="font-mono text-sm font-semibold text-white">
+                      <span className="text-foreground font-mono text-sm font-semibold">
                         {symbol ?? `setup#${row.setup_id}`}
                       </span>
                       {strategy && (
-                        <Badge variant="outline" className="border-slate-500 text-slate-200">
+                        <Badge variant="outline" className="border-border text-foreground">
                           {STRATEGY_LABELS[strategy] ?? strategy}
                         </Badge>
                       )}
                       {direction && (
-                        <span className="text-[10px] tracking-wide text-slate-400 uppercase">
+                        <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
                           {direction}
                         </span>
                       )}
@@ -196,21 +198,21 @@ export function MorningPackPanel({
                             e.stopPropagation()
                             onSelectSymbol(symbol)
                           }}
-                          className="h-7 px-2 text-slate-300 hover:text-white"
+                          className="text-foreground hover:text-foreground h-7 px-2"
                           title="Open analysis"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       )}
                       {expanded ? (
-                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                        <ChevronDown className="text-muted-foreground h-4 w-4" />
                       ) : (
-                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                        <ChevronRight className="text-muted-foreground h-4 w-4" />
                       )}
                     </div>
                   </button>
                   {expanded && (
-                    <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                    <p className="text-foreground mt-2 text-sm leading-relaxed">
                       {row.why_top_pick}
                     </p>
                   )}

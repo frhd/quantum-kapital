@@ -20,19 +20,19 @@ export function ConnectionSettings({
   setConnectionSettings,
 }: ConnectionSettingsProps) {
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-white">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Settings className="h-5 w-5 text-blue-400" />
           Connection Settings
         </CardTitle>
-        <CardDescription className="text-slate-400">
+        <CardDescription className="text-muted-foreground">
           Configure your IBKR API connection settings
         </CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="host" className="text-slate-300">
+          <Label htmlFor="host" className="text-foreground">
             Host
           </Label>
           <Input
@@ -40,11 +40,11 @@ export function ConnectionSettings({
             value={connectionSettings.host}
             onChange={(e) => setConnectionSettings((prev) => ({ ...prev, host: e.target.value }))}
             placeholder="127.0.0.1"
-            className="border-slate-600 bg-slate-900/50 text-white placeholder:text-slate-500"
+            className="border-input bg-background/50 text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="port" className="text-slate-300">
+          <Label htmlFor="port" className="text-foreground">
             Port
           </Label>
           <Input
@@ -55,11 +55,11 @@ export function ConnectionSettings({
               setConnectionSettings((prev) => ({ ...prev, port: parseInt(e.target.value) || 4004 }))
             }
             placeholder="4004"
-            className="border-slate-600 bg-slate-900/50 text-white placeholder:text-slate-500"
+            className="border-input bg-background/50 text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="clientId" className="text-slate-300">
+          <Label htmlFor="clientId" className="text-foreground">
             Client ID
           </Label>
           <Input
@@ -73,7 +73,7 @@ export function ConnectionSettings({
               }))
             }
             placeholder="100"
-            className="border-slate-600 bg-slate-900/50 text-white placeholder:text-slate-500"
+            className="border-input bg-background/50 text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </CardContent>

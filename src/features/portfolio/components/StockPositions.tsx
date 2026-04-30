@@ -29,26 +29,26 @@ export function StockPositions({ positions }: StockPositionsProps) {
   }
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-white">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-blue-400" />
           Stock Positions
         </CardTitle>
-        <CardDescription className="text-slate-400">Current stock holdings</CardDescription>
+        <CardDescription className="text-muted-foreground">Current stock holdings</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="h-8 border-slate-700">
-                <TableHead className="py-2 text-xs text-slate-300">Symbol</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Qty</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Avg Cost</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Price</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Value</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">P&L</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">%</TableHead>
+              <TableRow className="border-border h-8">
+                <TableHead className="text-foreground py-2 text-xs">Symbol</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Qty</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Avg Cost</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Price</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Value</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">P&L</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">%</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -56,21 +56,21 @@ export function StockPositions({ positions }: StockPositionsProps) {
                 const percentChange =
                   ((position.market_price - position.average_cost) / position.average_cost) * 100
                 return (
-                  <TableRow key={`${position.symbol}-${index}`} className="h-10 border-slate-700">
-                    <TableCell className="py-2 font-medium text-white">
+                  <TableRow key={`${position.symbol}-${index}`} className="border-border h-10">
+                    <TableCell className="text-foreground py-2 font-medium">
                       <div className="text-sm">{position.symbol}</div>
-                      <div className="text-xs text-slate-500">{position.exchange}</div>
+                      <div className="text-muted-foreground text-xs">{position.exchange}</div>
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       {position.position.toFixed(0)}
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       ${position.average_cost.toFixed(2)}
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       ${position.market_price.toFixed(2)}
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       {formatCurrency(position.market_value)}
                     </TableCell>
                     <TableCell

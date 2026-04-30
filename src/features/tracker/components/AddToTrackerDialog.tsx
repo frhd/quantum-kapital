@@ -122,16 +122,16 @@ export function AddToTrackerDialog({ open, prefill, onClose, onAdded }: AddToTra
       <div className="absolute inset-0 bg-black/60" />
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-md space-y-4 rounded-lg border border-slate-700 bg-slate-900 p-5 text-white shadow-xl"
+        className="border-border bg-background text-foreground relative w-full max-w-md space-y-4 rounded-lg border p-5 shadow-xl"
       >
         <div className="flex items-start justify-between">
           <div>
             <h2 id="add-to-tracker-title" className="text-lg font-semibold">
               Add to tracker
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-muted-foreground text-xs">
               Source:{" "}
-              <span className="font-medium text-slate-200">{prefill?.source ?? "manual"}</span>
+              <span className="text-foreground font-medium">{prefill?.source ?? "manual"}</span>
               {lockedSource ? " (from scanner)" : ""}
             </p>
           </div>
@@ -163,7 +163,7 @@ export function AddToTrackerDialog({ open, prefill, onClose, onAdded }: AddToTra
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
             disabled={Boolean(prefill?.symbol) && Boolean(lockedSource)}
             placeholder="AAPL"
-            className="bg-slate-800 uppercase"
+            className="bg-card uppercase"
             autoComplete="off"
           />
         </div>
@@ -182,7 +182,7 @@ export function AddToTrackerDialog({ open, prefill, onClose, onAdded }: AddToTra
                     "rounded-full border px-3 py-1 text-xs transition-colors " +
                     (active
                       ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                      : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
+                      : "border-input bg-card text-foreground hover:bg-secondary")
                   }
                 >
                   {opt.label}
@@ -206,7 +206,7 @@ export function AddToTrackerDialog({ open, prefill, onClose, onAdded }: AddToTra
               value={customTag}
               onChange={(e) => setCustomTag(e.target.value)}
               placeholder="Custom tag…"
-              className="h-8 bg-slate-800 text-xs"
+              className="bg-card h-8 text-xs"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault()
@@ -234,7 +234,7 @@ export function AddToTrackerDialog({ open, prefill, onClose, onAdded }: AddToTra
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+            className="border-border bg-card text-foreground placeholder:text-muted-foreground w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
             placeholder="Why are you tracking this?"
           />
         </div>

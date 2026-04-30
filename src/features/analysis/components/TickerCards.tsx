@@ -12,16 +12,16 @@ export function TickerCards({ ticker }: TickerCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {/* Price Card */}
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <DollarSign className="h-4 w-4 text-blue-400/60" />
             Current Price
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="text-3xl font-bold text-white">${ticker.price?.toFixed(2) ?? "—"}</p>
+            <p className="text-foreground text-3xl font-bold">${ticker.price?.toFixed(2) ?? "—"}</p>
             {ticker.change !== undefined && ticker.changePercent !== undefined && (
               <div
                 className={`flex items-center gap-1 text-sm ${isPositive ? "text-green-400" : "text-red-400"}`}
@@ -43,43 +43,43 @@ export function TickerCards({ ticker }: TickerCardsProps) {
       </Card>
 
       {/* Volume Card */}
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <BarChart3 className="h-4 w-4 text-purple-400/60" />
             Volume
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="text-3xl font-bold text-white">
+            <p className="text-foreground text-3xl font-bold">
               {ticker.volume !== undefined ? (ticker.volume / 1_000_000).toFixed(2) + "M" : "—"}
             </p>
-            <p className="text-sm text-slate-400">Trading Volume</p>
+            <p className="text-muted-foreground text-sm">Trading Volume</p>
           </div>
         </CardContent>
       </Card>
 
       {/* Market Cap Card */}
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <PieChart className="h-4 w-4 text-emerald-400/60" />
             Market Cap
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="text-3xl font-bold text-white">{ticker.marketCap ?? "—"}</p>
-            <p className="text-sm text-slate-400">{ticker.exchange}</p>
+            <p className="text-foreground text-3xl font-bold">{ticker.marketCap ?? "—"}</p>
+            <p className="text-muted-foreground text-sm">{ticker.exchange}</p>
           </div>
         </CardContent>
       </Card>
 
       {/* Metrics Card */}
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <Percent className="h-4 w-4 text-amber-400/60" />
             Key Metrics
           </CardTitle>
@@ -87,14 +87,14 @@ export function TickerCards({ ticker }: TickerCardsProps) {
         <CardContent>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-400">P/E Ratio</span>
-              <span className="text-lg font-semibold text-white">
+              <span className="text-muted-foreground text-sm">P/E Ratio</span>
+              <span className="text-foreground text-lg font-semibold">
                 {ticker.pe?.toFixed(2) ?? "—"}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-400">Yield</span>
-              <span className="text-lg font-semibold text-white">
+              <span className="text-muted-foreground text-sm">Yield</span>
+              <span className="text-foreground text-lg font-semibold">
                 {ticker.yield !== undefined ? ticker.yield.toFixed(2) + "%" : "—"}
               </span>
             </div>

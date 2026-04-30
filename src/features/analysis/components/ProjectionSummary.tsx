@@ -26,9 +26,9 @@ export function ProjectionSummary({
   // Safety check: ensure baseline exists
   if (!baseline) {
     return (
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-border/50 bg-card/30">
         <CardContent className="pt-6">
-          <p className="text-center text-slate-400">No projection data available</p>
+          <p className="text-muted-foreground text-center">No projection data available</p>
         </CardContent>
       </Card>
     )
@@ -43,9 +43,9 @@ export function ProjectionSummary({
   return (
     <div className="space-y-4">
       {/* Baseline Metrics */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-border/50 bg-card/30">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <Info className="h-4 w-4 text-blue-400" />
             Baseline Metrics ({baselineYear})
           </CardTitle>
@@ -53,67 +53,71 @@ export function ProjectionSummary({
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
             <div>
-              <p className="text-xs text-slate-500">Revenue</p>
-              <p className="font-semibold text-white">{formatBillions(baseline.revenue)}</p>
+              <p className="text-muted-foreground text-xs">Revenue</p>
+              <p className="text-foreground font-semibold">{formatBillions(baseline.revenue)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Net Income</p>
-              <p className="font-semibold text-white">{formatBillions(baseline.netIncome)}</p>
+              <p className="text-muted-foreground text-xs">Net Income</p>
+              <p className="text-foreground font-semibold">{formatBillions(baseline.netIncome)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Net Margin</p>
-              <p className="font-semibold text-white">{formatPercent(baseline.netIncomeMargins)}</p>
+              <p className="text-muted-foreground text-xs">Net Margin</p>
+              <p className="text-foreground font-semibold">
+                {formatPercent(baseline.netIncomeMargins)}
+              </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">EPS</p>
-              <p className="font-semibold text-white">${baseline.eps.toFixed(2)}</p>
+              <p className="text-muted-foreground text-xs">EPS</p>
+              <p className="text-foreground font-semibold">${baseline.eps.toFixed(2)}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Scenario Assumptions */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-border/50 bg-card/30">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-slate-300">Scenario Assumptions</CardTitle>
+          <CardTitle className="text-foreground text-sm font-medium">
+            Scenario Assumptions
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-700/50">
-                  <TableHead className="text-slate-400">Assumption</TableHead>
+                <TableRow className="border-border/50">
+                  <TableHead className="text-muted-foreground">Assumption</TableHead>
                   <TableHead className="text-center text-red-400">Bear</TableHead>
                   <TableHead className="text-center text-blue-400">Base</TableHead>
                   <TableHead className="text-center text-green-400">Bull</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow className="border-slate-700/50">
-                  <TableCell className="text-sm text-slate-300">Annual Revenue Growth</TableCell>
-                  <TableCell className="text-center text-sm text-white">
+                <TableRow className="border-border/50">
+                  <TableCell className="text-foreground text-sm">Annual Revenue Growth</TableCell>
+                  <TableCell className="text-foreground text-center text-sm">
                     {formatPercent(assumptions.bearRevenueGrowth)}
                   </TableCell>
-                  <TableCell className="text-center text-sm text-white">
+                  <TableCell className="text-foreground text-center text-sm">
                     {formatPercent(assumptions.baseRevenueGrowth)}
                   </TableCell>
-                  <TableCell className="text-center text-sm text-white">
+                  <TableCell className="text-foreground text-center text-sm">
                     {formatPercent(assumptions.bullRevenueGrowth)}
                   </TableCell>
                 </TableRow>
-                <TableRow className="border-slate-700/50">
-                  <TableCell className="text-sm text-slate-300">
+                <TableRow className="border-border/50">
+                  <TableCell className="text-foreground text-sm">
                     Margin Change (ppts/year)
                   </TableCell>
-                  <TableCell className="text-center text-sm text-white">
+                  <TableCell className="text-foreground text-center text-sm">
                     {assumptions.bearMarginChange > 0 ? "+" : ""}
                     {assumptions.bearMarginChange.toFixed(1)}
                   </TableCell>
-                  <TableCell className="text-center text-sm text-white">
+                  <TableCell className="text-foreground text-center text-sm">
                     {assumptions.baseMarginChange > 0 ? "+" : ""}
                     {assumptions.baseMarginChange.toFixed(1)}
                   </TableCell>
-                  <TableCell className="text-center text-sm text-white">
+                  <TableCell className="text-foreground text-center text-sm">
                     {assumptions.bullMarginChange > 0 ? "+" : ""}
                     {assumptions.bullMarginChange.toFixed(1)}
                   </TableCell>
@@ -123,27 +127,27 @@ export function ProjectionSummary({
           </div>
 
           {/* Valuation Assumptions */}
-          <div className="mt-4 border-t border-slate-700/50 pt-4">
+          <div className="border-border/50 mt-4 border-t pt-4">
             <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
               <div>
-                <p className="text-xs text-slate-500">P/E Range (Profitable)</p>
-                <p className="font-semibold text-white">
+                <p className="text-muted-foreground text-xs">P/E Range (Profitable)</p>
+                <p className="text-foreground font-semibold">
                   {formatNumber(assumptions.peLow)} - {formatNumber(assumptions.peHigh)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">P/S Range (Unprofitable)</p>
-                <p className="font-semibold text-white">
+                <p className="text-muted-foreground text-xs">P/S Range (Unprofitable)</p>
+                <p className="text-foreground font-semibold">
                   {formatNumber(assumptions.psLow)} - {formatNumber(assumptions.psHigh)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Projection Period</p>
-                <p className="font-semibold text-white">{assumptions.years} years</p>
+                <p className="text-muted-foreground text-xs">Projection Period</p>
+                <p className="text-foreground font-semibold">{assumptions.years} years</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Shares Growth</p>
-                <p className="font-semibold text-white">
+                <p className="text-muted-foreground text-xs">Shares Growth</p>
+                <p className="text-foreground font-semibold">
                   {assumptions.sharesGrowth > 0 ? "+" : ""}
                   {formatPercent(assumptions.sharesGrowth)}
                 </p>
@@ -154,10 +158,10 @@ export function ProjectionSummary({
       </Card>
 
       {/* Data Sources */}
-      <Card className="border-slate-700/50 bg-slate-800/30">
+      <Card className="border-border/50 bg-card/30">
         <CardContent className="pt-4">
-          <div className="space-y-1 text-xs text-slate-400">
-            <p className="font-medium text-slate-300">Data Sources & Methodology:</p>
+          <div className="text-muted-foreground space-y-1 text-xs">
+            <p className="text-foreground font-medium">Data Sources & Methodology:</p>
             <ul className="ml-2 list-inside list-disc space-y-0.5">
               <li>Historical financials: Based on company filings and reported results</li>
               <li>Baseline metrics: Most recent fiscal year data (FY{baselineYear - 1})</li>
@@ -178,7 +182,7 @@ export function ProjectionSummary({
                 {baselineYear + assumptions.years - 1}
               </li>
             </ul>
-            <p className="mt-2 text-slate-500 italic">
+            <p className="text-muted-foreground mt-2 italic">
               Note: These projections are illustrative scenarios based on current data and
               assumptions. Actual results may vary significantly. Not investment advice.
             </p>

@@ -29,26 +29,26 @@ export function OptionPositions({ positions }: OptionPositionsProps) {
   }
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-white">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Target className="h-5 w-5 text-orange-400" />
           Option Positions
         </CardTitle>
-        <CardDescription className="text-slate-400">Current option holdings</CardDescription>
+        <CardDescription className="text-muted-foreground">Current option holdings</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="h-8 border-slate-700">
-                <TableHead className="py-2 text-xs text-slate-300">Contract</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Qty</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Avg Cost</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Price</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">Value</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">P&L</TableHead>
-                <TableHead className="py-2 text-right text-xs text-slate-300">%</TableHead>
+              <TableRow className="border-border h-8">
+                <TableHead className="text-foreground py-2 text-xs">Contract</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Qty</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Avg Cost</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Price</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">Value</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">P&L</TableHead>
+                <TableHead className="text-foreground py-2 text-right text-xs">%</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -58,22 +58,22 @@ export function OptionPositions({ positions }: OptionPositionsProps) {
                 return (
                   <TableRow
                     key={`${position.local_symbol}-${index}`}
-                    className="h-10 border-slate-700"
+                    className="border-border h-10"
                   >
-                    <TableCell className="py-2 font-medium text-white">
+                    <TableCell className="text-foreground py-2 font-medium">
                       <div className="text-sm">{position.local_symbol}</div>
-                      <div className="text-xs text-slate-500">{position.symbol}</div>
+                      <div className="text-muted-foreground text-xs">{position.symbol}</div>
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       {position.position.toFixed(0)}
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       ${position.average_cost.toFixed(2)}
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       ${position.market_price.toFixed(2)}
                     </TableCell>
-                    <TableCell className="py-2 text-right text-sm text-white">
+                    <TableCell className="text-foreground py-2 text-right text-sm">
                       {formatCurrency(position.market_value)}
                     </TableCell>
                     <TableCell

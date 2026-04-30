@@ -23,42 +23,42 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="border-slate-700/50">
-            <TableHead className="sticky left-0 z-10 bg-slate-900 font-semibold text-slate-400">
+          <TableRow className="border-border/50">
+            <TableHead className="bg-background text-muted-foreground sticky left-0 z-10 font-semibold">
               METRIC
             </TableHead>
             {/* Baseline column */}
-            <TableHead className="bg-slate-800/50 text-center font-semibold text-slate-300">
+            <TableHead className="bg-card/50 text-foreground text-center font-semibold">
               {baseline.year}
               <br />
-              <span className="text-xs font-normal text-slate-500">(Baseline)</span>
+              <span className="text-muted-foreground text-xs font-normal">(Baseline)</span>
             </TableHead>
             {/* Projection year columns */}
             {projections.map((yearProj) => (
               <TableHead
                 key={yearProj.year}
                 colSpan={3}
-                className="border-l-2 border-slate-700 text-center font-semibold text-slate-300"
+                className="border-border text-foreground border-l-2 text-center font-semibold"
               >
                 {yearProj.year}
               </TableHead>
             ))}
             {/* CAGR column */}
-            <TableHead className="border-l-2 border-slate-700 text-center font-semibold text-slate-300">
+            <TableHead className="border-border text-foreground border-l-2 text-center font-semibold">
               CAGR
             </TableHead>
           </TableRow>
           {/* Sub-header for scenarios */}
-          <TableRow className="border-slate-700/50">
-            <TableHead className="sticky left-0 z-10 bg-slate-900"></TableHead>
-            <TableHead className="bg-slate-800/50 text-center text-xs text-slate-500">
+          <TableRow className="border-border/50">
+            <TableHead className="bg-background sticky left-0 z-10"></TableHead>
+            <TableHead className="bg-card/50 text-muted-foreground text-center text-xs">
               Actual
             </TableHead>
             {projections.map((yearProj) => (
               <>
                 <TableHead
                   key={`${yearProj.year}-bear`}
-                  className="border-l-2 border-slate-700 text-center text-xs text-red-400"
+                  className="border-border border-l-2 text-center text-xs text-red-400"
                 >
                   Bear
                 </TableHead>
@@ -76,37 +76,43 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                 </TableHead>
               </>
             ))}
-            <TableHead className="border-l-2 border-slate-700 text-center text-xs text-slate-500">
+            <TableHead className="border-border text-muted-foreground border-l-2 text-center text-xs">
               %
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {/* Revenue Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="sticky left-0 z-10 bg-slate-900 font-medium text-slate-300">
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="bg-background text-foreground sticky left-0 z-10 font-medium">
               Revenue ($B)
             </TableCell>
-            <TableCell className="bg-slate-800/30 text-center text-white">
+            <TableCell className="bg-card/30 text-foreground text-center">
               {formatBillions(baseline.revenue)}
             </TableCell>
             {projections.map((yearProj) => (
               <>
                 <TableCell
                   key={`${yearProj.year}-bear-rev`}
-                  className="border-l-2 border-slate-700/30 text-center text-white"
+                  className="border-border/30 text-foreground border-l-2 text-center"
                 >
                   {formatBillions(yearProj.bear.revenue)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-base-rev`} className="text-center text-white">
+                <TableCell
+                  key={`${yearProj.year}-base-rev`}
+                  className="text-foreground text-center"
+                >
                   {formatBillions(yearProj.base.revenue)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-bull-rev`} className="text-center text-white">
+                <TableCell
+                  key={`${yearProj.year}-bull-rev`}
+                  className="text-foreground text-center"
+                >
                   {formatBillions(yearProj.bull.revenue)}
                 </TableCell>
               </>
             ))}
-            <TableCell className="border-l-2 border-slate-700/30 text-center text-slate-500">
+            <TableCell className="border-border/30 text-muted-foreground border-l-2 text-center">
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs text-red-400">{formatPercent(cagr.bear.revenue)}</span>
                 <span className="text-xs text-blue-400">{formatPercent(cagr.base.revenue)}</span>
@@ -116,105 +122,117 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
           </TableRow>
 
           {/* Net Income Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="sticky left-0 z-10 bg-slate-900 font-medium text-slate-300">
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="bg-background text-foreground sticky left-0 z-10 font-medium">
               Net Income ($B)
             </TableCell>
-            <TableCell className="bg-slate-800/30 text-center text-white">
+            <TableCell className="bg-card/30 text-foreground text-center">
               {formatBillions(baseline.netIncome)}
             </TableCell>
             {projections.map((yearProj) => (
               <>
                 <TableCell
                   key={`${yearProj.year}-bear-ni`}
-                  className="border-l-2 border-slate-700/30 text-center text-white"
+                  className="border-border/30 text-foreground border-l-2 text-center"
                 >
                   {formatBillions(yearProj.bear.netIncome)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-base-ni`} className="text-center text-white">
+                <TableCell key={`${yearProj.year}-base-ni`} className="text-foreground text-center">
                   {formatBillions(yearProj.base.netIncome)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-bull-ni`} className="text-center text-white">
+                <TableCell key={`${yearProj.year}-bull-ni`} className="text-foreground text-center">
                   {formatBillions(yearProj.bull.netIncome)}
                 </TableCell>
               </>
             ))}
-            <TableCell className="border-l-2 border-slate-700/30 text-center text-slate-500">
+            <TableCell className="border-border/30 text-muted-foreground border-l-2 text-center">
               —
             </TableCell>
           </TableRow>
 
           {/* Net Income Margins Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="sticky left-0 z-10 bg-slate-900 font-medium text-slate-300">
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="bg-background text-foreground sticky left-0 z-10 font-medium">
               Net Margins (%)
             </TableCell>
-            <TableCell className="bg-slate-800/30 text-center text-slate-400">
+            <TableCell className="bg-card/30 text-muted-foreground text-center">
               {formatPercent(baseline.netIncomeMargins)}
             </TableCell>
             {projections.map((yearProj) => (
               <>
                 <TableCell
                   key={`${yearProj.year}-bear-nim`}
-                  className="border-l-2 border-slate-700/30 text-center text-slate-400"
+                  className="border-border/30 text-muted-foreground border-l-2 text-center"
                 >
                   {formatPercent(yearProj.bear.netIncomeMargins)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-base-nim`} className="text-center text-slate-400">
+                <TableCell
+                  key={`${yearProj.year}-base-nim`}
+                  className="text-muted-foreground text-center"
+                >
                   {formatPercent(yearProj.base.netIncomeMargins)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-bull-nim`} className="text-center text-slate-400">
+                <TableCell
+                  key={`${yearProj.year}-bull-nim`}
+                  className="text-muted-foreground text-center"
+                >
                   {formatPercent(yearProj.bull.netIncomeMargins)}
                 </TableCell>
               </>
             ))}
-            <TableCell className="border-l-2 border-slate-700/30 text-center text-slate-500">
+            <TableCell className="border-border/30 text-muted-foreground border-l-2 text-center">
               —
             </TableCell>
           </TableRow>
 
           {/* EPS Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="sticky left-0 z-10 bg-slate-900 font-medium text-slate-300">
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="bg-background text-foreground sticky left-0 z-10 font-medium">
               EPS ($)
             </TableCell>
-            <TableCell className="bg-slate-800/30 text-center text-white">
+            <TableCell className="bg-card/30 text-foreground text-center">
               {formatDollars(baseline.eps)}
             </TableCell>
             {projections.map((yearProj) => (
               <>
                 <TableCell
                   key={`${yearProj.year}-bear-eps`}
-                  className="border-l-2 border-slate-700/30 text-center text-white"
+                  className="border-border/30 text-foreground border-l-2 text-center"
                 >
                   {formatDollars(yearProj.bear.eps)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-base-eps`} className="text-center text-white">
+                <TableCell
+                  key={`${yearProj.year}-base-eps`}
+                  className="text-foreground text-center"
+                >
                   {formatDollars(yearProj.base.eps)}
                 </TableCell>
-                <TableCell key={`${yearProj.year}-bull-eps`} className="text-center text-white">
+                <TableCell
+                  key={`${yearProj.year}-bull-eps`}
+                  className="text-foreground text-center"
+                >
                   {formatDollars(yearProj.bull.eps)}
                 </TableCell>
               </>
             ))}
-            <TableCell className="border-l-2 border-slate-700/30 text-center text-slate-500">
+            <TableCell className="border-border/30 text-muted-foreground border-l-2 text-center">
               —
             </TableCell>
           </TableRow>
 
           {/* Share Price Range Row */}
-          <TableRow className="border-slate-700/50 bg-linear-to-r from-blue-500/10 hover:bg-slate-800/30">
-            <TableCell className="sticky left-0 z-10 bg-slate-900 font-medium text-slate-300">
+          <TableRow className="border-border/50 hover:bg-card/30 bg-primary/5">
+            <TableCell className="bg-background text-foreground sticky left-0 z-10 font-medium">
               Share Price Range
             </TableCell>
-            <TableCell className="bg-slate-800/30 text-center font-semibold text-white">
+            <TableCell className="bg-card/30 text-foreground text-center font-semibold">
               {formatDollars(baseline.sharePriceLow)}
             </TableCell>
             {projections.map((yearProj) => (
               <>
                 <TableCell
                   key={`${yearProj.year}-bear-price`}
-                  className="border-l-2 border-slate-700/30 text-center font-semibold text-red-400"
+                  className="border-border/30 border-l-2 text-center font-semibold text-red-400"
                 >
                   {formatDollars(yearProj.bear.sharePriceLow)}-
                   {formatDollars(yearProj.bear.sharePriceHigh)}
@@ -235,7 +253,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                 </TableCell>
               </>
             ))}
-            <TableCell className="border-l-2 border-slate-700/30 text-center text-slate-500">
+            <TableCell className="border-border/30 text-muted-foreground border-l-2 text-center">
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs text-red-400">{formatPercent(cagr.bear.sharePrice)}</span>
                 <span className="text-xs text-blue-400">{formatPercent(cagr.base.sharePrice)}</span>

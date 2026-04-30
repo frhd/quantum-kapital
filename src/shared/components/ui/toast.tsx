@@ -54,7 +54,7 @@ interface ToastViewportProps {
 
 const VARIANT_STYLES: Record<ToastVariant, { wrapper: string; icon: ReactElement }> = {
   info: {
-    wrapper: "border-slate-700 bg-slate-800/95",
+    wrapper: "border-border bg-card/95",
     icon: <Info className="h-4 w-4 text-blue-400" />,
   },
   success: {
@@ -98,19 +98,19 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
     <div
       role="status"
       className={cn(
-        "pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm text-white shadow-lg backdrop-blur-sm transition-opacity",
+        "text-foreground pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-lg backdrop-blur-sm transition-opacity",
         styles.wrapper,
       )}
     >
       <span className="mt-0.5">{styles.icon}</span>
       <div className="flex-1">
         <p className="leading-tight font-medium">{title}</p>
-        {description && <p className="mt-0.5 text-xs text-slate-300">{description}</p>}
+        {description && <p className="text-foreground mt-0.5 text-xs">{description}</p>}
       </div>
       <button
         type="button"
         onClick={() => onDismiss(id)}
-        className="text-slate-400 hover:text-white"
+        className="text-muted-foreground hover:text-foreground"
         aria-label="Dismiss"
       >
         <X className="h-3.5 w-3.5" />

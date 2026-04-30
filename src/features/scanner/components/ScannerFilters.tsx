@@ -43,9 +43,9 @@ interface ScannerFiltersProps {
 }
 
 const selectClass =
-  "h-9 w-full rounded-md border border-slate-700 bg-slate-800/50 px-3 text-sm text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+  "h-9 w-full rounded-md border border-border bg-card/50 px-3 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-blue-500"
 
-const inputClass = "border-slate-600 bg-slate-900/50 text-white placeholder:text-slate-500"
+const inputClass = "border-input bg-background/50 text-foreground placeholder:text-muted-foreground"
 
 export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersProps) {
   const [scanCode, setScanCode] = useState<ScanCode>("TOP_PERC_GAIN")
@@ -80,20 +80,20 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
   }
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-white">
+        <CardTitle className="text-foreground flex items-center gap-2">
           <Search className="h-5 w-5 text-blue-400" />
           Scanner Filters
         </CardTitle>
-        <CardDescription className="text-slate-400">
+        <CardDescription className="text-muted-foreground">
           Pick a scan and location, then start streaming results from IBKR.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-2">
-            <Label htmlFor="scan-code" className="text-slate-300">
+            <Label htmlFor="scan-code" className="text-foreground">
               Scan
             </Label>
             <select
@@ -104,14 +104,14 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               disabled={isRunning}
             >
               {SCAN_CODES.map((s) => (
-                <option key={s.value} value={s.value} className="bg-slate-800 text-white">
+                <option key={s.value} value={s.value} className="bg-card text-foreground">
                   {s.label}
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="location-code" className="text-slate-300">
+            <Label htmlFor="location-code" className="text-foreground">
               Location
             </Label>
             <select
@@ -122,14 +122,14 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               disabled={isRunning}
             >
               {LOCATION_CODES.map((l) => (
-                <option key={l.value} value={l.value} className="bg-slate-800 text-white">
+                <option key={l.value} value={l.value} className="bg-card text-foreground">
                   {l.label}
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="row-count" className="text-slate-300">
+            <Label htmlFor="row-count" className="text-foreground">
               Rows
             </Label>
             <Input
@@ -147,7 +147,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <div className="space-y-2">
-            <Label htmlFor="above-price" className="text-slate-300">
+            <Label htmlFor="above-price" className="text-foreground">
               Min Price
             </Label>
             <Input
@@ -161,7 +161,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="below-price" className="text-slate-300">
+            <Label htmlFor="below-price" className="text-foreground">
               Max Price
             </Label>
             <Input
@@ -175,7 +175,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="above-volume" className="text-slate-300">
+            <Label htmlFor="above-volume" className="text-foreground">
               Min Volume
             </Label>
             <Input
@@ -189,7 +189,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="mcap-above" className="text-slate-300">
+            <Label htmlFor="mcap-above" className="text-foreground">
               Min Mkt Cap
             </Label>
             <Input
@@ -203,7 +203,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="mcap-below" className="text-slate-300">
+            <Label htmlFor="mcap-below" className="text-foreground">
               Max Mkt Cap
             </Label>
             <Input
@@ -224,7 +224,7 @@ export function ScannerFilters({ isRunning, onStart, onStop }: ScannerFiltersPro
               <Search className="mr-2 h-4 w-4" /> Start Scan
             </Button>
           ) : (
-            <Button onClick={onStop} variant="outline" className="border-slate-600 text-slate-200">
+            <Button onClick={onStop} variant="outline" className="border-input text-foreground">
               <Square className="mr-2 h-4 w-4" /> Stop
             </Button>
           )}

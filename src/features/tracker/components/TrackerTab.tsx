@@ -135,12 +135,12 @@ export function TrackerTab({
           activeSetupBySymbol={activeSetupBySymbol}
           onSelectSymbol={onSelectSymbol}
         />
-        <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+        <Card className="border-border bg-card/50 backdrop-blur-xs">
           <CardHeader>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <CardTitle className="text-white">Tracker</CardTitle>
-                <CardDescription className="text-slate-400">
+                <CardTitle className="text-foreground">Tracker</CardTitle>
+                <CardDescription className="text-muted-foreground">
                   Watchlist of tickers being evaluated against strategy detectors.
                 </CardDescription>
               </div>
@@ -164,7 +164,7 @@ export function TrackerTab({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400">Filter:</span>
+              <span className="text-muted-foreground text-xs">Filter:</span>
               {FILTER_OPTIONS.map((opt) => {
                 const active = filter === opt.value
                 const count =
@@ -180,10 +180,10 @@ export function TrackerTab({
                       "rounded-full border px-3 py-0.5 text-xs transition-colors " +
                       (active
                         ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                        : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
+                        : "border-input bg-card text-foreground hover:bg-secondary")
                     }
                   >
-                    {opt.label} <span className="text-slate-500">({count})</span>
+                    {opt.label} <span className="text-muted-foreground">({count})</span>
                   </button>
                 )
               })}

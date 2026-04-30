@@ -41,17 +41,17 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <DollarSign className="h-4 w-4 text-blue-400/60" />
             Total Equity
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="text-3xl font-bold text-white">{formatCurrency(totalEquity)}</p>
-            <p className="text-sm text-slate-400">
+            <p className="text-foreground text-3xl font-bold">{formatCurrency(totalEquity)}</p>
+            <p className="text-muted-foreground text-sm">
               {accounts.length > 0
                 ? `Account: ${anonymizeAccountNumber(accounts[0])}`
                 : "No account"}
@@ -60,24 +60,26 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
         </CardContent>
       </Card>
 
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <Activity className="h-4 w-4 text-purple-400/60" />
             Available Funds
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="text-3xl font-bold text-white">{formatCurrency(availableFunds)}</p>
-            <p className="text-sm text-slate-400">Buying Power: {formatCurrency(buyingPower)}</p>
+            <p className="text-foreground text-3xl font-bold">{formatCurrency(availableFunds)}</p>
+            <p className="text-muted-foreground text-sm">
+              Buying Power: {formatCurrency(buyingPower)}
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             {(dailyValue ?? 0) >= 0 ? (
               <TrendingUp className="h-4 w-4 text-green-400/60" />
             ) : (
@@ -89,7 +91,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
         <CardContent>
           <div className="space-y-1">
             {dailyValue === null ? (
-              <p className="text-3xl font-bold text-slate-500">—</p>
+              <p className="text-muted-foreground text-3xl font-bold">—</p>
             ) : (
               <p
                 className={`text-3xl font-bold ${dailyValue >= 0 ? "text-green-400" : "text-red-400"}`}
@@ -97,16 +99,16 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
                 {formatCurrency(dailyValue)}
               </p>
             )}
-            <p className="text-sm text-slate-400">
+            <p className="text-muted-foreground text-sm">
               {dailyValue === null ? "Awaiting first tick" : "Today's change"}
             </p>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-slate-700/50 bg-slate-800/30 backdrop-blur-xs">
+      <Card className="border-border/50 bg-card/30 backdrop-blur-xs">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-300">
+          <CardTitle className="text-foreground flex items-center gap-2 text-sm font-medium">
             <PieChart className="h-4 w-4 text-orange-400/60" />
             Unrealized P&L
           </CardTitle>
@@ -118,7 +120,7 @@ export function AccountSummary({ accounts, accountSummary, positions }: AccountS
             >
               {formatCurrency(unrealizedPnL)}
             </p>
-            <p className="text-sm text-slate-400">Open positions</p>
+            <p className="text-muted-foreground text-sm">Open positions</p>
           </div>
         </CardContent>
       </Card>

@@ -62,8 +62,8 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
       className={
         "group flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left transition-colors " +
         (alert.seen
-          ? "border-slate-700/60 bg-slate-900/40 hover:bg-slate-800/60"
-          : "border-slate-700 bg-slate-800/70 hover:bg-slate-800")
+          ? "border-border/60 bg-background/40 hover:bg-card/60"
+          : "border-border bg-card/70 hover:bg-card")
       }
     >
       <div className="flex flex-1 flex-col gap-1 overflow-hidden">
@@ -71,7 +71,7 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
           {!alert.seen && (
             <span aria-hidden className="size-2 shrink-0 rounded-full bg-blue-400" title="Unseen" />
           )}
-          <span className="font-mono text-sm font-semibold text-white">{symbol}</span>
+          <span className="text-foreground font-mono text-sm font-semibold">{symbol}</span>
           <span
             className={
               "rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase " +
@@ -80,9 +80,11 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
           >
             {ALERT_KIND_LABELS[alert.kind]}
           </span>
-          <span className="ml-auto text-xs text-slate-500">{relativeTime(alert.fired_at)}</span>
+          <span className="text-muted-foreground ml-auto text-xs">
+            {relativeTime(alert.fired_at)}
+          </span>
         </div>
-        <p className="truncate text-xs text-slate-300 group-hover:text-slate-100" title={summary}>
+        <p className="text-foreground group-hover:text-foreground truncate text-xs" title={summary}>
           {summary}
         </p>
       </div>

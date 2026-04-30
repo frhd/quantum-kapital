@@ -67,14 +67,14 @@ export function AlertFeed({
   }
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-blue-300" />
             <div>
-              <CardTitle className="text-white">Alerts</CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardTitle className="text-foreground">Alerts</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 Recent setup events. Click a row to open the analysis.
               </CardDescription>
             </div>
@@ -111,7 +111,7 @@ export function AlertFeed({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400">Kind:</span>
+          <span className="text-muted-foreground text-xs">Kind:</span>
           {KIND_OPTIONS.map((opt) => {
             const active = kindFilter === opt.value
             return (
@@ -123,19 +123,19 @@ export function AlertFeed({
                   "rounded-full border px-3 py-0.5 text-xs transition-colors " +
                   (active
                     ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                    : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
+                    : "border-input bg-card text-foreground hover:bg-secondary")
                 }
               >
                 {opt.label}
               </button>
             )
           })}
-          <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
+          <label className="text-muted-foreground ml-auto flex items-center gap-1.5 text-xs">
             <input
               type="checkbox"
               checked={onlyUnseen}
               onChange={(e) => setOnlyUnseen(e.target.checked)}
-              className="size-3.5 rounded border-slate-500 bg-slate-700 text-blue-500"
+              className="border-border bg-secondary size-3.5 rounded text-blue-500"
             />
             Unseen only
           </label>
@@ -148,7 +148,7 @@ export function AlertFeed({
         )}
 
         {alerts.length === 0 && !loading ? (
-          <p className="py-6 text-center text-sm text-slate-500">
+          <p className="text-muted-foreground py-6 text-center text-sm">
             No alerts to show yet. Detector hits and invalidations will land here.
           </p>
         ) : (

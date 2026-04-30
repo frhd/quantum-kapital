@@ -51,7 +51,7 @@ export function TagEditor({ tags, onSave, onCancel }: TagEditorProps) {
                 "rounded-full border px-2 py-0.5 text-xs transition-colors " +
                 (active
                   ? "border-blue-400 bg-blue-500/20 text-blue-100"
-                  : "border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700")
+                  : "border-input bg-card text-foreground hover:bg-secondary")
               }
             >
               {opt.label}
@@ -77,7 +77,7 @@ export function TagEditor({ tags, onSave, onCancel }: TagEditorProps) {
           value={draftCustom}
           onChange={(e) => setDraftCustom(e.target.value)}
           placeholder="Custom tag…"
-          className="h-7 bg-slate-900 text-xs"
+          className="bg-background h-7 text-xs"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault()

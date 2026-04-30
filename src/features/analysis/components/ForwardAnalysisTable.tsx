@@ -23,7 +23,9 @@ export function ForwardAnalysisTable({
 }: ForwardAnalysisTableProps) {
   // Validate projections array
   if (!projections || projections.length === 0) {
-    return <div className="py-8 text-center text-slate-400">No projection data available</div>
+    return (
+      <div className="text-muted-foreground py-8 text-center">No projection data available</div>
+    )
   }
 
   const formatBillions = (value: number | null | undefined) =>
@@ -35,11 +37,11 @@ export function ForwardAnalysisTable({
   const formatNumber = (value: number | null | undefined) =>
     value != null ? value.toFixed(1) : "—"
 
-  // Color scheme based on scenario
+  // Flat tint per scenario (emissionwise-style, no gradients)
   const scenarioColors = {
-    bear: "from-red-500/20 to-orange-500/20",
-    base: "from-blue-500/20 to-cyan-500/20",
-    bull: "from-green-500/20 to-emerald-500/20",
+    bear: "bg-destructive/10",
+    base: "bg-primary/10",
+    bull: "bg-emerald-500/10",
   }
 
   const textColors = {
@@ -52,22 +54,22 @@ export function ForwardAnalysisTable({
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="border-slate-700/50">
-            <TableHead className="font-semibold text-slate-400">METRIC</TableHead>
+          <TableRow className="border-border/50">
+            <TableHead className="text-muted-foreground font-semibold">METRIC</TableHead>
             {projections.map((proj) => (
-              <TableHead key={proj.year} className="text-center font-semibold text-slate-300">
+              <TableHead key={proj.year} className="text-foreground text-center font-semibold">
                 {proj.year}
               </TableHead>
             ))}
-            <TableHead className="text-center font-semibold text-slate-300">CAGR</TableHead>
+            <TableHead className="text-foreground text-center font-semibold">CAGR</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {/* Revenue Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">Revenue ($B)</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">Revenue ($B)</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`rev-${proj.year}`} className="text-center text-white">
+              <TableCell key={`rev-${proj.year}`} className="text-foreground text-center">
                 {formatBillions(proj.revenue)}
               </TableCell>
             ))}
@@ -77,64 +79,64 @@ export function ForwardAnalysisTable({
           </TableRow>
 
           {/* Revenue Growth Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">Rev Growth</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">Rev Growth</TableCell>
             {projections.map((proj, idx) => (
-              <TableCell key={`revg-${proj.year}`} className="text-center text-slate-400">
+              <TableCell key={`revg-${proj.year}`} className="text-muted-foreground text-center">
                 {idx === 0 ? "—" : formatPercent(proj.revenueGrowth)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* Net Income Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">Net Income ($B)</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">Net Income ($B)</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`ni-${proj.year}`} className="text-center text-white">
+              <TableCell key={`ni-${proj.year}`} className="text-foreground text-center">
                 {formatBillions(proj.netIncome)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* Net Income Growth Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">Net Inc. Growth</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">Net Inc. Growth</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`nig-${proj.year}`} className="text-center text-slate-400">
+              <TableCell key={`nig-${proj.year}`} className="text-muted-foreground text-center">
                 {formatPercent(proj.netIncomeGrowth)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* Net Income Margins Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">Net Inc. Margins</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">Net Inc. Margins</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`nim-${proj.year}`} className="text-center text-slate-400">
+              <TableCell key={`nim-${proj.year}`} className="text-muted-foreground text-center">
                 {formatPercent(proj.netIncomeMargins)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* EPS Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">EPS ($)</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">EPS ($)</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`eps-${proj.year}`} className="text-center text-white">
+              <TableCell key={`eps-${proj.year}`} className="text-foreground text-center">
                 {formatDollars(proj.eps)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* Analyst EPS Estimate Row (if available) */}
           {projections.some((p) => p.analystEpsEstimate != null) && (
-            <TableRow className="border-slate-700/50 bg-blue-500/5 hover:bg-slate-800/30">
-              <TableCell className="flex items-center gap-2 font-medium text-slate-300">
+            <TableRow className="border-border/50 hover:bg-card/30 bg-blue-500/5">
+              <TableCell className="text-foreground flex items-center gap-2 font-medium">
                 <span>Analyst Consensus</span>
                 <Badge
                   variant="outline"
@@ -146,7 +148,10 @@ export function ForwardAnalysisTable({
               {projections.map((proj) => {
                 if (proj.analystEpsEstimate == null) {
                   return (
-                    <TableCell key={`analyst-${proj.year}`} className="text-center text-slate-500">
+                    <TableCell
+                      key={`analyst-${proj.year}`}
+                      className="text-muted-foreground text-center"
+                    >
                       —
                     </TableCell>
                   )
@@ -193,26 +198,24 @@ export function ForwardAnalysisTable({
                   </TableCell>
                 )
               })}
-              <TableCell className="text-center text-slate-500">—</TableCell>
+              <TableCell className="text-muted-foreground text-center">—</TableCell>
             </TableRow>
           )}
 
           {/* PE Range Row */}
-          <TableRow className="border-slate-700/50 hover:bg-slate-800/30">
-            <TableCell className="font-medium text-slate-300">PE Range (Low/High)</TableCell>
+          <TableRow className="border-border/50 hover:bg-card/30">
+            <TableCell className="text-foreground font-medium">PE Range (Low/High)</TableCell>
             {projections.map((proj) => (
-              <TableCell key={`pe-${proj.year}`} className="text-center text-slate-400">
+              <TableCell key={`pe-${proj.year}`} className="text-muted-foreground text-center">
                 {formatNumber(proj.peLowEst)}/{formatNumber(proj.peHighEst)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* Share Price Range - Low */}
-          <TableRow
-            className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}
-          >
-            <TableCell className="font-medium text-slate-300">Share Price Low</TableCell>
+          <TableRow className={`border-border/50 ${scenarioColors[scenarioType]}`}>
+            <TableCell className="text-foreground font-medium">Share Price Low</TableCell>
             {projections.map((proj) => (
               <TableCell
                 key={`spl-${proj.year}`}
@@ -221,14 +224,12 @@ export function ForwardAnalysisTable({
                 {formatDollars(proj.sharePriceLow)}
               </TableCell>
             ))}
-            <TableCell className="text-center text-slate-500">—</TableCell>
+            <TableCell className="text-muted-foreground text-center">—</TableCell>
           </TableRow>
 
           {/* Share Price Range - High */}
-          <TableRow
-            className={`border-slate-700/50 bg-linear-to-r ${scenarioColors[scenarioType]}`}
-          >
-            <TableCell className="font-medium text-slate-300">Share Price High</TableCell>
+          <TableRow className={`border-border/50 ${scenarioColors[scenarioType]}`}>
+            <TableCell className="text-foreground font-medium">Share Price High</TableCell>
             {projections.map((proj) => (
               <TableCell
                 key={`sph-${proj.year}`}

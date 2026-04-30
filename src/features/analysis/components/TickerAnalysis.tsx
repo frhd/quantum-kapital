@@ -41,7 +41,7 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
   return (
     <div className="space-y-6">
       {/* Search Input */}
-      <Card className="relative z-50 overflow-visible border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+      <Card className="border-border bg-card/50 relative z-50 overflow-visible backdrop-blur-xs">
         <CardContent className="overflow-visible pt-6">
           <TickerSearch
             searchQuery={searchQuery}
@@ -57,9 +57,9 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
       {loading && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="border-slate-700 bg-slate-800/50">
+            <Card key={i} className="border-border bg-card/50">
               <CardContent className="pt-6">
-                <Skeleton className="h-24 bg-slate-700" />
+                <Skeleton className="bg-secondary h-24" />
               </CardContent>
             </Card>
           ))}
@@ -73,9 +73,9 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
       {selectedTicker && !loading && (
         <>
           {projectionsLoading ? (
-            <Card className="border-slate-700 bg-slate-800/50">
+            <Card className="border-border bg-card/50">
               <CardContent className="pt-6">
-                <Skeleton className="h-96 bg-slate-700" />
+                <Skeleton className="bg-secondary h-96" />
               </CardContent>
             </Card>
           ) : projectionsError ? (

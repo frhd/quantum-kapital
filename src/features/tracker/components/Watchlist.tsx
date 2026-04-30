@@ -113,16 +113,16 @@ export function Watchlist({
   if (loading) {
     return (
       <div className="space-y-2">
-        <Skeleton className="h-10 w-full bg-slate-700/50" />
-        <Skeleton className="h-10 w-full bg-slate-700/50" />
-        <Skeleton className="h-10 w-full bg-slate-700/50" />
+        <Skeleton className="bg-secondary/50 h-10 w-full" />
+        <Skeleton className="bg-secondary/50 h-10 w-full" />
+        <Skeleton className="bg-secondary/50 h-10 w-full" />
       </div>
     )
   }
 
   if (tickers.length === 0) {
     return (
-      <p className="py-12 text-center text-sm text-slate-400">
+      <p className="text-muted-foreground py-12 text-center text-sm">
         No tickers tracked yet. Click <span className="font-medium">Add</span> or use the
         scanner&apos;s <span className="font-medium">Add to tracker</span> button to start.
       </p>
@@ -140,13 +140,13 @@ export function Watchlist({
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="border-slate-700">
-              <TableHead className="text-xs text-slate-300">Symbol</TableHead>
-              <TableHead className="text-xs text-slate-300">Tags</TableHead>
-              <TableHead className="text-xs text-slate-300">Source</TableHead>
-              <TableHead className="text-xs text-slate-300">Status</TableHead>
-              <TableHead className="text-xs text-slate-300">Added</TableHead>
-              <TableHead className="text-right text-xs text-slate-300">Actions</TableHead>
+            <TableRow className="border-border">
+              <TableHead className="text-foreground text-xs">Symbol</TableHead>
+              <TableHead className="text-foreground text-xs">Tags</TableHead>
+              <TableHead className="text-foreground text-xs">Source</TableHead>
+              <TableHead className="text-foreground text-xs">Status</TableHead>
+              <TableHead className="text-foreground text-xs">Added</TableHead>
+              <TableHead className="text-foreground text-right text-xs">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -155,14 +155,14 @@ export function Watchlist({
               const isRemoving = removingSymbol === t.symbol
               const activeSetup = activeSetupBySymbol?.[t.symbol]
               return (
-                <TableRow key={t.symbol} className="border-slate-700">
-                  <TableCell className="font-medium text-white">
+                <TableRow key={t.symbol} className="border-border">
+                  <TableCell className="text-foreground font-medium">
                     <div className="flex flex-col gap-1">
                       <span>{t.symbol}</span>
                       {activeSetup && <SetupBadge setup={activeSetup} />}
                       {activeSetup?.thesis && (
                         <p
-                          className="max-w-md text-xs leading-snug text-slate-300"
+                          className="text-foreground max-w-md text-xs leading-snug"
                           title={activeSetup.thesis}
                         >
                           {truncateThesis(activeSetup.thesis, 180)}
@@ -180,13 +180,13 @@ export function Watchlist({
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {t.tags.length === 0 ? (
-                          <span className="text-xs text-slate-500">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         ) : (
                           t.tags.map((tag) => (
                             <Badge
                               key={tag}
                               variant="outline"
-                              className="border-slate-600 text-slate-200"
+                              className="border-input text-foreground"
                             >
                               {tagLabel(tag)}
                             </Badge>
@@ -195,11 +195,11 @@ export function Watchlist({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-slate-300">{t.source}</TableCell>
-                  <TableCell className="text-sm text-slate-300">
+                  <TableCell className="text-foreground text-sm">{t.source}</TableCell>
+                  <TableCell className="text-foreground text-sm">
                     {STATUS_LABELS[t.status]}
                   </TableCell>
-                  <TableCell className="text-sm text-slate-400">
+                  <TableCell className="text-muted-foreground text-sm">
                     {formatRelativeTime(t.added_at)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -208,7 +208,7 @@ export function Watchlist({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-slate-300 hover:text-white"
+                          className="text-foreground hover:text-foreground h-8 px-2"
                           onClick={() => onSelectSymbol(t.symbol)}
                           title="Open in analysis"
                         >
@@ -217,7 +217,7 @@ export function Watchlist({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-slate-300 hover:text-white"
+                          className="text-foreground hover:text-foreground h-8 px-2"
                           onClick={() => startEditing(t)}
                           title="Edit tags"
                         >

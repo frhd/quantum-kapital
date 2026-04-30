@@ -13,12 +13,12 @@ export function ProjectionView({ results, symbol, assumptions }: ProjectionViewP
   // Validate results data
   if (!results || !results.baseline || !results.projections || results.projections.length === 0) {
     return (
-      <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+      <Card className="border-border bg-card/50 backdrop-blur-xs">
         <CardHeader>
-          <CardTitle className="text-xl text-white">Forward Analysis - {symbol}</CardTitle>
+          <CardTitle className="text-foreground text-xl">Forward Analysis - {symbol}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="py-8 text-center text-slate-400">
+          <p className="text-muted-foreground py-8 text-center">
             Unable to generate projections for {symbol}. This may be due to insufficient historical
             financial data.
           </p>
@@ -28,13 +28,14 @@ export function ProjectionView({ results, symbol, assumptions }: ProjectionViewP
   }
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
-        <CardTitle className="text-xl text-white">Forward Analysis - {symbol}</CardTitle>
-        <p className="mt-2 text-sm text-slate-400">
-          Baseline year: <span className="font-medium text-white">{results.baseline.year}</span>{" "}
-          (Actual) • Projection period:{" "}
-          <span className="font-medium text-white">
+        <CardTitle className="text-foreground text-xl">Forward Analysis - {symbol}</CardTitle>
+        <p className="text-muted-foreground mt-2 text-sm">
+          Baseline year:{" "}
+          <span className="text-foreground font-medium">{results.baseline.year}</span> (Actual) •
+          Projection period:{" "}
+          <span className="text-foreground font-medium">
             {results.projections[0]?.year} -{" "}
             {results.projections[results.projections.length - 1]?.year}
           </span>

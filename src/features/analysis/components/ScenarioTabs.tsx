@@ -30,12 +30,12 @@ export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsP
     projections.bull.length === 0
   ) {
     return (
-      <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+      <Card className="border-border bg-card/50 backdrop-blur-xs">
         <CardHeader>
-          <CardTitle className="text-xl text-white">Forward Analysis - {symbol}</CardTitle>
+          <CardTitle className="text-foreground text-xl">Forward Analysis - {symbol}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="py-8 text-center text-slate-400">
+          <p className="text-muted-foreground py-8 text-center">
             Unable to generate projections for {symbol}. This may be due to insufficient historical
             financial data.
           </p>
@@ -78,10 +78,10 @@ export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsP
   const activeCagr = projections.cagr[activeScenario]
 
   return (
-    <Card className="border-slate-700 bg-slate-800/50 backdrop-blur-xs">
+    <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-xl text-white">Forward Analysis - {symbol}</CardTitle>
+          <CardTitle className="text-foreground text-xl">Forward Analysis - {symbol}</CardTitle>
 
           {/* Scenario Tabs */}
           <div className="flex gap-2">
@@ -98,7 +98,7 @@ export function ScenarioTabs({ projections, symbol, assumptions }: ScenarioTabsP
                     "border backdrop-blur-xs",
                     isActive
                       ? `${scenario.activeBg} ${scenario.borderColor} ${scenario.color}`
-                      : `${scenario.bgColor} border-slate-700 text-slate-400 hover:${scenario.color}`,
+                      : `${scenario.bgColor} border-border text-muted-foreground hover:${scenario.color}`,
                   )}
                 >
                   <Icon className="h-4 w-4" />
