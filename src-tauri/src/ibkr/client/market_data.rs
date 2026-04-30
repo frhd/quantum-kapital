@@ -9,7 +9,7 @@ use crate::ibkr::types::MarketDataSnapshot;
 
 use super::IbkrClient;
 
-#[allow(dead_code)]
+#[allow(dead_code)] // removed in Task 6 when QuoteFetcher for IbkrClient lands
 const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl IbkrClient {
@@ -54,7 +54,7 @@ impl IbkrClient {
     /// - `IbkrError::Timeout` if no `SnapshotEnd` arrives within
     ///   `SNAPSHOT_TIMEOUT`.
     /// - `IbkrError::ApiError` for any other ibapi error.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // removed in Task 6 when QuoteFetcher for IbkrClient lands
     pub async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {
         let client_clone = self.ibapi_client().await?;
         let symbol_owned = symbol.to_string();
@@ -123,6 +123,9 @@ impl IbkrClient {
                         // into MarketDataSnapshot — ignore.
                     }
                     None => {
+                        if let Some(err) = subscription.error() {
+                            return Err(IbkrError::from(err));
+                        }
                         return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
                     }
                 }
@@ -133,7 +136,7 @@ impl IbkrClient {
     }
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // removed in Task 6 when QuoteFetcher for IbkrClient lands
 fn apply_price(snapshot: &mut MarketDataSnapshot, tick: &ibapi::market_data::realtime::TickPrice) {
     match tick.tick_type {
         TickType::Bid | TickType::DelayedBid => snapshot.bid_price = Some(tick.price),
@@ -147,7 +150,7 @@ fn apply_price(snapshot: &mut MarketDataSnapshot, tick: &ibapi::market_data::rea
     }
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // removed in Task 6 when QuoteFetcher for IbkrClient lands
 fn apply_size(snapshot: &mut MarketDataSnapshot, tick: &ibapi::market_data::realtime::TickSize) {
     match tick.tick_type {
         TickType::BidSize | TickType::DelayedBidSize => {
@@ -160,13 +163,13 @@ fn apply_size(snapshot: &mut MarketDataSnapshot, tick: &ibapi::market_data::real
             snapshot.last_size = Some(tick.size as i32);
         }
         TickType::Volume | TickType::DelayedVolume => {
-            snapshot.volume = Some(tick.size as i32);
+            snapshot.volume = Some(tick.size as i64);
         }
         _ => {}
     }
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // removed in Task 6 when QuoteFetcher for IbkrClient lands
 fn apply_price_size(
     snapshot: &mut MarketDataSnapshot,
     tick: &ibapi::market_data::realtime::TickPriceSize,

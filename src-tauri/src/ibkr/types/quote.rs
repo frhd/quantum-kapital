@@ -16,7 +16,7 @@ pub struct Quote {
     /// change and change-percent.
     pub prev_close: Option<f64>,
     /// Cumulative session volume.
-    pub volume: Option<i32>,
+    pub volume: Option<i64>,
     /// Unix epoch seconds when the snapshot completed.
     pub timestamp: i64,
 }
