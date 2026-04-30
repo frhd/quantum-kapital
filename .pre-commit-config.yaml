@@ -59,5 +59,15 @@ repos:
       - id: check-yaml
       - id: check-toml
 
+  # Commit-message hooks
+  - repo: local
+    hooks:
+      - id: strip-co-authored-by
+        name: strip Co-Authored-By trailers
+        description: Remove Co-Authored-By lines and the blank line above them
+        entry: perl -i -0777 -pe 's/\n+Co-Authored-By:[^\n]*//g; s/\n+\z/\n/'
+        language: system
+        stages: [commit-msg]
+
 # Run hooks in the following order
 default_stages: [pre-commit]
