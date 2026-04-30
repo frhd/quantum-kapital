@@ -33,3 +33,6 @@ journal/
 
 # Git worktrees (isolated workspaces for parallel branches)
 .worktrees/
+
+# Vitest coverage output
+coverage/
