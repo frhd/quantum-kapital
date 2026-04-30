@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ibapi::contracts::Contract;
 
 use crate::ibkr::error::{IbkrError, Result};
@@ -24,11 +22,7 @@ impl IbkrClient {
         };
         use ibapi::market_data::TradingHours;
 
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        };
+        let client_clone = self.ibapi_client().await?;
 
         let bars = tokio::task::spawn_blocking(move || -> Result<Vec<HistoricalBar>> {
             let contract = Contract::stock(&request.symbol).build();

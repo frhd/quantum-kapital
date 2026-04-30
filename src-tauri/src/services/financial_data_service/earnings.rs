@@ -2,7 +2,6 @@ use crate::ibkr::types::fundamentals::{AnalystEstimate, AnalystEstimates};
 use crate::services::cache_service::CacheService;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::error::Error;
 use tracing::info;
 
@@ -40,37 +39,10 @@ pub(super) async fn fetch_earnings(
     cache: &Option<CacheService>,
     symbol: &str,
 ) -> Result<AlphaVantageEarnings, Box<dyn Error + Send + Sync>> {
-    let cache_key = format!("{}_earnings", symbol.to_uppercase());
-
-    if let Some(ref c) = cache {
-        if let Ok(cached_data) = c.read::<AlphaVantageEarnings>(&cache_key) {
-            info!("Using cached earnings data for {}", symbol);
-            return Ok(cached_data);
-        }
-    }
-
-    info!("Fetching earnings data from API for {}", symbol);
-    let url = format!(
-        "{}?function=EARNINGS&symbol={}&apikey={}",
-        base_url, symbol, api_key
-    );
-
-    let response = client.get(&url).send().await?;
-
-    if !response.status().is_success() {
-        return Err(format!("API request failed: {}", response.status()).into());
-    }
-
-    let json: Value = response.json().await?;
-    super::check_api_error(&json)?;
-
-    let earnings: AlphaVantageEarnings = serde_json::from_value(json)?;
-
-    if let Some(ref c) = cache {
-        let _ = c.write(&cache_key, &earnings);
-    }
-
-    Ok(earnings)
+    super::fetch_av_function(
+        client, api_key, base_url, cache, symbol, "EARNINGS", "earnings",
+    )
+    .await
 }
 
 pub(super) fn process_analyst_estimates(

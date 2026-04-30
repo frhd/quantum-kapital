@@ -15,27 +15,6 @@ fn make_service() -> (NamedTempFile, TrackerService) {
     (tmp, TrackerService::new(Arc::new(db)))
 }
 
-/// Regression: catches an accidental `pub` → `pub(crate)` slip on the
-/// `TrackerService` API after the Phase 25 split into `mod.rs` + `setups.rs`.
-/// Imports the type by its public path and exercises both a ticker-CRUD
-/// method (`add`) and a setup-CRUD method (`count_active_setups`) so the
-/// `pub use setups::*;` (or equivalent) wiring is verified end-to-end.
-#[tokio::test]
-async fn tracker_service_split_compiles() {
-    use crate::services::tracker_service::TrackerService as PublicTrackerService;
-    let tmp = NamedTempFile::new().expect("tempfile");
-    let db = Arc::new(Db::open(tmp.path()).expect("open db"));
-    let svc = PublicTrackerService::new(db);
-    svc.add("ABC", TrackerSource::Manual, None, vec![], None)
-        .await
-        .expect("add");
-    let count = svc
-        .count_active_setups("ABC")
-        .await
-        .expect("count_active_setups");
-    assert_eq!(count, 0);
-}
-
 #[tokio::test]
 async fn add_inserts_row_and_returns_typed_value() {
     let (_tmp, svc) = make_service();

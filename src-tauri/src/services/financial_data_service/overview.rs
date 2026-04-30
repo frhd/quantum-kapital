@@ -2,9 +2,7 @@ use crate::ibkr::types::fundamentals::CurrentMetrics;
 use crate::services::cache_service::CacheService;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::error::Error;
-use tracing::info;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -34,37 +32,10 @@ pub(super) async fn fetch_overview(
     cache: &Option<CacheService>,
     symbol: &str,
 ) -> Result<AlphaVantageOverview, Box<dyn Error + Send + Sync>> {
-    let cache_key = format!("{}_overview", symbol.to_uppercase());
-
-    if let Some(ref c) = cache {
-        if let Ok(cached_data) = c.read::<AlphaVantageOverview>(&cache_key) {
-            info!("Using cached overview data for {}", symbol);
-            return Ok(cached_data);
-        }
-    }
-
-    info!("Fetching overview data from API for {}", symbol);
-    let url = format!(
-        "{}?function=OVERVIEW&symbol={}&apikey={}",
-        base_url, symbol, api_key
-    );
-
-    let response = client.get(&url).send().await?;
-
-    if !response.status().is_success() {
-        return Err(format!("API request failed: {}", response.status()).into());
-    }
-
-    let json: Value = response.json().await?;
-    super::check_api_error(&json)?;
-
-    let overview: AlphaVantageOverview = serde_json::from_value(json)?;
-
-    if let Some(ref c) = cache {
-        let _ = c.write(&cache_key, &overview);
-    }
-
-    Ok(overview)
+    super::fetch_av_function(
+        client, api_key, base_url, cache, symbol, "OVERVIEW", "overview",
+    )
+    .await
 }
 
 pub(super) fn process_current_metrics(overview: &AlphaVantageOverview) -> CurrentMetrics {

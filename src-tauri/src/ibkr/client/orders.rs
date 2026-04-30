@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ibapi::contracts::Contract;
 use ibapi::orders::Order;
 use tracing::warn;
@@ -11,11 +9,7 @@ use super::IbkrClient;
 
 impl IbkrClient {
     pub async fn place_order(&self, order_request: OrderRequest) -> Result<i32> {
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        }; // Lock is dropped here!
+        let client_clone = self.ibapi_client().await?;
 
         let order_id = tokio::task::spawn_blocking(move || {
             let contract = Contract::stock(&order_request.symbol).build();
@@ -73,11 +67,7 @@ impl IbkrClient {
         use chrono_tz::America::New_York;
         use ibapi::orders::{ExecutionFilter, Executions as IbExecutions};
 
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        };
+        let client_clone = self.ibapi_client().await?;
 
         let date_yyyymmdd = date.format("%Y%m%d").to_string();
 

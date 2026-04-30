@@ -1,3 +1,5 @@
+use chrono::{DateTime, TimeZone, Utc};
+
 /// Get current timestamp in milliseconds
 pub fn current_timestamp_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -5,6 +7,13 @@ pub fn current_timestamp_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .expect("system clock cannot be before the UNIX epoch")
         .as_millis() as i64
+}
+
+/// Convert a UNIX timestamp (seconds) to UTC. Falls back to `Utc::now()`
+/// when the value is out-of-range, since SQLite-backed callers prefer a
+/// best-effort decode over a panic on corrupted rows.
+pub fn unix_to_utc(ts: i64) -> DateTime<Utc> {
+    Utc.timestamp_opt(ts, 0).single().unwrap_or_else(Utc::now)
 }
 
 /// Format currency value with 2 decimal places

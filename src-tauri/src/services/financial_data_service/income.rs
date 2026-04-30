@@ -2,9 +2,7 @@ use crate::ibkr::types::fundamentals::HistoricalFinancial;
 use crate::services::cache_service::CacheService;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::error::Error;
-use tracing::info;
 
 use super::earnings::AlphaVantageEarnings;
 
@@ -34,37 +32,16 @@ pub(super) async fn fetch_income_statement(
     cache: &Option<CacheService>,
     symbol: &str,
 ) -> Result<AlphaVantageIncomeStatement, Box<dyn Error + Send + Sync>> {
-    let cache_key = format!("{}_income_statement", symbol.to_uppercase());
-
-    if let Some(ref c) = cache {
-        if let Ok(cached_data) = c.read::<AlphaVantageIncomeStatement>(&cache_key) {
-            info!("Using cached income statement data for {}", symbol);
-            return Ok(cached_data);
-        }
-    }
-
-    info!("Fetching income statement data from API for {}", symbol);
-    let url = format!(
-        "{}?function=INCOME_STATEMENT&symbol={}&apikey={}",
-        base_url, symbol, api_key
-    );
-
-    let response = client.get(&url).send().await?;
-
-    if !response.status().is_success() {
-        return Err(format!("API request failed: {}", response.status()).into());
-    }
-
-    let json: Value = response.json().await?;
-    super::check_api_error(&json)?;
-
-    let statement: AlphaVantageIncomeStatement = serde_json::from_value(json)?;
-
-    if let Some(ref c) = cache {
-        let _ = c.write(&cache_key, &statement);
-    }
-
-    Ok(statement)
+    super::fetch_av_function(
+        client,
+        api_key,
+        base_url,
+        cache,
+        symbol,
+        "INCOME_STATEMENT",
+        "income_statement",
+    )
+    .await
 }
 
 pub(super) fn process_historical_data(
@@ -115,5 +92,5 @@ pub(super) fn process_historical_data(
 
     // Take only the LAST 5 years (most recent)
     let start_idx = historical.len().saturating_sub(5);
-    historical[start_idx..].to_vec()
+    historical.split_off(start_idx)
 }

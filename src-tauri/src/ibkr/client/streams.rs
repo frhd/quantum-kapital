@@ -5,7 +5,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::events::{AppEvent, EventEmitter};
-use crate::ibkr::error::{IbkrError, Result};
+use crate::ibkr::error::Result;
 use crate::ibkr::types::{ContractDetails, ScannerData, ScannerSubscription, SecurityType};
 
 use super::IbkrClient;
@@ -41,11 +41,7 @@ impl IbkrClient {
     ) -> Result<StreamHandle> {
         use ibapi::accounts::types::AccountId;
 
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        };
+        let client_clone = self.ibapi_client().await?;
 
         let account = account.to_string();
         let shutdown = Arc::new(AtomicBool::new(false));
@@ -83,11 +79,7 @@ impl IbkrClient {
             info!("Daily PnL subscription stopped for {account}");
         });
 
-        Ok(StreamHandle {
-            name: "Daily PnL",
-            shutdown,
-            join,
-        })
+        Ok(StreamHandle::new("Daily PnL", shutdown, join))
     }
 
     pub async fn start_scanner_stream(
@@ -95,11 +87,7 @@ impl IbkrClient {
         opts: ScannerSubscription,
         emitter: Arc<EventEmitter>,
     ) -> Result<StreamHandle> {
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        };
+        let client_clone = self.ibapi_client().await?;
 
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_task = Arc::clone(&shutdown);
@@ -139,11 +127,7 @@ impl IbkrClient {
             info!("Scanner subscription stopped");
         });
 
-        Ok(StreamHandle {
-            name: "Scanner",
-            shutdown,
-            join,
-        })
+        Ok(StreamHandle::new("Scanner", shutdown, join))
     }
 }
 

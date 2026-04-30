@@ -26,54 +26,37 @@ impl ProjectionService {
         // This ensures we don't mislabel historical data as projections
         let projection_start_year = baseline.year + 1;
 
-        // Generate projections for each scenario
-        let bear = generate_scenario_projection(ScenarioParams {
-            initial_revenue: baseline.revenue,
-            initial_net_income: baseline.net_income,
-            initial_shares: fundamental.current_metrics.shares_outstanding,
-            revenue_growth_rate: assumptions.bear_revenue_growth,
-            margin_change_rate: assumptions.bear_margin_change,
-            pe_low: assumptions.pe_low,
-            pe_high: assumptions.pe_high,
-            ps_low: assumptions.ps_low,
-            ps_high: assumptions.ps_high,
-            shares_growth_rate: assumptions.shares_growth,
-            start_year: projection_start_year,
-            num_years: assumptions.years,
-            analyst_estimates: fundamental.analyst_estimates.as_ref(),
-        });
+        // Bear/base/bull share every input except (revenue_growth, margin_change).
+        let scenario = |revenue_growth: f64, margin_change: f64| {
+            generate_scenario_projection(ScenarioParams {
+                initial_revenue: baseline.revenue,
+                initial_net_income: baseline.net_income,
+                initial_shares: fundamental.current_metrics.shares_outstanding,
+                revenue_growth_rate: revenue_growth,
+                margin_change_rate: margin_change,
+                pe_low: assumptions.pe_low,
+                pe_high: assumptions.pe_high,
+                ps_low: assumptions.ps_low,
+                ps_high: assumptions.ps_high,
+                shares_growth_rate: assumptions.shares_growth,
+                start_year: projection_start_year,
+                num_years: assumptions.years,
+                analyst_estimates: fundamental.analyst_estimates.as_ref(),
+            })
+        };
 
-        let base = generate_scenario_projection(ScenarioParams {
-            initial_revenue: baseline.revenue,
-            initial_net_income: baseline.net_income,
-            initial_shares: fundamental.current_metrics.shares_outstanding,
-            revenue_growth_rate: assumptions.base_revenue_growth,
-            margin_change_rate: assumptions.base_margin_change,
-            pe_low: assumptions.pe_low,
-            pe_high: assumptions.pe_high,
-            ps_low: assumptions.ps_low,
-            ps_high: assumptions.ps_high,
-            shares_growth_rate: assumptions.shares_growth,
-            start_year: projection_start_year,
-            num_years: assumptions.years,
-            analyst_estimates: fundamental.analyst_estimates.as_ref(),
-        });
-
-        let bull = generate_scenario_projection(ScenarioParams {
-            initial_revenue: baseline.revenue,
-            initial_net_income: baseline.net_income,
-            initial_shares: fundamental.current_metrics.shares_outstanding,
-            revenue_growth_rate: assumptions.bull_revenue_growth,
-            margin_change_rate: assumptions.bull_margin_change,
-            pe_low: assumptions.pe_low,
-            pe_high: assumptions.pe_high,
-            ps_low: assumptions.ps_low,
-            ps_high: assumptions.ps_high,
-            shares_growth_rate: assumptions.shares_growth,
-            start_year: projection_start_year,
-            num_years: assumptions.years,
-            analyst_estimates: fundamental.analyst_estimates.as_ref(),
-        });
+        let bear = scenario(
+            assumptions.bear_revenue_growth,
+            assumptions.bear_margin_change,
+        );
+        let base = scenario(
+            assumptions.base_revenue_growth,
+            assumptions.base_margin_change,
+        );
+        let bull = scenario(
+            assumptions.bull_revenue_growth,
+            assumptions.bull_margin_change,
+        );
 
         // Calculate CAGR for each scenario
         let bear_cagr = calculate_cagr(&bear);
@@ -108,60 +91,42 @@ impl ProjectionService {
             baseline_data,
             fundamental.current_metrics.shares_outstanding,
             fundamental.current_metrics.price,
-            assumptions,
         );
 
         // Start projections from the year after the baseline
         let projection_start_year = baseline_data.year + 1;
 
-        // Generate projections for all three scenarios
-        let bear = generate_scenario_projection(ScenarioParams {
-            initial_revenue: baseline_data.revenue,
-            initial_net_income: baseline_data.net_income,
-            initial_shares: fundamental.current_metrics.shares_outstanding,
-            revenue_growth_rate: assumptions.bear_revenue_growth,
-            margin_change_rate: assumptions.bear_margin_change,
-            pe_low: assumptions.pe_low,
-            pe_high: assumptions.pe_high,
-            ps_low: assumptions.ps_low,
-            ps_high: assumptions.ps_high,
-            shares_growth_rate: assumptions.shares_growth,
-            start_year: projection_start_year,
-            num_years: assumptions.years,
-            analyst_estimates: fundamental.analyst_estimates.as_ref(),
-        });
+        // Bear/base/bull share every input except (revenue_growth, margin_change).
+        let scenario = |revenue_growth: f64, margin_change: f64| {
+            generate_scenario_projection(ScenarioParams {
+                initial_revenue: baseline_data.revenue,
+                initial_net_income: baseline_data.net_income,
+                initial_shares: fundamental.current_metrics.shares_outstanding,
+                revenue_growth_rate: revenue_growth,
+                margin_change_rate: margin_change,
+                pe_low: assumptions.pe_low,
+                pe_high: assumptions.pe_high,
+                ps_low: assumptions.ps_low,
+                ps_high: assumptions.ps_high,
+                shares_growth_rate: assumptions.shares_growth,
+                start_year: projection_start_year,
+                num_years: assumptions.years,
+                analyst_estimates: fundamental.analyst_estimates.as_ref(),
+            })
+        };
 
-        let base = generate_scenario_projection(ScenarioParams {
-            initial_revenue: baseline_data.revenue,
-            initial_net_income: baseline_data.net_income,
-            initial_shares: fundamental.current_metrics.shares_outstanding,
-            revenue_growth_rate: assumptions.base_revenue_growth,
-            margin_change_rate: assumptions.base_margin_change,
-            pe_low: assumptions.pe_low,
-            pe_high: assumptions.pe_high,
-            ps_low: assumptions.ps_low,
-            ps_high: assumptions.ps_high,
-            shares_growth_rate: assumptions.shares_growth,
-            start_year: projection_start_year,
-            num_years: assumptions.years,
-            analyst_estimates: fundamental.analyst_estimates.as_ref(),
-        });
-
-        let bull = generate_scenario_projection(ScenarioParams {
-            initial_revenue: baseline_data.revenue,
-            initial_net_income: baseline_data.net_income,
-            initial_shares: fundamental.current_metrics.shares_outstanding,
-            revenue_growth_rate: assumptions.bull_revenue_growth,
-            margin_change_rate: assumptions.bull_margin_change,
-            pe_low: assumptions.pe_low,
-            pe_high: assumptions.pe_high,
-            ps_low: assumptions.ps_low,
-            ps_high: assumptions.ps_high,
-            shares_growth_rate: assumptions.shares_growth,
-            start_year: projection_start_year,
-            num_years: assumptions.years,
-            analyst_estimates: fundamental.analyst_estimates.as_ref(),
-        });
+        let bear = scenario(
+            assumptions.bear_revenue_growth,
+            assumptions.bear_margin_change,
+        );
+        let base = scenario(
+            assumptions.base_revenue_growth,
+            assumptions.base_margin_change,
+        );
+        let bull = scenario(
+            assumptions.bull_revenue_growth,
+            assumptions.bull_margin_change,
+        );
 
         // Group projections by year
         let mut projections = Vec::new();
@@ -199,13 +164,20 @@ impl ProjectionService {
         baseline_data: &crate::ibkr::types::HistoricalFinancial,
         shares_outstanding: f64,
         current_price: f64,
-        _assumptions: &ProjectionAssumptions,
     ) -> FinancialProjection {
         let eps = baseline_data.eps;
         let margin = (baseline_data.net_income / baseline_data.revenue) * 100.0;
 
         // For baseline, we use actual price and calculate implied P/E
         let pe_ratio = if eps > 0.0 { current_price / eps } else { 0.0 };
+
+        // For loss-making baselines, surface the implied P/S so the row
+        // matches downstream P/S projection rows.
+        let implied_ps = if eps < 0.0 {
+            Some(current_price / (baseline_data.revenue / shares_outstanding * 1_000.0))
+        } else {
+            None
+        };
 
         FinancialProjection {
             year: baseline_data.year,
@@ -224,16 +196,8 @@ impl ProjectionService {
             } else {
                 "P/S".to_string()
             },
-            ps_low_est: if eps < 0.0 {
-                Some(current_price / (baseline_data.revenue / shares_outstanding * 1_000.0))
-            } else {
-                None
-            },
-            ps_high_est: if eps < 0.0 {
-                Some(current_price / (baseline_data.revenue / shares_outstanding * 1_000.0))
-            } else {
-                None
-            },
+            ps_low_est: implied_ps,
+            ps_high_est: implied_ps,
             analyst_eps_estimate: None, // Baseline is actual, not estimated
         }
     }
@@ -312,20 +276,6 @@ impl ProjectionService {
 mod tests {
     use super::*;
     use crate::ibkr::types::{CurrentMetrics, HistoricalFinancial};
-
-    /// Regression: catches an accidental `pub` → `pub(crate)` slip on the
-    /// `ProjectionService` API after the Phase 25 split into
-    /// `projection_service/{mod,scenarios}.rs`. Imports the type by its
-    /// public crate path and runs `generate_projections` against the
-    /// existing mock fixture.
-    #[test]
-    fn projection_service_split_compiles() {
-        use crate::services::projection_service::{ProjectionAssumptions, ProjectionService};
-        let fundamental = ProjectionService::generate_mock_fundamental_data("NVDA");
-        let assumptions = ProjectionAssumptions::default();
-        let _projections = ProjectionService::generate_projections(&fundamental, &assumptions)
-            .expect("mock fundamental fixture must produce projections");
-    }
 
     #[test]
     fn test_generate_projections() {

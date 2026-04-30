@@ -11,7 +11,7 @@ interface TagEditorProps {
 }
 
 export function TagEditor({ tags, onSave, onCancel }: TagEditorProps) {
-  const [draftTags, setDraftTags] = useState<StrategyTag[]>([...tags])
+  const [draftTags, setDraftTags] = useState<StrategyTag[]>(() => [...tags])
   const [draftCustom, setDraftCustom] = useState("")
   const [saving, setSaving] = useState(false)
 

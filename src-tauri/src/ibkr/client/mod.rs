@@ -17,14 +17,25 @@ use crate::ibkr::types::{
 };
 
 pub struct IbkrClient {
-    pub(super) client: Arc<RwLock<Option<Arc<Client>>>>,
-    pub(super) config: Arc<RwLock<ConnectionConfig>>,
+    client: Arc<RwLock<Option<Arc<Client>>>>,
+    config: Arc<RwLock<ConnectionConfig>>,
     // Serializes calls into ibapi's shared `account_updates` channel. The
     // crossbeam receiver behind RequestAccountData is MPMC: two concurrent
     // readers will split incoming PortfolioValue/AccountValue messages
     // between them and the first to see AccountDownloadEnd will break out
     // before the other has consumed its share. See client.rs:get_positions.
-    pub(super) account_updates_lock: Arc<Mutex<()>>,
+    account_updates_lock: Arc<Mutex<()>>,
+}
+
+impl IbkrClient {
+    /// Snapshot the underlying `ibapi::Client` handle. Returns `NotConnected`
+    /// when no connection is live; otherwise clones the `Arc` so the
+    /// caller can run `spawn_blocking` work without holding the read lock.
+    pub(super) async fn ibapi_client(&self) -> Result<Arc<Client>> {
+        let client = self.client.read().await;
+        let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
+        Ok(Arc::clone(client))
+    }
 }
 
 impl IbkrClient {
@@ -245,11 +256,7 @@ impl IbkrClient {
     }
 
     pub async fn get_accounts(&self) -> Result<Vec<String>> {
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        }; // Lock is dropped here!
+        let client_clone = self.ibapi_client().await?;
 
         let accounts = tokio::task::spawn_blocking(move || client_clone.managed_accounts())
             .await
@@ -265,11 +272,7 @@ impl IbkrClient {
     }
 
     pub async fn get_account_summary(&self, account: &str) -> Result<Vec<AccountSummary>> {
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        }; // Lock is dropped here!
+        let client_clone = self.ibapi_client().await?;
 
         let account = account.to_string();
         let updates_guard = self.account_updates_lock.clone().lock_owned().await;
@@ -325,11 +328,7 @@ impl IbkrClient {
 
         let account = accounts[0].clone(); // Use first account
 
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        }; // Lock is dropped here!
+        let client_clone = self.ibapi_client().await?;
 
         let updates_guard = self.account_updates_lock.clone().lock_owned().await;
 

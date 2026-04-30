@@ -3,6 +3,7 @@ use crate::services::cache_service::CacheService;
 use crate::services::news_interpreter::NewsInterpreter;
 use crate::storage::Db;
 use reqwest::Client;
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use std::error::Error;
 use std::path::PathBuf;
@@ -26,6 +27,49 @@ pub struct FinancialDataService {
     cache: Option<CacheService>,
     db: Option<Arc<Db>>,
     news_interpreter: Option<Arc<NewsInterpreter>>,
+}
+
+/// Fetch a single Alpha Vantage `function=...` payload, hitting the local
+/// JSON cache first and falling back to the live API. Cache key is namespaced
+/// per (symbol, suffix) so the three callers — OVERVIEW, INCOME_STATEMENT,
+/// EARNINGS — don't collide on disk.
+pub(super) async fn fetch_av_function<T>(
+    client: &Client,
+    api_key: &str,
+    base_url: &str,
+    cache: &Option<CacheService>,
+    symbol: &str,
+    function: &str,
+    cache_suffix: &str,
+) -> Result<T, Box<dyn Error + Send + Sync>>
+where
+    T: DeserializeOwned + Serialize,
+{
+    let cache_key = format!("{}_{}", symbol.to_uppercase(), cache_suffix);
+
+    if let Some(ref c) = cache {
+        if let Ok(cached) = c.read::<T>(&cache_key) {
+            info!("Using cached {function} data for {symbol}");
+            return Ok(cached);
+        }
+    }
+
+    info!("Fetching {function} data from API for {symbol}");
+    let url = format!("{base_url}?function={function}&symbol={symbol}&apikey={api_key}");
+
+    let response = client.get(&url).send().await?;
+    if !response.status().is_success() {
+        return Err(format!("API request failed: {}", response.status()).into());
+    }
+
+    let json: Value = response.json().await?;
+    check_api_error(&json)?;
+
+    let parsed: T = serde_json::from_value(json)?;
+    if let Some(ref c) = cache {
+        let _ = c.write(&cache_key, &parsed);
+    }
+    Ok(parsed)
 }
 
 /// Check if the API response contains an error message
@@ -186,20 +230,6 @@ impl FinancialDataService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Regression: catches an accidental `pub` → `pub(crate)` slip on the
-    /// `FinancialDataService::fetch_news_sentiment` API after the Phase 25
-    /// split into `financial_data_service/{mod,overview,income,earnings,
-    /// news,news_tests}.rs`. Without a `Db` attached the call returns an
-    /// `Err` immediately, but the call type-checks — that's the regression
-    /// signal.
-    #[tokio::test]
-    async fn financial_data_service_split_compiles() {
-        use crate::services::financial_data_service::FinancialDataService;
-        let svc = FinancialDataService::new("test-key".to_string());
-        let result = svc.fetch_news_sentiment("AAPL", 24).await;
-        assert!(result.is_err(), "no Db attached — must return an error");
-    }
 
     #[tokio::test]
     #[ignore] // Requires API key

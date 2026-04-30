@@ -1,14 +1,16 @@
-//! Phase 25 split — setup-row CRUD methods for `TrackerService`.
+//! Setup-row CRUD methods for `TrackerService`.
 //!
 //! This file holds the `impl TrackerService { … }` block containing every
-//! method that touches the `setups` table.  Ticker-CRUD methods and shared
-//! helpers live in `super` (`mod.rs`).
+//! method that touches the `setups` table. Ticker-CRUD methods live in
+//! `super` (`mod.rs`).
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use rusqlite::OptionalExtension;
 
 use crate::ibkr::types::tracker::{Setup, SetupStatus};
 use crate::storage::error::StorageError;
 use crate::strategies::{Direction, SetupCandidate, TargetLevel};
+use crate::utils::helpers::unix_to_utc;
 
 use super::{Result, TrackerError, TrackerService};
 
@@ -278,8 +280,6 @@ impl TrackerService {
 
 // ---------------- setup row helpers ----------------
 
-use rusqlite::OptionalExtension;
-
 type SetupRawRow = (
     i64,            // id
     String,         // symbol
@@ -354,7 +354,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         symbol,
         strategy,
         direction,
-        detected_at: super::unix_to_utc(detected_at),
+        detected_at: unix_to_utc(detected_at),
         trigger_price,
         stop_price,
         targets,
@@ -362,7 +362,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         thesis,
         thesis_json,
         status,
-        invalidated_at: invalidated_at.map(super::unix_to_utc),
+        invalidated_at: invalidated_at.map(unix_to_utc),
         invalidation_reason,
     })
 }

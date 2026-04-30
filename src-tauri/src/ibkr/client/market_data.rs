@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ibapi::contracts::Contract;
 
 use crate::ibkr::error::{IbkrError, Result};
@@ -8,11 +6,7 @@ use super::IbkrClient;
 
 impl IbkrClient {
     pub async fn subscribe_market_data(&self, symbol: &str) -> Result<()> {
-        let client_clone = {
-            let client = self.client.read().await;
-            let client = client.as_ref().ok_or(IbkrError::NotConnected)?;
-            Arc::clone(client)
-        }; // Lock is dropped here!
+        let client_clone = self.ibapi_client().await?;
 
         let symbol = symbol.to_string();
 

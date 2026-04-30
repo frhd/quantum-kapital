@@ -11,13 +11,14 @@
 //! during a runner pass (e.g. Phase 17's thesis pipeline re-emits
 //! `SetupDetected` after the LLM populates the thesis).
 
-use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use rusqlite::OptionalExtension;
 use std::sync::Arc;
 
 use crate::ibkr::types::tracker::{Alert, AlertKind};
 use crate::storage::error::StorageError;
 use crate::storage::Db;
+use crate::utils::helpers::unix_to_utc;
 
 #[cfg(test)]
 mod tests;
@@ -216,8 +217,4 @@ fn decode_raw(r: RawRow) -> Result<Alert, StorageError> {
         payload,
         seen: seen != 0,
     })
-}
-
-fn unix_to_utc(ts: i64) -> DateTime<Utc> {
-    Utc.timestamp_opt(ts, 0).single().unwrap_or_else(Utc::now)
 }

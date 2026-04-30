@@ -8,13 +8,14 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use rusqlite::OptionalExtension;
 use thiserror::Error;
 
 use crate::ibkr::types::tracker::{StrategyTag, TrackedTicker, TrackerSource, TrackerStatus};
 use crate::storage::error::StorageError;
 use crate::storage::Db;
+use crate::utils::helpers::unix_to_utc;
 
 mod setups;
 
@@ -333,8 +334,4 @@ fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
         in_play_until: in_play.map(unix_to_utc),
         cool_down_until: cool_down.map(unix_to_utc),
     })
-}
-
-pub(super) fn unix_to_utc(ts: i64) -> DateTime<Utc> {
-    Utc.timestamp_opt(ts, 0).single().unwrap_or_else(Utc::now)
 }
