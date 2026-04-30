@@ -80,7 +80,7 @@ export interface AnalystEstimates {
 }
 
 export interface CurrentMetrics {
-  price: number
+  price?: number
   peRatio: number
   sharesOutstanding: number // in millions
   name?: string

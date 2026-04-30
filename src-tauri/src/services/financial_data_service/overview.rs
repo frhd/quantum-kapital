@@ -52,12 +52,6 @@ pub(super) fn process_current_metrics(overview: &AlphaVantageOverview) -> Curren
         .map(|s| s / 1_000_000.0)
         .unwrap_or(0.0);
 
-    let price = overview
-        .week_52_high
-        .as_ref()
-        .and_then(|p| p.parse::<f64>().ok())
-        .unwrap_or(0.0);
-
     let dividend_yield = overview
         .dividend_yield
         .as_ref()
@@ -72,7 +66,9 @@ pub(super) fn process_current_metrics(overview: &AlphaVantageOverview) -> Curren
     });
 
     CurrentMetrics {
-        price,
+        // Alpha Vantage OVERVIEW does not carry a real current price.
+        // The live-quote path (ibkr_get_quote) owns this concern.
+        price: None,
         pe_ratio,
         shares_outstanding,
         name: overview.name.clone(),
@@ -91,5 +87,30 @@ pub(super) fn format_market_cap(value: f64) -> String {
         format!("{:.1}M", value / 1_000_000.0)
     } else {
         format!("{value:.0}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_current_metrics_does_not_alias_52week_high_as_price() {
+        let overview = AlphaVantageOverview {
+            symbol: Some("AAPL".into()),
+            name: Some("Apple".into()),
+            exchange: Some("NASDAQ".into()),
+            market_capitalization: Some("3000000000000".into()),
+            pe_ratio: Some("30.0".into()),
+            shares_outstanding: Some("15000000000".into()),
+            week_52_high: Some("202.49".into()),
+            dividend_yield: Some("0.005".into()),
+        };
+
+        let metrics = process_current_metrics(&overview);
+
+        assert!(metrics.price.is_none(), "OVERVIEW must not populate price");
+        assert!((metrics.pe_ratio - 30.0).abs() < 1e-9);
+        assert_eq!(metrics.market_cap.as_deref(), Some("3.0T"));
     }
 }

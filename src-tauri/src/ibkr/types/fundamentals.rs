@@ -106,7 +106,13 @@ pub struct AnalystEstimates {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentMetrics {
-    pub price: f64,
+    /// Optional because Alpha Vantage's OVERVIEW endpoint does not
+    /// return a current price. Live price comes from the separate
+    /// `Quote` path. Kept on the type so existing callers (e.g.
+    /// projections, mock fixtures) can pass an explicit value when
+    /// they have one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price: Option<f64>,
     pub pe_ratio: f64,
     pub shares_outstanding: f64, // in millions
     #[serde(skip_serializing_if = "Option::is_none")]

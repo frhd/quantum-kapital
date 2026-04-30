@@ -54,7 +54,7 @@ impl ProjectionService {
         let baseline = Self::create_baseline_projection(
             baseline_data,
             fundamental.current_metrics.shares_outstanding,
-            fundamental.current_metrics.price,
+            fundamental.current_metrics.price.unwrap_or(0.0),
         );
 
         let ScenarioBatch { bear, base, bull } = generate_three_scenarios(
@@ -191,7 +191,9 @@ impl ProjectionService {
                 ],
             }),
             current_metrics: CurrentMetrics {
-                price: 202.49,
+                // Live price comes from the quote path (ibkr_get_quote);
+                // OVERVIEW/mock fundamentals do not own this field.
+                price: None,
                 pe_ratio: 68.9,
                 shares_outstanding: 24804.0, // in millions (24.804B shares)
                 name: Some(format!("{symbol} Corporation")),
@@ -289,7 +291,7 @@ mod tests {
             }],
             analyst_estimates: None,
             current_metrics: CurrentMetrics {
-                price: 50.0,
+                price: Some(50.0),
                 pe_ratio: -1.0,             // N/A for negative earnings
                 shares_outstanding: 1000.0, // 1B shares
                 name: Some("Loss Maker Inc".to_string()),
