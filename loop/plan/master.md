@@ -59,7 +59,7 @@ Each phase is a standalone file with scope, files, tools, exit criteria, and got
 | 5. Pre-market research agent loop | [phase-5-morning-sweep.md](phase-5-morning-sweep.md) | 1, 2, 3, 4 | done (commit 55fbc73, 2026-05-02) |
 | 6. Per-alert deep-dive agent | [phase-6-alert-dive.md](phase-6-alert-dive.md) | 1, 2 | done (commit 6f6c15a, 2026-05-02) |
 | 7. EOD review + journal | [phase-7-eod-review.md](phase-7-eod-review.md) | 1, 2, 5 | done (commit 953bd52, 2026-05-02) |
-| 8. Eval harness | [phase-8-eval-harness.md](phase-8-eval-harness.md) | 5 (data); meaningful at ~30d | todo |
+| 8. Eval harness | [phase-8-eval-harness.md](phase-8-eval-harness.md) | 5 (data); meaningful at ~30d | in-progress (started 2026-05-02) |
 | 9. Daemon refactor (optional) | [phase-9-daemon.md](phase-9-daemon.md) | independent | todo |
 
 > **Status convention:** values are `todo` | `in-progress (started YYYY-MM-DD)` | `done (commit <sha>, YYYY-MM-DD)`. Update both this table AND the phase file's `**Status:**` header at phase start and exit. Don't start a phase whose dependencies aren't `done`.
