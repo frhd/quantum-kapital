@@ -16,6 +16,7 @@ use rmcp::{
 };
 
 use crate::services::financial_data_service::FinancialDataService;
+use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
@@ -35,8 +36,11 @@ pub struct McpHandler {
     /// Used by `tools::alerts` (`list_alerts(&Arc<Db>, ...)`) and
     /// `tools::news` (`read_cache_with_verdict(&Db, ...)`).
     pub(crate) db: Arc<Db>,
-    /// Used by `tools::news` for the best-effort AV refresh path.
+    /// Used by `tools::news` for the best-effort AV refresh path and by
+    /// `tools::fundamentals` for `fetch_fundamental_data`.
     pub(crate) financial_service: Arc<FinancialDataService>,
+    /// Used by `tools::bars` (`fetch_bars` — cache-first, IBKR fallback).
+    pub(crate) historical_service: Arc<HistoricalDataService>,
     pub(crate) tool_router: ToolRouter<Self>,
 }
 
@@ -46,6 +50,7 @@ impl McpHandler {
         tracker: Arc<TrackerService>,
         db: Arc<Db>,
         financial_service: Arc<FinancialDataService>,
+        historical_service: Arc<HistoricalDataService>,
     ) -> Self {
         // Each per-tool file declares its own `#[tool_router(router = X_router)]`
         // block; `ToolRouter` composes via `+`. Adding a tool means: drop a
@@ -54,12 +59,15 @@ impl McpHandler {
             + Self::watchlist_router()
             + Self::setups_router()
             + Self::alerts_router()
-            + Self::news_router();
+            + Self::news_router()
+            + Self::bars_router()
+            + Self::fundamentals_router();
         Self {
             llm,
             tracker,
             db,
             financial_service,
+            historical_service,
             tool_router,
         }
     }

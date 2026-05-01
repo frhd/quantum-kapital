@@ -20,11 +20,35 @@ use std::sync::Arc;
 #[cfg(test)]
 use tempfile::NamedTempFile;
 
+use async_trait::async_trait;
+
+use crate::ibkr::error::Result as IbkrResult;
+use crate::ibkr::types::historical::{HistoricalBar, HistoricalDataRequest};
 use crate::mcp::handler::McpHandler;
+use crate::middleware::HistoricalRateLimiter;
 use crate::services::financial_data_service::FinancialDataService;
+use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
+
+/// Stub fetcher that panics if its `fetch_historical` is called. Used by
+/// tests that pre-seed `bars_cache` and want any cache-miss path to surface
+/// as a loud test failure instead of a hang or a real network attempt.
+pub struct PanickingFetcher;
+
+#[async_trait]
+impl HistoricalDataFetcher for PanickingFetcher {
+    async fn fetch_historical(
+        &self,
+        request: HistoricalDataRequest,
+    ) -> IbkrResult<Vec<HistoricalBar>> {
+        panic!(
+            "PanickingFetcher: cache-miss fetch attempted in test (request: {:?})",
+            request
+        );
+    }
+}
 
 /// Deterministic [`LlmClock`] fixed at construction time. Lets budget /
 /// spend tests pin "today" without leaking real wall-clock behaviour.
@@ -47,9 +71,14 @@ pub fn make_db() -> (NamedTempFile, Arc<Db>) {
 }
 
 /// Build an `McpHandler` wired to fresh services on top of the supplied
-/// `Db`. Used by the data-tier tools (watchlist / setups / alerts / news)
-/// which don't care about the LLM budget; the `LlmService` is constructed
-/// with a no-op API key and a generous budget.
+/// `Db`. Used by the data-tier tools (watchlist / setups / alerts / news /
+/// bars / fundamentals) which don't care about the LLM budget; the
+/// `LlmService` is constructed with a no-op API key and a generous budget.
+///
+/// The historical-data service is wired with [`PanickingFetcher`] so any
+/// cache-miss path raises a loud test failure rather than hanging or
+/// attempting a real network round-trip. Tests that need to exercise a
+/// fetch path should construct their own service.
 #[cfg(test)]
 pub fn handler_for_db(db: Arc<Db>) -> McpHandler {
     let llm = Arc::new(LlmService::new(
@@ -62,7 +91,13 @@ pub fn handler_for_db(db: Arc<Db>) -> McpHandler {
     // the cache-only path. Tests that exercise the AV-fallback branch
     // override this by calling `FinancialDataService::new(...)` themselves.
     let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
-    McpHandler::new(llm, tracker, db, financial)
+    let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(PanickingFetcher);
+    let hist = Arc::new(HistoricalDataService::new(
+        Arc::clone(&db),
+        fetcher,
+        Arc::new(HistoricalRateLimiter::new(60)),
+    ));
+    McpHandler::new(llm, tracker, db, financial, hist)
 }
 
 /// Construct an `McpHandler` against a fresh on-disk DB at `db_path` with
@@ -112,5 +147,11 @@ pub async fn test_handler_with_seeded_spend(
     );
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
     let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
-    Ok(McpHandler::new(llm, tracker, db, financial))
+    let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(PanickingFetcher);
+    let hist = Arc::new(HistoricalDataService::new(
+        Arc::clone(&db),
+        fetcher,
+        Arc::new(HistoricalRateLimiter::new(60)),
+    ));
+    Ok(McpHandler::new(llm, tracker, db, financial, hist))
 }

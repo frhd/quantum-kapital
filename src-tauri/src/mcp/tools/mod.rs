@@ -1,8 +1,9 @@
 //! MCP tool plumbing shared across the read-only tool surface.
 //!
 //! - One file per tool (`budget.rs`, `watchlist.rs`, `setups.rs`,
-//!   `alerts.rs`, `news.rs`). Each file owns a `#[tool_router]` block
-//!   composed into `McpHandler` via `ToolRouter::Add`.
+//!   `alerts.rs`, `news.rs`, `bars.rs`, `fundamentals.rs`). Each file
+//!   owns a `#[tool_router]` block composed into `McpHandler` via
+//!   `ToolRouter::Add`.
 //! - `test_support.rs` lifts the `Db` + `FixedClock` + handler-builder
 //!   helpers out of the per-tool tests so each new tool re-uses them.
 //! - `reads.rs` and `types.rs` remain as legacy stubs for now; future
@@ -13,7 +14,9 @@
 #![allow(dead_code)] // helpers consumed by tools added in Steps 5–7.
 
 pub mod alerts;
+pub mod bars;
 pub mod budget;
+pub mod fundamentals;
 pub mod news;
 pub mod reads;
 pub mod setups;

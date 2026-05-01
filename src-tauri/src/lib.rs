@@ -228,6 +228,7 @@ pub fn run() {
                 Arc::clone(&ibkr_state.tracker),
                 Arc::clone(&db),
                 Arc::clone(&financial_service),
+                Arc::clone(&hist_service),
             );
             let mcp_server = mcp::server::McpServer::new(mcp_handler, mcp_socket_path);
             let mcp_state_handle = Arc::clone(&ibkr_state.mcp_handle);
