@@ -1,0 +1,42 @@
+# Quantum Kapital morning-sweep agent config.
+# Edit values here; the agent reads this file at startup.
+
+[budget]
+# Hard ceiling per single loop run, in USD. Loop aborts before its next LLM call
+# if the loop's accumulated spend would cross this. Independent of the global
+# daily LlmService budget (which the loop also queries via MCP).
+per_loop_usd = 0.50
+
+# Skip the loop entirely if more than this fraction of the global daily budget
+# has already been consumed before the loop starts.
+abort_if_global_spend_above = 0.50
+
+[universe]
+# Top K candidates to pull data for (intersection of get_candidates + get_watchlist).
+top_k = 10
+
+# Minimum sentiment / scanner score to consider a candidate.
+candidate_min_score = 0.0
+
+# How many days of historical setups to surface to the LLM as context per ticker.
+setups_lookback_days = 30
+
+[output]
+# 3-5 ranked ideas per the morning pack.
+min_ideas = 3
+max_ideas = 5
+
+[models]
+# Tool-orchestration / sentiment classification.
+fast = "claude-haiku-4-5"
+# Ranking + synthesis.
+smart = "claude-sonnet-4-6"
+
+[mcp]
+# Path to the mcp-server binary (the stdio bridge). Resolved relative to the repo
+# root if not absolute.
+server_bin = "../src-tauri/target/release/mcp-server"
+
+# Optional: override the unix-socket path the bridge connects to. If unset, the
+# bridge uses its own default (~/.local/share/com.quantyc.qqk/mcp.sock on Linux).
+# socket_path = "/custom/path/mcp.sock"
