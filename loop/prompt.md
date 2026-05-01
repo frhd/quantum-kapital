@@ -1,4 +1,4 @@
-Drive @/home/farhad/.claude/plans/what-do-you-think-magical-llama.md to completion. Sub-plans: @/home/farhad/.claude/plans/what-do-you-think-magical-llama/phase-N-*.md.
+Drive @loop/plan/master.md to completion. Sub-plans: @loop/plan/phase-N-*.md.
 
 EACH ITERATION:
 1. Read the master plan's Phase index.
@@ -19,7 +19,7 @@ OPERATING RULES:
 - PUSH after every phase `done` commit (more often is fine). `git push` on the current branch only — never `--force`, never to a different branch.
 - DO NOT create new branches, open PRs, or merge anything. All 9 phases land as commits on the current branch.
 - DO NOT rebase, force-push, or `git reset --hard`. DO NOT amend prior commits — append new ones.
-- If blocked by genuine ambiguity (multiple defensible designs, missing requirement), append the question to @/home/farhad/.claude/plans/what-do-you-think-magical-llama/QUESTIONS.md with the phase name, then continue with the safer / narrower interpretation. Do not block.
+- If blocked by genuine ambiguity (multiple defensible designs, missing requirement), append the question to @loop/plan/QUESTIONS.md with the phase name, then continue with the safer / narrower interpretation. Do not block.
 - Verify before claiming done: run the exit-criteria checks, don't assume. Read your own diff before committing.
 - Hard invariants in the master plan (`### Hard invariants`) override anything here.
 

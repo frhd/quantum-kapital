@@ -101,6 +101,7 @@
 @layer base {
   /* Light theme — emissionwise [data-theme='light'] palette (hex → HSL) */
   :root {
+    color-scheme: light;
     --background: 240 18% 94%; /* #ededf2 */
     --foreground: 240 16% 19%; /* #2a2a3a */
     --card: 240 19% 96%; /* #f4f4f8 */
@@ -138,6 +139,7 @@
 
   /* Dark theme — emissionwise default palette (hex → HSL) */
   .dark {
+    color-scheme: dark;
     --background: 240 27% 14%; /* #1b1b2f */
     --foreground: 240 12% 88%; /* #dcdce4 */
     --card: 240 23% 18%; /* #232338 */
