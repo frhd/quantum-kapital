@@ -13,10 +13,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 use tracing::warn;
 
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::Result as IbkrResult;
+use crate::ibkr::types::data_tier::DataTier;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::{NewsItem, NewsVerdict};
 use crate::ibkr::types::tracker::{AlertKind, Setup, TrackerStatus};
@@ -106,6 +108,10 @@ pub struct OwnedMarketContext {
     pub intraday_bars: Option<Vec<HistoricalBar>>,
     pub recent_news: Vec<NewsItem>,
     pub news_verdict: Option<NewsVerdict>,
+    /// Tier the runner saw for the active IBKR connection at the
+    /// moment this context was assembled. Defaults to `Unknown` when
+    /// no tier source is wired.
+    pub data_tier: DataTier,
     pub now: DateTime<Utc>,
 }
 
@@ -119,6 +125,7 @@ impl OwnedMarketContext {
             recent_news: &self.recent_news,
             news_verdict: self.news_verdict.as_ref(),
             current_quote: None,
+            data_tier: self.data_tier,
             now: self.now,
         }
     }
@@ -150,6 +157,10 @@ pub struct TrackerRunner {
     /// to attach an LLM-generated thesis. When `None`, the runner emits
     /// `SetupDetected { thesis: None }` exactly as Phase 15 did.
     thesis_generator: Option<Arc<ThesisGenerator>>,
+    /// Source of the live `DataTier` for context construction. When
+    /// `None`, contexts default to `DataTier::Unknown` — preserving
+    /// pre-data-tier behavior for tests that don't care.
+    data_tier: Option<Arc<RwLock<DataTier>>>,
 }
 
 impl TrackerRunner {
@@ -171,6 +182,7 @@ impl TrackerRunner {
             news,
             registry,
             thesis_generator: None,
+            data_tier: None,
         }
     }
 
@@ -180,6 +192,23 @@ impl TrackerRunner {
     pub fn with_thesis_generator(mut self, generator: Arc<ThesisGenerator>) -> Self {
         self.thesis_generator = Some(generator);
         self
+    }
+
+    /// Attach a `DataTier` source. `IbkrState.data_tier` is wired in by
+    /// `lib.rs` so `MarketContext.data_tier` reflects what the active
+    /// IBKR connection is actually delivering. Without one, contexts
+    /// stay `DataTier::Unknown` — tier-gated detectors should treat
+    /// `Unknown` as "don't run".
+    pub fn with_data_tier(mut self, data_tier: Arc<RwLock<DataTier>>) -> Self {
+        self.data_tier = Some(data_tier);
+        self
+    }
+
+    async fn read_data_tier(&self) -> DataTier {
+        match &self.data_tier {
+            Some(source) => *source.read().await,
+            None => DataTier::Unknown,
+        }
     }
 
     /// Gather a [`MarketContext`] for `symbol`. Daily bars are mandatory
@@ -220,6 +249,7 @@ impl TrackerRunner {
             intraday_bars,
             recent_news,
             news_verdict: None,
+            data_tier: self.read_data_tier().await,
             now: Utc::now(),
         })
     }

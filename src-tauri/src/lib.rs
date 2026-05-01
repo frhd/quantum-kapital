@@ -144,7 +144,8 @@ pub fn run() {
                     news,
                     Arc::new(registry_from_config(&config.detectors)),
                 )
-                .with_thesis_generator(Arc::clone(&thesis_generator)),
+                .with_thesis_generator(Arc::clone(&thesis_generator))
+                .with_data_tier(Arc::clone(&ibkr_state.data_tier)),
             );
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
@@ -239,6 +240,7 @@ pub fn run() {
             ibkr::commands::ibkr_start_daily_pnl,
             ibkr::commands::ibkr_stop_daily_pnl,
             ibkr::commands::ibkr_subscribe_market_data,
+            ibkr::commands::ibkr_get_data_tier,
             ibkr::commands::ibkr_place_order,
             ibkr::commands::ibkr_get_executions,
             ibkr::commands::ibkr_get_fundamental_data,

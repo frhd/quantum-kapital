@@ -13,6 +13,7 @@ import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
 import { TrackerTab } from "../features/tracker/components/TrackerTab"
 import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerDialog"
+import { DataTierBanner } from "../shared/components/DataTierBanner"
 import type { AddToTrackerPrefill } from "../features/tracker/types"
 
 import { useConnection } from "../features/connection/hooks/useConnection"
@@ -122,6 +123,8 @@ export default function App() {
 
         {connectionStatus.connected && (
           <>
+            <DataTierBanner />
+
             <AccountSummary
               accounts={accounts}
               accountSummary={accountSummary}

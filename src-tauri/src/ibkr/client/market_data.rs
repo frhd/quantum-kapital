@@ -1,15 +1,51 @@
+use std::sync::Arc;
 use std::time::Duration;
 
+use ibapi::client::blocking::Client;
 use ibapi::contracts::tick_types::TickType;
 use ibapi::contracts::Contract;
 use ibapi::market_data::realtime::TickTypes;
 
 use crate::ibkr::error::{IbkrError, Result};
-use crate::ibkr::types::MarketDataSnapshot;
+use crate::ibkr::types::{DataTier, MarketDataSnapshot};
 
 use super::IbkrClient;
 
-const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
+pub(super) const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Classify a single `TickType` into the data tier it implies.
+///
+/// Returns `None` for tick types that don't carry a tier signal (e.g.
+/// `Halted`, `RtVolume`, options-specific ticks). The probe loop keeps
+/// reading until it gets a `Some(_)` or hits its timeout / snapshot
+/// end, so unclassified ticks just don't move the answer.
+fn classify_tick_type(tick_type: TickType) -> Option<DataTier> {
+    match tick_type {
+        TickType::Bid
+        | TickType::Ask
+        | TickType::Last
+        | TickType::High
+        | TickType::Low
+        | TickType::Close
+        | TickType::Open
+        | TickType::Volume
+        | TickType::BidSize
+        | TickType::AskSize
+        | TickType::LastSize => Some(DataTier::RealTime),
+        TickType::DelayedBid
+        | TickType::DelayedAsk
+        | TickType::DelayedLast
+        | TickType::DelayedHigh
+        | TickType::DelayedLow
+        | TickType::DelayedClose
+        | TickType::DelayedOpen
+        | TickType::DelayedVolume
+        | TickType::DelayedBidSize
+        | TickType::DelayedAskSize
+        | TickType::DelayedLastSize => Some(DataTier::Delayed),
+        _ => None,
+    }
+}
 
 impl IbkrClient {
     /// Existing best-effort subscription. Kept because
@@ -134,6 +170,96 @@ impl IbkrClient {
     }
 }
 
+impl IbkrClient {
+    /// Probe the active connection's market-data tier by snapshotting
+    /// `symbol` and inspecting which tick variants come back. Returns
+    /// `Ok(DataTier::RealTime)` on the first non-delayed price/size
+    /// tick, `Ok(DataTier::Delayed)` on the first delayed variant, or
+    /// `Ok(DataTier::Unknown)` on `MarketDataPermissionDenied`,
+    /// timeout, or a `SnapshotEnd` that arrived before any
+    /// classifiable tick. Other ibapi errors propagate as `Err`.
+    ///
+    /// Mirrors `get_market_data_snapshot` (same `spawn_blocking` +
+    /// `next_timeout` loop, same `SNAPSHOT_TIMEOUT`) but reads a
+    /// classifier instead of populating a snapshot struct.
+    ///
+    /// Production usage runs through `connect()` (which calls the
+    /// `run_probe` helper directly with a fresh client handle); this
+    /// inherent method is kept as a manual debugging surface and
+    /// mirrors the trait method on `IbkrClientTrait`.
+    #[allow(dead_code)]
+    pub async fn probe_data_tier(&self, symbol: &str) -> Result<DataTier> {
+        let client_clone = self.ibapi_client().await?;
+        run_probe(client_clone, symbol).await
+    }
+}
+
+/// Probe `symbol` against an already-cloned ibapi client. Public to
+/// the parent module so `connect()` can spawn the probe without
+/// going back through `IbkrClient`.
+pub(super) async fn run_probe(client: Arc<Client>, symbol: &str) -> Result<DataTier> {
+    let symbol_owned = symbol.to_string();
+
+    tokio::task::spawn_blocking(move || -> Result<DataTier> {
+        let contract = Contract::stock(&symbol_owned).build();
+        let generic_ticks: Vec<&str> = Vec::new();
+
+        let subscription = client
+            .market_data(&contract)
+            .generic_ticks(&generic_ticks)
+            .snapshot()
+            .subscribe()
+            .map_err(IbkrError::from)?;
+
+        let deadline = std::time::Instant::now() + SNAPSHOT_TIMEOUT;
+
+        loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                return Ok(DataTier::Unknown);
+            }
+
+            match subscription.next_timeout(remaining) {
+                Some(TickTypes::Price(tick)) => {
+                    if let Some(tier) = classify_tick_type(tick.tick_type) {
+                        return Ok(tier);
+                    }
+                }
+                Some(TickTypes::Size(tick)) => {
+                    if let Some(tier) = classify_tick_type(tick.tick_type) {
+                        return Ok(tier);
+                    }
+                }
+                Some(TickTypes::PriceSize(tick)) => {
+                    if let Some(tier) = classify_tick_type(tick.price_tick_type) {
+                        return Ok(tier);
+                    }
+                    if let Some(tier) = classify_tick_type(tick.size_tick_type) {
+                        return Ok(tier);
+                    }
+                }
+                Some(TickTypes::SnapshotEnd) => {
+                    return Ok(DataTier::Unknown);
+                }
+                Some(TickTypes::Notice(notice)) => {
+                    if notice.code == 354 {
+                        return Ok(DataTier::Unknown);
+                    }
+                }
+                Some(_) => {}
+                None => {
+                    if let Some(err) = subscription.error() {
+                        return Err(IbkrError::from(err));
+                    }
+                    return Ok(DataTier::Unknown);
+                }
+            }
+        }
+    })
+    .await
+    .map_err(|e| IbkrError::Unknown(e.to_string()))?
+}
+
 fn apply_price(snapshot: &mut MarketDataSnapshot, tick: &ibapi::market_data::realtime::TickPrice) {
     match tick.tick_type {
         TickType::Bid | TickType::DelayedBid => snapshot.bid_price = Some(tick.price),
@@ -182,5 +308,104 @@ fn apply_price_size(
             snapshot.last_size = Some(tick.size as i32);
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_real_time_price_ticks() {
+        assert_eq!(classify_tick_type(TickType::Last), Some(DataTier::RealTime));
+        assert_eq!(classify_tick_type(TickType::Bid), Some(DataTier::RealTime));
+        assert_eq!(classify_tick_type(TickType::Ask), Some(DataTier::RealTime));
+        assert_eq!(classify_tick_type(TickType::High), Some(DataTier::RealTime));
+        assert_eq!(classify_tick_type(TickType::Low), Some(DataTier::RealTime));
+        assert_eq!(
+            classify_tick_type(TickType::Close),
+            Some(DataTier::RealTime)
+        );
+        assert_eq!(classify_tick_type(TickType::Open), Some(DataTier::RealTime));
+        assert_eq!(
+            classify_tick_type(TickType::Volume),
+            Some(DataTier::RealTime)
+        );
+    }
+
+    #[test]
+    fn classify_real_time_size_ticks() {
+        assert_eq!(
+            classify_tick_type(TickType::BidSize),
+            Some(DataTier::RealTime)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::AskSize),
+            Some(DataTier::RealTime)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::LastSize),
+            Some(DataTier::RealTime)
+        );
+    }
+
+    #[test]
+    fn classify_delayed_price_ticks() {
+        assert_eq!(
+            classify_tick_type(TickType::DelayedLast),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedBid),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedAsk),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedHigh),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedLow),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedClose),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedOpen),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedVolume),
+            Some(DataTier::Delayed)
+        );
+    }
+
+    #[test]
+    fn classify_delayed_size_ticks() {
+        assert_eq!(
+            classify_tick_type(TickType::DelayedBidSize),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedAskSize),
+            Some(DataTier::Delayed)
+        );
+        assert_eq!(
+            classify_tick_type(TickType::DelayedLastSize),
+            Some(DataTier::Delayed)
+        );
+    }
+
+    #[test]
+    fn classify_unrelated_ticks_returns_none() {
+        assert_eq!(classify_tick_type(TickType::Halted), None);
+        assert_eq!(classify_tick_type(TickType::Unknown), None);
+        assert_eq!(classify_tick_type(TickType::RtVolume), None);
+        assert_eq!(classify_tick_type(TickType::MarkPrice), None);
     }
 }

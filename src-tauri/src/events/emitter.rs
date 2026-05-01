@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::RwLock;
 
 use crate::ibkr::types::tracker::{Setup, TrackerStatus};
-use crate::ibkr::types::ScannerData;
+use crate::ibkr::types::{DataTier, ScannerData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
@@ -44,6 +44,13 @@ pub enum AppEvent {
     },
     MarketDataUnsubscribed {
         symbol: String,
+    },
+    /// Emitted by `IbkrClient` after the connect-time probe finishes
+    /// (or on disconnect, where it carries `DataTier::Unknown`). Lets
+    /// the UI banner and any tier-gated consumer react without polling
+    /// `IbkrState`.
+    DataTierDetected {
+        tier: DataTier,
     },
 
     // Order events
@@ -128,6 +135,7 @@ impl AppEvent {
             AppEvent::MarketDataUpdate { .. } => "market-data-update",
             AppEvent::MarketDataSubscribed { .. } => "market-data-subscribed",
             AppEvent::MarketDataUnsubscribed { .. } => "market-data-unsubscribed",
+            AppEvent::DataTierDetected { .. } => "data-tier-detected",
             AppEvent::OrderPlaced { .. } => "order-placed",
             AppEvent::OrderFilled { .. } => "order-filled",
             AppEvent::OrderCancelled { .. } => "order-cancelled",

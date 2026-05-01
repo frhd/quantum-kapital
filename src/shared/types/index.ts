@@ -40,6 +40,16 @@ export interface OrderRequest {
   price?: number
 }
 
+/**
+ * Empirically detected market-data tier for the active IBKR connection.
+ * Mirrors `DataTier` in the Rust backend (snake_case via serde).
+ *
+ * - `unknown`: probe hasn't run yet, isn't done, or was reset by a disconnect.
+ * - `delayed`: 15-min delayed ticks (free IBKR tier / paper accounts).
+ * - `real_time`: real-time ticks.
+ */
+export type DataTier = "unknown" | "delayed" | "real_time"
+
 export interface DailyPnL {
   account: string
   daily_pnl: number

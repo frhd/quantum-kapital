@@ -32,6 +32,36 @@ async fn test_market_data_snapshot_disconnected() {
 }
 
 #[tokio::test]
+async fn probe_data_tier_returns_canned_tier() {
+    let client = MockIbkrClient::new();
+    client.connect().await.unwrap();
+
+    // Default canned tier is RealTime so existing tests stay green.
+    let tier = client.probe_data_tier("SPY").await.unwrap();
+    assert_eq!(tier, DataTier::RealTime);
+
+    // Programmed tier is honored.
+    client.set_data_tier(DataTier::Delayed).await;
+    assert_eq!(
+        client.probe_data_tier("SPY").await.unwrap(),
+        DataTier::Delayed
+    );
+
+    client.set_data_tier(DataTier::Unknown).await;
+    assert_eq!(
+        client.probe_data_tier("SPY").await.unwrap(),
+        DataTier::Unknown
+    );
+}
+
+#[tokio::test]
+async fn probe_data_tier_disconnected() {
+    let client = MockIbkrClient::new();
+    let result = client.probe_data_tier("SPY").await;
+    assert!(matches!(result, Err(IbkrError::NotConnected)));
+}
+
+#[tokio::test]
 async fn test_historical_data_request() {
     let client = MockIbkrClient::new();
     client.connect().await.unwrap();

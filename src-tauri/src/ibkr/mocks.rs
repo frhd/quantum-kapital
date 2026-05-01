@@ -27,6 +27,7 @@ pub trait IbkrClientTrait: Send + Sync {
 
     // New interface methods
     async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot>;
+    async fn probe_data_tier(&self, symbol: &str) -> Result<DataTier>;
     async fn get_historical_data(
         &self,
         request: HistoricalDataRequest,
@@ -48,6 +49,10 @@ pub struct MockIbkrClient {
     /// Canned `scan_market` results. See [`ScanResultStore`] for
     /// initialization semantics.
     scan_results: ScanResultStore,
+    /// Canned `probe_data_tier` response. Defaults to `RealTime` so
+    /// existing tests (which never probed) keep their implicit
+    /// expectation that data is real-time.
+    data_tier_response: Arc<RwLock<DataTier>>,
 }
 
 impl MockIbkrClient {
@@ -60,6 +65,7 @@ impl MockIbkrClient {
             executions: Arc::new(RwLock::new(Vec::new())),
             error_mode: Arc::new(RwLock::new(None)),
             scan_results: Arc::new(RwLock::new(None)),
+            data_tier_response: Arc::new(RwLock::new(DataTier::RealTime)),
         }
     }
 
@@ -87,6 +93,13 @@ impl MockIbkrClient {
 
     pub async fn set_executions(&self, executions: Vec<IbkrExecution>) {
         *self.executions.write().await = executions;
+    }
+
+    /// Program the canned tier returned by [`probe_data_tier`]. Tests
+    /// flip this to `Delayed` to exercise the delayed-tier path
+    /// without standing up a live IBKR connection.
+    pub async fn set_data_tier(&self, tier: DataTier) {
+        *self.data_tier_response.write().await = tier;
     }
 
     /// Program canned `scan_market` results for a `(scan_code, industry)`
@@ -221,6 +234,14 @@ impl IbkrClientTrait for MockIbkrClient {
             open: Some(149.00),
             timestamp: chrono::Utc::now().timestamp(),
         })
+    }
+
+    async fn probe_data_tier(&self, _symbol: &str) -> Result<DataTier> {
+        self.check_error().await?;
+        if !self.is_connected().await {
+            return Err(IbkrError::NotConnected);
+        }
+        Ok(*self.data_tier_response.read().await)
     }
 
     async fn get_historical_data(

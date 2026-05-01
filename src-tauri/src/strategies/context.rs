@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 
 use crate::ibkr::types::{
-    FundamentalData, HistoricalBar, MarketDataSnapshot, NewsItem, NewsVerdict,
+    DataTier, FundamentalData, HistoricalBar, MarketDataSnapshot, NewsItem, NewsVerdict,
 };
 
 #[derive(Debug)]
@@ -16,5 +16,10 @@ pub struct MarketContext<'a> {
     /// decisions. `None` falls back to per-item sentiment.
     pub news_verdict: Option<&'a NewsVerdict>,
     pub current_quote: Option<&'a MarketDataSnapshot>,
+    /// Detected market-data tier for the active connection. Future
+    /// real-time-only detectors should return `Ok(None)` when this
+    /// isn't `RealTime`. Defaults to `Unknown` so detectors that
+    /// don't care about tier keep working unchanged.
+    pub data_tier: DataTier,
     pub now: DateTime<Utc>,
 }

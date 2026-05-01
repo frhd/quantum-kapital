@@ -3,11 +3,13 @@ import { renderHook, waitFor, act } from "@testing-library/react"
 import { useQuote } from "./useQuote"
 
 const getQuoteMock = vi.fn()
+const getDataTierMock = vi.fn()
 const listenMock = vi.fn()
 
 vi.mock("../../../shared/api/ibkr", () => ({
   ibkrApi: {
     getQuote: (symbol: string) => getQuoteMock(symbol),
+    getDataTier: () => getDataTierMock(),
   },
 }))
 
@@ -27,9 +29,13 @@ describe("useQuote", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     getQuoteMock.mockReset()
+    getDataTierMock.mockReset()
     listenMock.mockReset()
     listenMock.mockResolvedValue(() => {})
     getQuoteMock.mockResolvedValue(sampleQuote)
+    // Existing cadence tests assume real-time (5s) — make that the
+    // default. Tier-specific tests below override.
+    getDataTierMock.mockResolvedValue("real_time")
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
       get: () => "visible",
@@ -144,6 +150,82 @@ describe("useQuote", () => {
     })
 
     await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(2))
+  })
+
+  it("polls every 60s when data-tier-detected emits Delayed", async () => {
+    let tierHandler: ((event: { payload: unknown }) => void) | null = null
+    listenMock.mockImplementation((eventName, handler) => {
+      if (eventName === "data-tier-detected") {
+        tierHandler = handler as (event: { payload: unknown }) => void
+      }
+      return Promise.resolve(() => {})
+    })
+    // Suppress the mount hydration so the tier change comes from the event.
+    getDataTierMock.mockResolvedValue("unknown")
+
+    renderHook(() => useQuote("AAPL"))
+    await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      tierHandler?.({
+        payload: { type: "DataTierDetected", data: { tier: "delayed" } },
+      })
+    })
+
+    // No tick at 5s under delayed cadence.
+    await act(async () => {
+      vi.advanceTimersByTime(5_000)
+    })
+    expect(getQuoteMock).toHaveBeenCalledTimes(1)
+
+    // 60s elapses → one delayed tick.
+    await act(async () => {
+      vi.advanceTimersByTime(55_000)
+    })
+    await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(2))
+  })
+
+  it("polls every 5s when data-tier-detected emits RealTime", async () => {
+    let tierHandler: ((event: { payload: unknown }) => void) | null = null
+    listenMock.mockImplementation((eventName, handler) => {
+      if (eventName === "data-tier-detected") {
+        tierHandler = handler as (event: { payload: unknown }) => void
+      }
+      return Promise.resolve(() => {})
+    })
+    getDataTierMock.mockResolvedValue("unknown")
+
+    renderHook(() => useQuote("AAPL"))
+    await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      tierHandler?.({
+        payload: { type: "DataTierDetected", data: { tier: "real_time" } },
+      })
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(5_000)
+    })
+    await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      vi.advanceTimersByTime(5_000)
+    })
+    await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(3))
+  })
+
+  it("does not poll when tier is Unknown", async () => {
+    getDataTierMock.mockResolvedValue("unknown")
+
+    renderHook(() => useQuote("AAPL"))
+    // Mount fetch always fires once before the tier guard kicks in.
+    await waitFor(() => expect(getQuoteMock).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+    })
+    expect(getQuoteMock).toHaveBeenCalledTimes(1)
   })
 
   it("pauses polling when the tab is hidden and resumes when visible", async () => {

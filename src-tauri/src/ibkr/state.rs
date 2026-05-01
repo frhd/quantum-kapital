@@ -1,6 +1,6 @@
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::{IbkrClient, StreamHandle};
-use crate::ibkr::types::{ConnectionConfig, ScannerSubscription};
+use crate::ibkr::types::{ConnectionConfig, DataTier, ScannerSubscription};
 use crate::services::auto_scanner::AutoScannerScheduler;
 use crate::services::eod_scheduler::EodScheduler;
 use crate::services::intraday_scheduler::IntradayScheduler;
@@ -22,6 +22,11 @@ pub struct IbkrState {
     pub auto_scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub tracker: Arc<TrackerService>,
     pub state_machine: Arc<TrackerStateMachine>,
+    /// Empirically detected market-data tier for the active connection.
+    /// Defaults to `Unknown`; `IbkrClient::connect` writes the probed
+    /// value here (via the wired tier sink) and `disconnect` resets to
+    /// `Unknown`.
+    pub data_tier: Arc<RwLock<DataTier>>,
 }
 
 impl IbkrState {
@@ -34,8 +39,11 @@ impl IbkrState {
             Arc::clone(&tracker),
             Arc::clone(&event_emitter),
         ));
+        let data_tier = Arc::new(RwLock::new(DataTier::Unknown));
+        let client = Arc::new(IbkrClient::with_shared_config(Arc::clone(&config_arc)));
+        client.set_tier_sink(Arc::clone(&data_tier), Arc::clone(&event_emitter));
         Self {
-            client: Arc::new(IbkrClient::with_shared_config(Arc::clone(&config_arc))),
+            client,
             event_emitter,
             config: config_arc,
             daily_pnl_handle: Arc::new(RwLock::new(None)),
@@ -45,6 +53,7 @@ impl IbkrState {
             auto_scanner_handle: Arc::new(RwLock::new(None)),
             tracker,
             state_machine,
+            data_tier,
         }
     }
 
