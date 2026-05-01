@@ -54,7 +54,7 @@ Each phase is a standalone file with scope, files, tools, exit criteria, and got
 |---|---|---|---|
 | 1. MCP server (read tools) | [phase-1-mcp-read.md](phase-1-mcp-read.md) | — | done (commit 7992d46, 2026-05-01) |
 | 2. MCP write tools + research artifacts | [phase-2-mcp-write.md](phase-2-mcp-write.md) | 1 | done (commit 00b1b1a, 2026-05-01) |
-| 3. Social sentiment ingestion | [phase-3-sentiment.md](phase-3-sentiment.md) | 1 | todo |
+| 3. Social sentiment ingestion | [phase-3-sentiment.md](phase-3-sentiment.md) | 1 | in-progress (started 2026-05-01) |
 | 4. Universe staging + scanner expansion | [phase-4-universe-staging.md](phase-4-universe-staging.md) | 1, 2 | todo |
 | 5. Pre-market research agent loop | [phase-5-morning-sweep.md](phase-5-morning-sweep.md) | 1, 2, 3, 4 | todo |
 | 6. Per-alert deep-dive agent | [phase-6-alert-dive.md](phase-6-alert-dive.md) | 1, 2 | todo |
