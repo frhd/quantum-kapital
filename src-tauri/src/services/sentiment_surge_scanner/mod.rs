@@ -112,10 +112,7 @@ impl SentimentSurgeScanner {
                 },
                 reason_md: Some(format!(
                     "{} mentions surged {:.1}× ({} → {} in 24h)",
-                    surge.symbol,
-                    surge.spike_ratio,
-                    surge.baseline_mentions,
-                    surge.recent_mentions
+                    surge.symbol, surge.spike_ratio, surge.baseline_mentions, surge.recent_mentions
                 )),
                 ttl_seconds: TTL_SECONDS,
             };
@@ -292,7 +289,11 @@ mod tests {
         assert!(outcome.auto_promoted.is_empty());
 
         let cand = candidates.get("SURGE").await.unwrap().expect("row");
-        assert!(cand.score > 0.9, "score should be near 1; got {}", cand.score);
+        assert!(
+            cand.score > 0.9,
+            "score should be near 1; got {}",
+            cand.score
+        );
         assert_eq!(cand.sources.len(), 1);
         assert_eq!(cand.sources[0].source, "sentiment_surge");
         let meta = &cand.sources[0].meta;

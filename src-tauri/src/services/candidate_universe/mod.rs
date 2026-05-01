@@ -183,8 +183,8 @@ mod tests {
         let (_tmp, db) = make_db();
         let now = 1_700_000_000_i64;
         let fc = Arc::new(FixedClock(AtomicI64::new(now)));
-        let svc =
-            CandidateUniverseService::new(db).with_clock(Arc::clone(&fc) as Arc<dyn CandidateClock>);
+        let svc = CandidateUniverseService::new(db)
+            .with_clock(Arc::clone(&fc) as Arc<dyn CandidateClock>);
 
         // Insert at t=now with ttl=60 -> decay at now+60.
         svc.upsert(new_candidate("STALE", "scanner_top_perc_gain", 0.5, 60))

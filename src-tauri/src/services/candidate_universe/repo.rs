@@ -80,9 +80,8 @@ pub async fn upsert(db: Arc<Db>, new: NewCandidate, now: i64) -> StorageResult<C
             None => (vec![incoming], now, new_decay_at, None),
         };
         let score = merged_score(&merged_sources_vec);
-        let sources_json = serde_json::to_string(&merged_sources_vec).map_err(|e| {
-            StorageError::Migration(format!("encode candidate sources: {e}"))
-        })?;
+        let sources_json = serde_json::to_string(&merged_sources_vec)
+            .map_err(|e| StorageError::Migration(format!("encode candidate sources: {e}")))?;
         conn.execute(
             "INSERT INTO candidate_universe \
                  (symbol, score, sources, reason_md, first_seen, last_seen, decay_at, promoted_at) \
@@ -134,7 +133,8 @@ fn read_existing(conn: &Connection, symbol: &str) -> StorageResult<Option<Candid
 #[allow(dead_code)] // consumed by `promote_candidate` MCP tool + Tauri commands
 pub async fn get(db: Arc<Db>, symbol: String) -> StorageResult<Option<Candidate>> {
     let symbol_upper = symbol.to_uppercase();
-    db.with_conn(move |conn| read_existing(conn, &symbol_upper)).await
+    db.with_conn(move |conn| read_existing(conn, &symbol_upper))
+        .await
 }
 
 /// List candidates matching `filter`. Default ordering is `score DESC`
@@ -340,7 +340,9 @@ mod tests {
             .unwrap();
         }
         // Promote BBB.
-        mark_promoted(Arc::clone(&db), "BBB".into(), now).await.unwrap();
+        mark_promoted(Arc::clone(&db), "BBB".into(), now)
+            .await
+            .unwrap();
 
         let unpromoted = list(Arc::clone(&db), CandidateFilter::default())
             .await
@@ -415,13 +417,19 @@ mod tests {
         )
         .await
         .unwrap();
-        let first = mark_promoted(Arc::clone(&db), "AAA".into(), now).await.unwrap();
+        let first = mark_promoted(Arc::clone(&db), "AAA".into(), now)
+            .await
+            .unwrap();
         assert!(first.unwrap().promoted_at.is_some());
         // Idempotent: a re-call doesn't change `promoted_at`.
-        let second = mark_promoted(Arc::clone(&db), "AAA".into(), now + 99).await.unwrap();
+        let second = mark_promoted(Arc::clone(&db), "AAA".into(), now + 99)
+            .await
+            .unwrap();
         assert_eq!(second.unwrap().promoted_at, Some(now));
 
-        let missing = mark_promoted(Arc::clone(&db), "ZZZ".into(), now).await.unwrap();
+        let missing = mark_promoted(Arc::clone(&db), "ZZZ".into(), now)
+            .await
+            .unwrap();
         assert!(missing.is_none());
     }
 
@@ -451,7 +459,9 @@ mod tests {
         )
         .await
         .unwrap();
-        mark_promoted(Arc::clone(&db), "KEPT".into(), t0).await.unwrap();
+        mark_promoted(Arc::clone(&db), "KEPT".into(), t0)
+            .await
+            .unwrap();
 
         let evicted = delete_expired(Arc::clone(&db), t0 + 120).await.unwrap();
         assert_eq!(evicted, 1);

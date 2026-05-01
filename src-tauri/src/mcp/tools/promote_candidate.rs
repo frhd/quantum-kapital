@@ -53,11 +53,11 @@ impl McpHandler {
         let symbol = symbol_trim.to_uppercase();
 
         let input = json!({"symbol": symbol, "reason": args.reason});
-        let audit_id =
-            match record_audit(&self.db, "promote_candidate", &input, &self.caller).await {
-                Ok(id) => id,
-                Err(e) => return map_tool_result::<(), String>(Err(e)),
-            };
+        let audit_id = match record_audit(&self.db, "promote_candidate", &input, &self.caller).await
+        {
+            Ok(id) => id,
+            Err(e) => return map_tool_result::<(), String>(Err(e)),
+        };
 
         let outcome = match self
             .candidate_promoter
@@ -179,7 +179,17 @@ mod tests {
         assert_eq!(r.is_error, Some(false));
         let body = r.structured_content.unwrap();
         assert_eq!(body["was_new"], true);
-        assert_eq!(handler.tracker.get("NEW").await.unwrap().unwrap().source.as_str(), "agent");
+        assert_eq!(
+            handler
+                .tracker
+                .get("NEW")
+                .await
+                .unwrap()
+                .unwrap()
+                .source
+                .as_str(),
+            "agent"
+        );
         assert!(handler.candidates.get("NEW").await.unwrap().is_none());
     }
 
@@ -206,7 +216,9 @@ mod tests {
         assert_eq!(body["was_new"], false);
 
         // Two audit rows — both writes recorded even when the second was a no-op.
-        let audits = crate::services::mcp_audit::list(&handler.db, 10, 0).await.unwrap();
+        let audits = crate::services::mcp_audit::list(&handler.db, 10, 0)
+            .await
+            .unwrap();
         assert_eq!(audits.len(), 2);
     }
 

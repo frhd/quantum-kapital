@@ -116,7 +116,10 @@ mod tests {
         let body = r.structured_content.expect("structured");
         assert_eq!(body["count"].as_u64().unwrap(), 3);
         let items = body["items"].as_array().unwrap();
-        let symbols: Vec<&str> = items.iter().map(|i| i["symbol"].as_str().unwrap()).collect();
+        let symbols: Vec<&str> = items
+            .iter()
+            .map(|i| i["symbol"].as_str().unwrap())
+            .collect();
         assert_eq!(symbols, vec!["BBB", "CCC", "AAA"]);
     }
 

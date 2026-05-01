@@ -199,11 +199,7 @@ mod tests {
         .unwrap();
     }
 
-    fn build_scheduler(
-        db: Arc<Db>,
-        clock_now: i64,
-        min_interval: Duration,
-    ) -> CandidateScheduler {
+    fn build_scheduler(db: Arc<Db>, clock_now: i64, min_interval: Duration) -> CandidateScheduler {
         let candidates = Arc::new(
             CandidateUniverseService::new(Arc::clone(&db))
                 .with_clock(Arc::new(CClock(AtomicI64::new(clock_now)))),

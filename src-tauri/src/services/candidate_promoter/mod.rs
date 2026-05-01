@@ -173,9 +173,7 @@ impl CandidatePromoter {
                 if candidate.is_some() {
                     self.stamp_promoted(&symbol_upper).await;
                 }
-                info!(
-                    "candidate_promoter: agent promoted {symbol_upper} (reason='{reason}')"
-                );
+                info!("candidate_promoter: agent promoted {symbol_upper} (reason='{reason}')");
                 Ok(PromotionOutcome::Promoted)
             }
             Err(TrackerError::AlreadyTracked(_)) => {
@@ -214,7 +212,11 @@ mod tests {
         db: Arc<Db>,
         threshold: f64,
         clock_now: i64,
-    ) -> (CandidatePromoter, Arc<TrackerService>, Arc<CandidateUniverseService>) {
+    ) -> (
+        CandidatePromoter,
+        Arc<TrackerService>,
+        Arc<CandidateUniverseService>,
+    ) {
         let candidates = Arc::new(
             CandidateUniverseService::new(Arc::clone(&db))
                 .with_clock(Arc::new(FixedClock(AtomicI64::new(clock_now)))),
@@ -332,7 +334,10 @@ mod tests {
 
         // Low-score candidate the agent promotes anyway.
         upsert_candidate(&candidates, "DDD", 0.3).await;
-        let outcome = promoter.promote_for_agent("ddd", "i like it").await.unwrap();
+        let outcome = promoter
+            .promote_for_agent("ddd", "i like it")
+            .await
+            .unwrap();
         assert_eq!(outcome, PromotionOutcome::Promoted);
 
         let row = tracker.get("DDD").await.unwrap().unwrap();
@@ -352,7 +357,10 @@ mod tests {
         // No candidate row at all — agent is bypassing staging entirely.
         let outcome = promoter.promote_for_agent("EEE", "from gut").await.unwrap();
         assert_eq!(outcome, PromotionOutcome::Promoted);
-        assert_eq!(tracker.get("EEE").await.unwrap().unwrap().source.as_str(), "agent");
+        assert_eq!(
+            tracker.get("EEE").await.unwrap().unwrap().source.as_str(),
+            "agent"
+        );
         // No candidate row means nothing to stamp — `mark_promoted`
         // returns None silently.
         assert!(candidates.get("EEE").await.unwrap().is_none());

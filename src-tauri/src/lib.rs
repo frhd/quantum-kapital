@@ -203,11 +203,12 @@ pub fn run() {
             let candidate_universe = Arc::new(
                 services::candidate_universe::CandidateUniverseService::new(Arc::clone(&db)),
             );
-            let candidate_promoter = Arc::new(services::candidate_promoter::CandidatePromoter::new(
-                Arc::clone(&candidate_universe),
-                Arc::clone(&ibkr_state.tracker),
-                config.auto_scanner.auto_promote_threshold,
-            ));
+            let candidate_promoter =
+                Arc::new(services::candidate_promoter::CandidatePromoter::new(
+                    Arc::clone(&candidate_universe),
+                    Arc::clone(&ibkr_state.tracker),
+                    config.auto_scanner.auto_promote_threshold,
+                ));
             let auto_scanner_service = Arc::new(AutoScannerService::new(
                 market_scanner,
                 Arc::clone(&ibkr_state.tracker),
@@ -285,13 +286,12 @@ pub fn run() {
                     Arc::clone(&candidate_promoter),
                 ),
             );
-            let candidate_scheduler = Arc::new(
-                services::candidate_scheduler::CandidateScheduler::new(
+            let candidate_scheduler =
+                Arc::new(services::candidate_scheduler::CandidateScheduler::new(
                     Arc::clone(&sentiment_surge_scanner),
                     Arc::clone(&candidate_universe),
                     Duration::from_secs(60 * 60),
-                ),
-            );
+                ));
             // Always spawn — decay needs to run independently of any
             // user opt-in, otherwise stale rows accumulate forever.
             // Sentiment-surge inside the tick is a no-op when
