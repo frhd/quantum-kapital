@@ -1,0 +1,22 @@
+# Quantum Kapital EOD review cron entry (Phase 7).
+#
+# 1. Substitute <repo> and <account> below.
+# 2. Append the (uncommented) line to your crontab via `crontab -e`.
+# 3. Build the MCP server binary first:
+#       cd <repo>/src-tauri && cargo build --release --bin mcp-server
+# 4. Make sure the Tauri desktop app is running before 17:00 ET (Phase 9
+#    daemon will lift this requirement).
+#
+# Schedule: 17:00 America/New_York, Mon-Fri. The script early-exits on
+# US market holidays so it is safe to fire 5 days a week regardless.
+#
+# IMPORTANT: cron runs in the local server timezone, not necessarily ET.
+# If your host is on UTC, adjust the minute/hour fields accordingly:
+#   - America/New_York 17:00 EST  = UTC 22:00
+#   - America/New_York 17:00 EDT  = UTC 21:00
+# Easiest: run on a host set to America/New_York so the spec below is
+# unambiguous; otherwise use systemd timers (which support
+# TZ=America/New_York directly).
+
+# m  h  dom mon dow  command
+  0  17 *   *   1-5  /home/<account>/<repo>/loop/eod_review_dev.sh >> /home/<account>/<repo>/loop/eod_review.log 2>&1

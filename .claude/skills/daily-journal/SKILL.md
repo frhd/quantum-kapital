@@ -34,6 +34,7 @@ Follow this checklist exactly. Do not invent fields the data doesn't have; prefe
    - **Scanner highlights** — `tracked_tickers` rows where `added_at` falls within today's ET session AND `source = 'scanner'`. Columns: `symbol`, `tags`, `added_at`, `notes`.
    - **Detected setups** — `setups` rows where `detected_at` falls within today's ET session. Columns: `id`, `symbol`, `strategy`, `direction`, `trigger_price`, `stop_price`, `targets`, `raw_signals`, `thesis`, `thesis_json`, `status`.
    - **News context** (best-effort) — `news_cache` rows for symbols touched today, sorted by `published_at` desc.
+   - **Agent journal sections** — `journal_entries` rows where `journal_date = '<YYYY-MM-DD ET>'`. Columns: `section`, `body_md`, `written_by`, `written_at`. The Phase-7 EOD review agent writes a row keyed on `(journal_date, section='EOD Review (Agent)')`; surface its `body_md` verbatim under that section heading. Other section names also render verbatim under their heading — sort by `written_at ASC` so multiple agent writes within a day appear in chronological order.
 
    ET-session window: `[YYYY-MM-DD 04:00 ET, YYYY-MM-DD+1 04:00 ET)` covers premarket through after-hours. Express bounds in UTC ISO-8601 for the SQLite comparison.
 
@@ -84,10 +85,19 @@ _If no setups: "No setups detected today."_
 
 _If no fills: "No fills today."_
 
+## EOD Review (Agent)
+
+_If a `journal_entries` row exists for `(journal_date=today, section='EOD Review (Agent)')`, render its `body_md` verbatim here. If no row exists, render: "No agent EOD review for today (yet) — see `agent/eod_review.py`."_
+
 ## Notes
 
 _Reserved for the user. Do not auto-populate._
 ```
+
+For any other agent-authored section — e.g. an interactive Claude
+Code session writing a free-form section name — render it as its
+own `## {section}` block with the body verbatim, ordered after
+"EOD Review (Agent)" and before "Notes".
 
 ## Edge cases
 

@@ -18,6 +18,7 @@ dev = [
 [project.scripts]
 qk-morning-sweep = "morning_sweep:main"
 qk-alert-dive = "alert_dive:main"
+qk-eod-review = "eod_review:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -28,6 +29,7 @@ packages = []
 include = [
     "morning_sweep.py",
     "alert_dive.py",
+    "eod_review.py",
     "mcp_client.py",
     "budget_guard.py",
     "ranker.py",

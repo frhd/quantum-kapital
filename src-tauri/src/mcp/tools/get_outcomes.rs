@@ -69,7 +69,10 @@ impl McpHandler {
                 )));
             }
         };
-        let window = args.eval_window_days.unwrap_or(DEFAULT_EVAL_WINDOW_DAYS).clamp(1, 10);
+        let window = args
+            .eval_window_days
+            .unwrap_or(DEFAULT_EVAL_WINDOW_DAYS)
+            .clamp(1, 10);
 
         if let Err(e) = self.materialize_outcomes(since, window).await {
             return map_tool_result::<(), String>(Err(e));
@@ -119,11 +122,7 @@ impl McpHandler {
     /// For every (pack_date, idea) since `since` that is missing from
     /// `outcomes`, fetch bars + classify + persist. Bar-fetch failures
     /// log and skip the offending row.
-    async fn materialize_outcomes(
-        &self,
-        since: NaiveDate,
-        window: i64,
-    ) -> Result<(), String> {
+    async fn materialize_outcomes(&self, since: NaiveDate, window: i64) -> Result<(), String> {
         let packs = agent_morning_packs::list_packs_since(&self.db, since)
             .await
             .map_err(|e| e.to_string())?;
@@ -251,7 +250,6 @@ fn idea_marked_skipped(idea: &RankedIdea) -> bool {
         .starts_with("SKIP:")
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,8 +305,15 @@ mod tests {
                      (symbol, bar_size, bar_time, open, high, low, close, volume, wap) \
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     rusqlite::params![
-                        symbol_owned, bar_size, ts, bar.open, bar.high, bar.low, bar.close,
-                        bar.volume, bar.wap
+                        symbol_owned,
+                        bar_size,
+                        ts,
+                        bar.open,
+                        bar.high,
+                        bar.low,
+                        bar.close,
+                        bar.volume,
+                        bar.wap
                     ],
                 )?;
             }

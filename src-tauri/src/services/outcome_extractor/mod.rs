@@ -310,9 +310,8 @@ fn extract_numbers(s: &str) -> Vec<f64> {
         let c = bytes[i];
         // A `-` is a sign only when it is not preceded by a digit or
         // dot — otherwise it's a separator (e.g. "100-105").
-        let minus_is_sign = c == b'-'
-            && next_is_digit(bytes, i + 1)
-            && (i == 0 || !is_numeric_byte(bytes[i - 1]));
+        let minus_is_sign =
+            c == b'-' && next_is_digit(bytes, i + 1) && (i == 0 || !is_numeric_byte(bytes[i - 1]));
         if c.is_ascii_digit() || c == b'.' || minus_is_sign {
             let start = i;
             if c == b'-' {
@@ -395,10 +394,7 @@ pub enum OutcomeError {
 }
 
 /// Upsert one outcome row keyed by `(pack_date, symbol)`.
-pub async fn record_outcome(
-    db: &Arc<Db>,
-    new: NewOutcome,
-) -> Result<OutcomeRow, OutcomeError> {
+pub async fn record_outcome(db: &Arc<Db>, new: NewOutcome) -> Result<OutcomeRow, OutcomeError> {
     let now_unix = Utc::now().timestamp();
     let pack_date_str = new.pack_date.to_string();
     let symbol_norm = new.symbol.to_uppercase();

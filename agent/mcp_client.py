@@ -167,6 +167,32 @@ class McpClient:
     async def add_ticker(self, symbol: str, reason: str) -> dict[str, Any]:
         return await self.call_tool("add_ticker", {"symbol": symbol, "reason": reason})
 
+    async def get_morning_pack(self, *, date_iso: str) -> dict[str, Any]:
+        return await self.call_tool("get_morning_pack", {"date": date_iso})
+
+    async def get_outcomes(
+        self,
+        *,
+        since_iso: str,
+        eval_window_days: int | None = None,
+    ) -> Any:
+        args: dict[str, Any] = {"since": since_iso}
+        if eval_window_days is not None:
+            args["eval_window_days"] = eval_window_days
+        return await self.call_tool("get_outcomes", args)
+
+    async def append_journal_entry(
+        self,
+        *,
+        date_iso: str,
+        section: str,
+        body_md: str,
+    ) -> dict[str, Any]:
+        return await self.call_tool(
+            "append_journal_entry",
+            {"date": date_iso, "section": section, "body_md": body_md},
+        )
+
 
 class McpToolError(RuntimeError):
     """Raised when an MCP tool call returns an error result."""

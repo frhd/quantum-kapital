@@ -9,6 +9,20 @@
   next phase / a maintainer pass can fix the pre-existing brittle test
   fixture. Phase 2 leaves it as-is.
 
+## Phase 7 (2026-05-02)
+
+- The pre-existing `services::decay_watcher::tests::respects_budget_kill_switch`
+  flake first noted in the Phase 2 entry above is still present on
+  Phase 7's clean tree (`MockHttp queue exhausted`). Phase 7 does
+  not touch `decay_watcher`; leaving as-is.
+
+- The Phase-5 caller-identity issue noted below is unchanged:
+  `append_journal_entry` lands writes under `caller=interactive`
+  on the Tauri-hosted MCP server. Cron-driven `eod_review` runs
+  its writes through the same bridge, so the audit row's
+  `caller` will be `interactive` until per-connection caller
+  resolution lands (still tracked under Phase 5/9).
+
 ## Phase 5 (2026-05-02)
 
 - Per-connection caller identity is unresolved. Hard invariant 3 in
