@@ -214,6 +214,29 @@ pub fn run() {
                 });
             }
 
+            // Phase 1 / Step 4: MCP read-only server. Listens on a local
+            // socket (Unix) / named pipe (Windows) so Claude Code (and
+            // other MCP clients) can drive interactive research sessions
+            // through `bin/mcp-server`. Socket sits next to
+            // `tracker.sqlite` in the OS app-local-data dir, matching
+            // the bridge binary's default. Started here so we can grab
+            // `Arc` clones of `ibkr_state.mcp_handle` and `llm_service`
+            // before they're moved into `app.manage` below.
+            let mcp_socket_path = db_dir.join("mcp.sock");
+            let mcp_handler = mcp::McpHandler::new(Arc::clone(&llm_service));
+            let mcp_server = mcp::server::McpServer::new(mcp_handler, mcp_socket_path);
+            let mcp_state_handle = Arc::clone(&ibkr_state.mcp_handle);
+            tauri::async_runtime::spawn(async move {
+                match mcp_server.start().await {
+                    Ok(handle) => {
+                        *mcp_state_handle.write().await = Some(handle);
+                    }
+                    Err(e) => {
+                        tracing::warn!("MCP server failed to start: {e}");
+                    }
+                }
+            });
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);

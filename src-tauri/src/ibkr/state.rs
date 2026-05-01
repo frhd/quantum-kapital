@@ -20,6 +20,11 @@ pub struct IbkrState {
     pub eod_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub intraday_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub auto_scanner_handle: Arc<RwLock<Option<StreamHandle>>>,
+    /// Phase 1 / Step 4: read-only MCP listener handle. Owned by the
+    /// runtime — `lib.rs::run` starts the server in `setup` and stores
+    /// the handle here so the accept loop stays alive for the app's
+    /// lifetime. Stopped implicitly when `IbkrState` is dropped.
+    pub mcp_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub tracker: Arc<TrackerService>,
     pub state_machine: Arc<TrackerStateMachine>,
     /// Empirically detected market-data tier for the active connection.
@@ -51,6 +56,7 @@ impl IbkrState {
             eod_handle: Arc::new(RwLock::new(None)),
             intraday_handle: Arc::new(RwLock::new(None)),
             auto_scanner_handle: Arc::new(RwLock::new(None)),
+            mcp_handle: Arc::new(RwLock::new(None)),
             tracker,
             state_machine,
             data_tier,
