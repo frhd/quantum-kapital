@@ -13,12 +13,16 @@
 
 #![allow(dead_code)] // helpers consumed by tools added in Steps 5–7.
 
+pub mod account_summary;
 pub mod alerts;
 pub mod bars;
 pub mod budget;
 pub mod fundamentals;
 pub mod news;
+pub mod positions;
+pub mod quote;
 pub mod reads;
+pub mod scanner;
 pub mod setups;
 pub mod test_support;
 pub mod types;

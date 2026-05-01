@@ -40,13 +40,8 @@ mod tests {
     use std::sync::atomic::AtomicI64;
     use std::sync::Arc;
 
-    use crate::mcp::handler::McpHandler;
-    use crate::mcp::tools::test_support::{make_db, FixedClock, PanickingFetcher};
-    use crate::middleware::HistoricalRateLimiter;
-    use crate::services::financial_data_service::FinancialDataService;
-    use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
+    use crate::mcp::tools::test_support::{handler_with_llm, make_db, FixedClock};
     use crate::services::llm_service::{LlmClock, LlmService};
-    use crate::services::tracker_service::TrackerService;
 
     /// Pre-populate `llm_calls` with two rows summing to a known cost
     /// for "today" and assert the tool reports spent / budget / remaining
@@ -87,15 +82,7 @@ mod tests {
         let llm = Arc::new(
             LlmService::new("test-key".to_string(), Arc::clone(&db), 2.00).with_clock(clock),
         );
-        let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
-        let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
-        let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(PanickingFetcher);
-        let hist = Arc::new(HistoricalDataService::new(
-            Arc::clone(&db),
-            fetcher,
-            Arc::new(HistoricalRateLimiter::new(60)),
-        ));
-        let handler = McpHandler::new(llm, tracker, db, financial, hist);
+        let handler = handler_with_llm(db, llm);
 
         let result = handler
             .get_llm_budget_status()
@@ -159,15 +146,7 @@ mod tests {
         let llm = Arc::new(
             LlmService::new("test-key".to_string(), Arc::clone(&db), 1.00).with_clock(clock),
         );
-        let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
-        let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
-        let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(PanickingFetcher);
-        let hist = Arc::new(HistoricalDataService::new(
-            Arc::clone(&db),
-            fetcher,
-            Arc::new(HistoricalRateLimiter::new(60)),
-        ));
-        let handler = McpHandler::new(llm, tracker, db, financial, hist);
+        let handler = handler_with_llm(db, llm);
 
         let body = handler
             .get_llm_budget_status()

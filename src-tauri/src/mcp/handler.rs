@@ -15,9 +15,12 @@ use rmcp::{
     handler::server::router::tool::ToolRouter, tool_handler, ErrorData as McpError, ServerHandler,
 };
 
+use crate::mcp::ibkr_seam::AccountReader;
+use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
+use crate::services::quote_service::QuoteService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
 
@@ -41,16 +44,37 @@ pub struct McpHandler {
     pub(crate) financial_service: Arc<FinancialDataService>,
     /// Used by `tools::bars` (`fetch_bars` — cache-first, IBKR fallback).
     pub(crate) historical_service: Arc<HistoricalDataService>,
+    /// Used by `tools::quote` (live IBKR snapshot, never cached).
+    pub(crate) quote_service: Arc<QuoteService>,
+    /// Used by `tools::positions` and `tools::account_summary`. The
+    /// narrow `AccountReader` trait (rather than the concrete
+    /// `IbkrClient`) means tests can plug `MockIbkrClient` without a
+    /// live TWS — mirroring the `MarketScanner` / `QuoteFetcher`
+    /// pattern used elsewhere in the codebase.
+    pub(crate) ibkr_client: Arc<dyn AccountReader>,
+    /// Used by `tools::scanner` to look up `ScanProfile` by name. The
+    /// scan itself goes through `market_scanner` so the trait seam stays
+    /// narrow.
+    pub(crate) auto_scanner: Arc<AutoScannerService>,
+    /// Used by `tools::scanner` for the actual `scan(subscription)` call.
+    pub(crate) market_scanner: Arc<dyn MarketScanner>,
     pub(crate) tool_router: ToolRouter<Self>,
 }
 
 impl McpHandler {
+    #[allow(clippy::too_many_arguments)] // 9 Arcs — see module docs; one
+                                         // Arc per service the tools touch.
+                                         // Grouping them buys nothing.
     pub fn new(
         llm: Arc<LlmService>,
         tracker: Arc<TrackerService>,
         db: Arc<Db>,
         financial_service: Arc<FinancialDataService>,
         historical_service: Arc<HistoricalDataService>,
+        quote_service: Arc<QuoteService>,
+        ibkr_client: Arc<dyn AccountReader>,
+        auto_scanner: Arc<AutoScannerService>,
+        market_scanner: Arc<dyn MarketScanner>,
     ) -> Self {
         // Each per-tool file declares its own `#[tool_router(router = X_router)]`
         // block; `ToolRouter` composes via `+`. Adding a tool means: drop a
@@ -61,13 +85,21 @@ impl McpHandler {
             + Self::alerts_router()
             + Self::news_router()
             + Self::bars_router()
-            + Self::fundamentals_router();
+            + Self::fundamentals_router()
+            + Self::quote_router()
+            + Self::positions_router()
+            + Self::account_summary_router()
+            + Self::scanner_router();
         Self {
             llm,
             tracker,
             db,
             financial_service,
             historical_service,
+            quote_service,
+            ibkr_client,
+            auto_scanner,
+            market_scanner,
             tool_router,
         }
     }

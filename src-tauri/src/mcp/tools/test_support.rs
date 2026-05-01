@@ -22,20 +22,66 @@ use tempfile::NamedTempFile;
 
 use async_trait::async_trait;
 
-use crate::ibkr::error::Result as IbkrResult;
+use crate::config::settings::AutoScannerConfig;
+use crate::ibkr::error::{IbkrError, Result as IbkrResult};
 use crate::ibkr::types::historical::{HistoricalBar, HistoricalDataRequest};
+use crate::ibkr::types::{
+    AccountSummary, MarketDataSnapshot, Position, ScannerData, ScannerSubscription,
+};
 use crate::mcp::handler::McpHandler;
+use crate::mcp::ibkr_seam::AccountReader;
 use crate::middleware::HistoricalRateLimiter;
+use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
+use crate::services::quote_service::{QuoteFetcher, QuoteService};
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
+
+#[cfg(test)]
+use crate::ibkr::mocks::MockIbkrClient;
 
 /// Stub fetcher that panics if its `fetch_historical` is called. Used by
 /// tests that pre-seed `bars_cache` and want any cache-miss path to surface
 /// as a loud test failure instead of a hang or a real network attempt.
 pub struct PanickingFetcher;
+
+/// No-op IBKR seams used by `test_handler_with_seeded_spend` — the
+/// cross-crate integration test only exercises `get_llm_budget_status`,
+/// so the four IBKR-touching Arcs need a stub that satisfies the type
+/// system without pulling in the full `MockIbkrClient` (which is
+/// `#[cfg(test)]`-gated and therefore invisible to integration tests).
+///
+/// Every method returns `IbkrError::NotConnected`. If a future
+/// integration test wants to drive a live-IBKR tool through this
+/// handler, add a richer stub or have that test use a `MockIbkrClient`
+/// directly via the unit-test helpers.
+pub struct NotConnectedStub;
+
+#[async_trait]
+impl AccountReader for NotConnectedStub {
+    async fn get_positions(&self, _account: &str) -> IbkrResult<Vec<Position>> {
+        Err(IbkrError::NotConnected)
+    }
+    async fn get_account_summary(&self, _account: &str) -> IbkrResult<Vec<AccountSummary>> {
+        Err(IbkrError::NotConnected)
+    }
+}
+
+#[async_trait]
+impl QuoteFetcher for NotConnectedStub {
+    async fn get_market_data_snapshot(&self, _symbol: &str) -> IbkrResult<MarketDataSnapshot> {
+        Err(IbkrError::NotConnected)
+    }
+}
+
+#[async_trait]
+impl MarketScanner for NotConnectedStub {
+    async fn scan(&self, _subscription: ScannerSubscription) -> IbkrResult<Vec<ScannerData>> {
+        Err(IbkrError::NotConnected)
+    }
+}
 
 #[async_trait]
 impl HistoricalDataFetcher for PanickingFetcher {
@@ -81,11 +127,54 @@ pub fn make_db() -> (NamedTempFile, Arc<Db>) {
 /// fetch path should construct their own service.
 #[cfg(test)]
 pub fn handler_for_db(db: Arc<Db>) -> McpHandler {
+    let mock = Arc::new(MockIbkrClient::new());
+    build_handler(db, mock)
+}
+
+/// Build an `McpHandler` whose IBKR-touching services all delegate to the
+/// supplied `MockIbkrClient`. Used by Step 7 live-tool tests so a single
+/// mock instance can program quotes, positions, account summaries, and
+/// scanner results behind every tool that hits a live-IBKR seam.
+///
+/// The mock is connected automatically — every `IbkrClientTrait` /
+/// `QuoteFetcher` / `MarketScanner` method on `MockIbkrClient` short-
+/// circuits with `IbkrError::NotConnected` otherwise, which would mask
+/// the real assertion the test is trying to make.
+#[cfg(test)]
+pub async fn handler_for_mock_ibkr(db: Arc<Db>, mock: Arc<MockIbkrClient>) -> McpHandler {
+    mock.set_connected(true).await;
+    build_handler(db, mock)
+}
+
+/// Build an `McpHandler` from a caller-supplied `LlmService`. Used by
+/// the budget tests, which seed a deterministic spend-and-clock state
+/// before the handler is built.
+#[cfg(test)]
+pub fn handler_with_llm(db: Arc<Db>, llm: Arc<LlmService>) -> McpHandler {
+    let mock = Arc::new(MockIbkrClient::new());
+    build_handler_with_llm(db, mock, llm)
+}
+
+/// Inner constructor. Synchronous so `handler_for_db` (used by every
+/// pre-Step-7 test) keeps its non-async signature; the async wrapper
+/// `handler_for_mock_ibkr` adds the connect step the live-IBKR tools
+/// require.
+#[cfg(test)]
+fn build_handler(db: Arc<Db>, mock: Arc<MockIbkrClient>) -> McpHandler {
     let llm = Arc::new(LlmService::new(
         "test-key".to_string(),
         Arc::clone(&db),
         100.0,
     ));
+    build_handler_with_llm(db, mock, llm)
+}
+
+#[cfg(test)]
+fn build_handler_with_llm(
+    db: Arc<Db>,
+    mock: Arc<MockIbkrClient>,
+    llm: Arc<LlmService>,
+) -> McpHandler {
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
     // Empty API key + empty base URL — every news fetch falls through to
     // the cache-only path. Tests that exercise the AV-fallback branch
@@ -97,7 +186,32 @@ pub fn handler_for_db(db: Arc<Db>) -> McpHandler {
         fetcher,
         Arc::new(HistoricalRateLimiter::new(60)),
     ));
-    McpHandler::new(llm, tracker, db, financial, hist)
+
+    // Three Arc<dyn _> coercions of the same MockIbkrClient — each tool
+    // imports a different trait but they all delegate to the same mock
+    // state (set_positions, set_scan_results, etc.).
+    let quote_fetcher: Arc<dyn QuoteFetcher> = Arc::clone(&mock) as Arc<dyn QuoteFetcher>;
+    let quote = Arc::new(QuoteService::new(quote_fetcher));
+    let ibkr_client: Arc<dyn AccountReader> = Arc::clone(&mock) as Arc<dyn AccountReader>;
+    let market_scanner: Arc<dyn MarketScanner> = Arc::clone(&mock) as Arc<dyn MarketScanner>;
+    let auto_scanner = Arc::new(AutoScannerService::new(
+        Arc::clone(&market_scanner),
+        Arc::clone(&tracker),
+        Arc::clone(&db),
+        AutoScannerConfig::default(),
+    ));
+
+    McpHandler::new(
+        llm,
+        tracker,
+        db,
+        financial,
+        hist,
+        quote,
+        ibkr_client,
+        auto_scanner,
+        market_scanner,
+    )
 }
 
 /// Construct an `McpHandler` against a fresh on-disk DB at `db_path` with
@@ -153,5 +267,29 @@ pub async fn test_handler_with_seeded_spend(
         fetcher,
         Arc::new(HistoricalRateLimiter::new(60)),
     ));
-    Ok(McpHandler::new(llm, tracker, db, financial, hist))
+    // The integration test only exercises `get_llm_budget_status` — none
+    // of the live-IBKR tools — so disconnected stubs are fine. Wired
+    // through every Arc the tools need so the handler still builds.
+    let stub = Arc::new(NotConnectedStub);
+    let quote_fetcher: Arc<dyn QuoteFetcher> = Arc::clone(&stub) as Arc<dyn QuoteFetcher>;
+    let quote = Arc::new(QuoteService::new(quote_fetcher));
+    let ibkr_client: Arc<dyn AccountReader> = Arc::clone(&stub) as Arc<dyn AccountReader>;
+    let market_scanner: Arc<dyn MarketScanner> = Arc::clone(&stub) as Arc<dyn MarketScanner>;
+    let auto_scanner = Arc::new(AutoScannerService::new(
+        Arc::clone(&market_scanner),
+        Arc::clone(&tracker),
+        Arc::clone(&db),
+        AutoScannerConfig::default(),
+    ));
+    Ok(McpHandler::new(
+        llm,
+        tracker,
+        db,
+        financial,
+        hist,
+        quote,
+        ibkr_client,
+        auto_scanner,
+        market_scanner,
+    ))
 }

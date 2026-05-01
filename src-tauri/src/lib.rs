@@ -223,12 +223,20 @@ pub fn run() {
             // `Arc` clones of `ibkr_state.mcp_handle` and `llm_service`
             // before they're moved into `app.manage` below.
             let mcp_socket_path = db_dir.join("mcp.sock");
+            let mcp_ibkr_client: Arc<dyn crate::mcp::ibkr_seam::AccountReader> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn crate::mcp::ibkr_seam::AccountReader>;
+            let mcp_market_scanner: Arc<dyn MarketScanner> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn MarketScanner>;
             let mcp_handler = mcp::McpHandler::new(
                 Arc::clone(&llm_service),
                 Arc::clone(&ibkr_state.tracker),
                 Arc::clone(&db),
                 Arc::clone(&financial_service),
                 Arc::clone(&hist_service),
+                Arc::clone(&quote_service),
+                mcp_ibkr_client,
+                Arc::clone(&auto_scanner_service),
+                mcp_market_scanner,
             );
             let mcp_server = mcp::server::McpServer::new(mcp_handler, mcp_socket_path);
             let mcp_state_handle = Arc::clone(&ibkr_state.mcp_handle);

@@ -240,7 +240,7 @@ impl AutoScannerService {
     }
 }
 
-fn subscription_for(profile: &ScanProfile) -> ScannerSubscription {
+pub(crate) fn subscription_for(profile: &ScanProfile) -> ScannerSubscription {
     ScannerSubscription {
         number_of_rows: profile.number_of_rows,
         instrument: "STK".to_string(),
