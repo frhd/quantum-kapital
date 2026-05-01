@@ -62,6 +62,22 @@ pub struct McpHandler {
 }
 
 impl McpHandler {
+    /// Names of every tool registered on the composed [`ToolRouter`].
+    ///
+    /// Used by the surveillance-only audit (`tests/mcp_surveillance_audit.rs`)
+    /// to enforce that the MCP surface never grows an order-placement
+    /// primitive — see the workspace `CLAUDE.md`. `pub` (not `pub(crate)`)
+    /// because integration tests under `tests/*.rs` compile against the
+    /// library crate's public API only; downstream consumers have no
+    /// reason to call this and the audit needs cross-crate visibility.
+    pub fn tool_names(&self) -> Vec<String> {
+        self.tool_router
+            .list_all()
+            .into_iter()
+            .map(|t| t.name.to_string())
+            .collect()
+    }
+
     #[allow(clippy::too_many_arguments)] // 9 Arcs — see module docs; one
                                          // Arc per service the tools touch.
                                          // Grouping them buys nothing.
