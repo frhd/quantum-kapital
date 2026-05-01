@@ -178,6 +178,12 @@ impl LlmService {
         self
     }
 
+    /// Configured daily USD spend cap. Mirror of the private field exposed
+    /// for read-only consumers (e.g. the MCP `get_llm_budget_status` tool).
+    pub fn daily_budget_usd(&self) -> f64 {
+        self.daily_budget_usd
+    }
+
     /// Returns the sum of `cost_usd` for rows in `llm_calls` whose `called_at`
     /// is at or after the start of the current UTC day.
     pub async fn cost_today_usd(&self) -> Result<f64, LlmError> {
