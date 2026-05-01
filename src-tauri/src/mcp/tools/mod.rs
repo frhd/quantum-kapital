@@ -36,6 +36,51 @@ use rmcp::{
 };
 use serde::Serialize;
 
+/// Resolve the account a live-IBKR tool should query.
+///
+/// Rules (shared by `get_positions` and `get_account_summary`):
+/// - `requested = Some(non-blank)`: must appear in `list_accounts()`. If
+///   not, return an error naming the available accounts.
+/// - `requested = None | Some(blank)`: if there is exactly one managed
+///   account, default to it; otherwise return an error listing the
+///   choices so the agent can re-call with an explicit `account`.
+///
+/// We deliberately do **not** silently default to "the first account"
+/// when multiple are present — that's the foot-gun this helper exists to
+/// prevent.
+pub async fn resolve_account(
+    reader: &dyn crate::mcp::ibkr_seam::AccountReader,
+    requested: Option<&str>,
+) -> Result<String, String> {
+    let accounts = reader.list_accounts().await.map_err(|e| e.to_string())?;
+    if accounts.is_empty() {
+        return Err("no IBKR accounts available — is TWS/Gateway connected?".to_string());
+    }
+    let trimmed = requested.map(str::trim).filter(|s| !s.is_empty());
+    match trimmed {
+        Some(req) => {
+            if accounts.iter().any(|a| a == req) {
+                Ok(req.to_string())
+            } else {
+                Err(format!(
+                    "account `{req}` not found; available: {}",
+                    accounts.join(", ")
+                ))
+            }
+        }
+        None => {
+            if accounts.len() == 1 {
+                Ok(accounts[0].clone())
+            } else {
+                Err(format!(
+                    "multiple IBKR accounts available — pass one of: {}",
+                    accounts.join(", ")
+                ))
+            }
+        }
+    }
+}
+
 /// Adapt a service-level `Result<T, E>` to rmcp's `Result<CallToolResult, McpError>`.
 ///
 /// Service-error semantics (matching the Anthropic MCP convention): a domain

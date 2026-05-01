@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Position {
     pub account: String,
     pub symbol: String,
@@ -14,6 +14,22 @@ pub struct Position {
     pub currency: String,
     pub exchange: String,
     pub local_symbol: String, // For options, this includes strike and expiry
+    /// Option / future expiry. `YYYYMMDD` (last trading day) or `YYYYMM`
+    /// (contract month). `None` for stocks. Sourced from
+    /// `Contract::last_trade_date_or_contract_month`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expiry: Option<String>,
+    /// Option strike price. `None` for non-option instruments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strike: Option<f64>,
+    /// Option right — `"C"` (call) or `"P"` (put). `None` for
+    /// non-options. Pass-through from IBKR (sometimes `CALL` / `PUT`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    /// Contract multiplier (e.g. `"100"` for standard equity options).
+    /// `None` when IBKR didn't report one (typical for stocks).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multiplier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

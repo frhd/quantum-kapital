@@ -47,6 +47,7 @@ async fn test_command_get_positions_flow() {
             currency: "USD".to_string(),
             exchange: "NASDAQ".to_string(),
             local_symbol: "MSFT".to_string(),
+            ..Default::default()
         },
     ];
     client.set_positions(positions).await;

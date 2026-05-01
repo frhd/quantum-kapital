@@ -39,6 +39,7 @@ async fn test_full_trading_session_flow() {
             currency: "USD".to_string(),
             exchange: "NASDAQ".to_string(),
             local_symbol: "MSFT".to_string(),
+            ..Default::default()
         },
     ];
     client.set_positions(positions.clone()).await;
@@ -116,6 +117,7 @@ async fn test_portfolio_value_calculation() {
             currency: "USD".to_string(),
             exchange: "NASDAQ".to_string(),
             local_symbol: "AAPL".to_string(),
+            ..Default::default()
         },
         Position {
             symbol: "GOOGL".to_string(),
@@ -130,6 +132,7 @@ async fn test_portfolio_value_calculation() {
             currency: "USD".to_string(),
             exchange: "NASDAQ".to_string(),
             local_symbol: "GOOGL".to_string(),
+            ..Default::default()
         },
         Position {
             symbol: "MSFT".to_string(),
@@ -144,6 +147,7 @@ async fn test_portfolio_value_calculation() {
             currency: "USD".to_string(),
             exchange: "NASDAQ".to_string(),
             local_symbol: "MSFT".to_string(),
+            ..Default::default()
         },
     ];
 

@@ -406,6 +406,7 @@ pub mod test_fixtures {
             currency: "USD".to_string(),
             exchange: "NASDAQ".to_string(),
             local_symbol: "AAPL".to_string(),
+            ..Default::default()
         }
     }
 

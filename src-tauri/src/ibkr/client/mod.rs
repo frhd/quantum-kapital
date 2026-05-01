@@ -386,18 +386,11 @@ impl IbkrClient {
         summaries
     }
 
-    pub async fn get_positions(&self) -> Result<Vec<Position>> {
-        // First get the accounts (before acquiring any locks)
-        let accounts = self.get_accounts().await?;
-        if accounts.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let account = accounts[0].clone(); // Use first account
-
+    pub async fn get_positions(&self, account: &str) -> Result<Vec<Position>> {
         let client_clone = self.ibapi_client().await?;
 
         let updates_guard = self.account_updates_lock.clone().lock_owned().await;
+        let account = account.to_string();
 
         let positions = tokio::task::spawn_blocking(move || {
             let _updates_guard = updates_guard;
@@ -412,6 +405,29 @@ impl IbkrClient {
                                 tracing::info!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}",
                                     portfolio.contract.symbol, portfolio.position, portfolio.market_price,
                                     portfolio.market_value, portfolio.unrealized_pnl);
+                                let contract_type =
+                                    portfolio.contract.security_type.clone().to_string();
+                                // Stock contracts come back with empty
+                                // strings / 0.0 in the option-only fields;
+                                // surface them as `None` so the JSON omits
+                                // them entirely (see `Position` serde
+                                // `skip_serializing_if`).
+                                let is_option_like =
+                                    matches!(contract_type.as_str(), "OPT" | "FOP" | "FUT" | "WAR");
+                                let opt_string = |s: String| {
+                                    if is_option_like && !s.is_empty() {
+                                        Some(s)
+                                    } else {
+                                        None
+                                    }
+                                };
+                                let opt_f64 = |v: f64| {
+                                    if is_option_like && v != 0.0 {
+                                        Some(v)
+                                    } else {
+                                        None
+                                    }
+                                };
                                 positions.push(Position {
                                     account: portfolio.account.clone().unwrap_or_else(|| account.clone()),
                                     symbol: portfolio.contract.symbol.0.clone(),
@@ -421,10 +437,16 @@ impl IbkrClient {
                                     market_value: portfolio.market_value,
                                     unrealized_pnl: portfolio.unrealized_pnl,
                                     realized_pnl: portfolio.realized_pnl,
-                                    contract_type: portfolio.contract.security_type.clone().to_string(),
+                                    contract_type,
                                     currency: portfolio.contract.currency.0.clone(),
                                     exchange: portfolio.contract.exchange.0.clone(),
                                     local_symbol: portfolio.contract.local_symbol.clone(),
+                                    expiry: opt_string(
+                                        portfolio.contract.last_trade_date_or_contract_month.clone(),
+                                    ),
+                                    strike: opt_f64(portfolio.contract.strike),
+                                    right: opt_string(portfolio.contract.right.clone()),
+                                    multiplier: opt_string(portfolio.contract.multiplier.clone()),
                                 });
                             }
                             ibapi::accounts::AccountUpdate::End => {

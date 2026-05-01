@@ -21,6 +21,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use std::sync::atomic::AtomicU64;
+
 use rmcp::serve_server;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
@@ -61,6 +63,11 @@ impl McpServer {
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_task = Arc::clone(&shutdown);
         let handler = self.handler;
+        // Per-server connection counter so each lifecycle log line carries
+        // an ID that can be grep'd across "accepted" / "ended" pairs. Lets
+        // an operator answer "did rmcp close the stream cleanly, or did
+        // the bridge disconnect first?" without correlating timestamps.
+        let conn_counter = Arc::new(AtomicU64::new(0));
 
         let join: JoinHandle<()> = tokio::spawn(async move {
             loop {
@@ -80,16 +87,21 @@ impl McpServer {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                     }
                     Ok(Ok(stream)) => {
+                        let conn_id = conn_counter.fetch_add(1, Ordering::Relaxed);
+                        info!(conn_id, "MCP connection accepted");
                         let conn_handler = handler.clone();
                         tokio::spawn(async move {
                             match serve_server(conn_handler, stream.into_inner()).await {
-                                Ok(running) => {
-                                    if let Err(e) = running.waiting().await {
-                                        warn!("MCP connection ended with error: {e}");
+                                Ok(running) => match running.waiting().await {
+                                    Ok(_) => {
+                                        info!(conn_id, "MCP connection closed cleanly");
                                     }
-                                }
+                                    Err(e) => {
+                                        warn!(conn_id, "MCP connection ended with error: {e}");
+                                    }
+                                },
                                 Err(e) => {
-                                    warn!("MCP serve_server failed during init: {e}");
+                                    warn!(conn_id, "MCP serve_server failed during init: {e}");
                                 }
                             }
                         });

@@ -61,6 +61,9 @@ pub struct NotConnectedStub;
 
 #[async_trait]
 impl AccountReader for NotConnectedStub {
+    async fn list_accounts(&self) -> IbkrResult<Vec<String>> {
+        Err(IbkrError::NotConnected)
+    }
     async fn get_positions(&self, _account: &str) -> IbkrResult<Vec<Position>> {
         Err(IbkrError::NotConnected)
     }
