@@ -1,4 +1,4 @@
-export type TrackerSource = "scanner" | "manual" | "news"
+export type TrackerSource = "scanner" | "manual" | "news" | "auto_scanner" | "agent"
 
 export type TrackerStatus = "watching" | "in_play" | "setup_active" | "cool_down"
 

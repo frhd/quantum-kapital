@@ -56,12 +56,7 @@ impl McpHandler {
         let outcome = self.tracker.archive_ticker(&symbol).await;
         match outcome {
             Ok(()) => {
-                stamp_audit_summary(
-                    &self.db,
-                    audit_id,
-                    &format!("archived symbol={symbol}"),
-                )
-                .await;
+                stamp_audit_summary(&self.db, audit_id, &format!("archived symbol={symbol}")).await;
                 emit_event(
                     &self.emitter,
                     AppEvent::TickerStatusChanged {

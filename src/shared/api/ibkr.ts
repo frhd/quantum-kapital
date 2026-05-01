@@ -25,6 +25,7 @@ import type {
   BarSize,
   MorningPack,
 } from "../../features/tracker/types"
+import type { AgentMorningPack, McpAuditEntry, ResearchNote } from "../../features/research/types"
 
 export const ibkrApi = {
   connect: async (config: ConnectionConfig) => {
@@ -193,6 +194,46 @@ export const ibkrApi = {
      *  of rows actually flipped (already-seen / unknown ids contribute 0). */
     markAlertsSeen: async (ids: number[]) => {
       return invoke<number>("tracker_mark_alerts_seen", { ids })
+    },
+  },
+
+  /** Phase 02 — research artifacts written via MCP write tools. */
+  research: {
+    listNotes: async (params?: {
+      symbol?: string | null
+      setupId?: number | null
+      alertId?: number | null
+      limit?: number | null
+      offset?: number | null
+    }) => {
+      return invoke<ResearchNote[]>("research_list_notes", {
+        symbol: params?.symbol ?? null,
+        setupId: params?.setupId ?? null,
+        alertId: params?.alertId ?? null,
+        limit: params?.limit ?? null,
+        offset: params?.offset ?? null,
+      })
+    },
+
+    getNote: async (id: number) => {
+      return invoke<ResearchNote | null>("research_get_note", { id })
+    },
+
+    getAgentMorningPack: async (date: string) => {
+      return invoke<AgentMorningPack | null>("research_get_agent_morning_pack", { date })
+    },
+
+    listAgentMorningPacks: async (limit?: number) => {
+      return invoke<AgentMorningPack[]>("research_list_agent_morning_packs", {
+        limit: limit ?? null,
+      })
+    },
+
+    listMcpAudit: async (params?: { limit?: number | null; offset?: number | null }) => {
+      return invoke<McpAuditEntry[]>("research_list_mcp_audit", {
+        limit: params?.limit ?? null,
+        offset: params?.offset ?? null,
+      })
     },
   },
 }

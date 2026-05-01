@@ -111,7 +111,7 @@ mod tests {
         let body = result.structured_content.expect("structured");
         assert_eq!(body["symbol"].as_str().unwrap(), "TSLA");
         assert_eq!(body["source"].as_str().unwrap(), "agent");
-        assert_eq!(body["was_new"].as_bool().unwrap(), true);
+        assert!(body["was_new"].as_bool().unwrap());
 
         // Tracker row exists with the agent source + reason as notes.
         let row = handler.tracker.get("TSLA").await.unwrap().unwrap();

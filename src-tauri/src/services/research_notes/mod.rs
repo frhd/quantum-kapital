@@ -240,8 +240,7 @@ pub async fn list_notes(
             params.push(Box::new(limit));
             params.push(Box::new(offset));
 
-            let param_refs: Vec<&dyn rusqlite::ToSql> =
-                params.iter().map(|b| b.as_ref()).collect();
+            let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
             let mut stmt = conn.prepare(&sql)?;
             let rows = stmt
                 .query_map(param_refs.as_slice(), row_to_raw)?
@@ -254,10 +253,7 @@ pub async fn list_notes(
 }
 
 /// Fetch a single note by id. Returns `Ok(None)` when the row is absent.
-pub async fn get_note(
-    db: &Arc<Db>,
-    id: i64,
-) -> Result<Option<ResearchNote>, ResearchNotesError> {
+pub async fn get_note(db: &Arc<Db>, id: i64) -> Result<Option<ResearchNote>, ResearchNotesError> {
     let raw = db
         .with_conn(move |conn| {
             use rusqlite::OptionalExtension;
@@ -306,9 +302,7 @@ fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
 fn decode_raw(r: RawRow) -> Result<ResearchNote, ResearchNotesError> {
     let (id, symbol, body_md, conviction_s, evidence_s, written_by, written_at, setup_id, alert_id) =
         r;
-    let conviction = conviction_s
-        .as_deref()
-        .and_then(Conviction::parse);
+    let conviction = conviction_s.as_deref().and_then(Conviction::parse);
     let evidence_refs = match evidence_s {
         Some(s) if !s.is_empty() => serde_json::from_str(&s)?,
         _ => Vec::new(),

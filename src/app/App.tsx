@@ -13,6 +13,7 @@ import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
 import { TrackerTab } from "../features/tracker/components/TrackerTab"
 import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerDialog"
+import { ResearchTab } from "../features/research/components/ResearchTab"
 import { DataTierBanner } from "../shared/components/DataTierBanner"
 import type { AddToTrackerPrefill } from "../features/tracker/types"
 
@@ -148,6 +149,8 @@ export default function App() {
                 onCountChange={setTrackerCount}
               />
             )}
+
+            {currentPage === "research" && <ResearchTab />}
 
             {currentPage === "positions" && (
               <>

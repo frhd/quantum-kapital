@@ -18,9 +18,7 @@ use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::services::research_notes::{
-    self, NewResearchNote, ResearchNote, ResearchNotesError,
-};
+use crate::services::research_notes::{self, NewResearchNote, ResearchNote, ResearchNotesError};
 use crate::storage::error::StorageError;
 use crate::storage::Db;
 
@@ -71,6 +69,7 @@ pub enum AckAlertError {
 #[derive(Debug, Clone)]
 pub struct AckAlertOutcome {
     pub alert_id: i64,
+    #[allow(dead_code)] // surfaced by future Tauri command for the alerts UI.
     pub decision: AlertDecision,
     pub note: Option<ResearchNote>,
 }

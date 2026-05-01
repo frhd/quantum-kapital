@@ -54,17 +54,11 @@ impl McpHandler {
             "decision": args.decision,
             "has_note": args.note.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false),
         });
-        let audit_id = match record_audit(
-            &self.db,
-            "ack_alert",
-            &input_for_audit,
-            &self.caller,
-        )
-        .await
-        {
-            Ok(id) => id,
-            Err(e) => return map_tool_result::<(), String>(Err(e)),
-        };
+        let audit_id =
+            match record_audit(&self.db, "ack_alert", &input_for_audit, &self.caller).await {
+                Ok(id) => id,
+                Err(e) => return map_tool_result::<(), String>(Err(e)),
+            };
 
         let outcome = ack_alert(
             &self.db,
@@ -143,7 +137,11 @@ mod tests {
             timeframe: crate::ibkr::types::historical::BarSize::Day1,
             detected_at: Utc::now(),
         };
-        let setup = handler.tracker.insert_setup(symbol, &candidate).await.unwrap();
+        let setup = handler
+            .tracker
+            .insert_setup(symbol, &candidate)
+            .await
+            .unwrap();
         record_alert(&handler.db, setup.id, AlertKind::Detected, json!({}))
             .await
             .unwrap()

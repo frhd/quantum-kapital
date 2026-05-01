@@ -15,9 +15,7 @@ use crate::events::AppEvent;
 use crate::mcp::handler::McpHandler;
 use crate::mcp::tools::map_tool_result;
 use crate::mcp::tools::write_support::{emit_event, record_audit, stamp_audit_summary};
-use crate::services::research_notes::{
-    self, Conviction, EvidenceRef, NewResearchNote,
-};
+use crate::services::research_notes::{self, Conviction, EvidenceRef, NewResearchNote};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct WriteResearchNoteArgs {

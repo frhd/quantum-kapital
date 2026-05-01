@@ -21,7 +21,9 @@ use crate::storage::Db;
 use crate::utils::helpers::unix_to_utc;
 
 mod ack;
-pub use ack::{ack_alert, AckAlertError, AckAlertOutcome, AlertDecision};
+pub use ack::{ack_alert, AlertDecision};
+#[allow(unused_imports)] // public surface for downstream MCP / Tauri callers.
+pub use ack::{AckAlertError, AckAlertOutcome};
 
 #[cfg(test)]
 mod tests;

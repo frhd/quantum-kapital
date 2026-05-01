@@ -40,9 +40,7 @@ impl McpHandler {
         let date = match NaiveDate::parse_from_str(&args.date, "%Y-%m-%d") {
             Ok(d) => d,
             Err(e) => {
-                return map_tool_result::<(), String>(Err(format!(
-                    "date must be YYYY-MM-DD: {e}"
-                )));
+                return map_tool_result::<(), String>(Err(format!("date must be YYYY-MM-DD: {e}")));
             }
         };
         if args.ranked_ideas.is_empty() {
