@@ -1,3 +1,4 @@
+pub mod agent_morning_packs;
 pub mod alerts;
 pub mod auto_scanner;
 pub mod cache_service;
