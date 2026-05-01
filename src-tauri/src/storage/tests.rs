@@ -206,6 +206,68 @@ async fn migration_v03_creates_research_artifact_tables() {
 }
 
 #[tokio::test]
+async fn migration_v05_creates_candidate_universe() {
+    let tmp = temp_db_path();
+    let db = Db::open(tmp.path()).expect("open db");
+
+    db.with_conn(|conn| {
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='candidate_universe'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(count, 1, "candidate_universe must exist after V05");
+
+        let names: Vec<String> = conn
+            .prepare("PRAGMA table_info(candidate_universe)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(|r| r.ok())
+            .collect();
+        for col in [
+            "symbol",
+            "score",
+            "sources",
+            "reason_md",
+            "first_seen",
+            "last_seen",
+            "decay_at",
+            "promoted_at",
+        ] {
+            assert!(
+                names.iter().any(|n| n == col),
+                "candidate_universe.{col} expected; have {names:?}"
+            );
+        }
+
+        // Indexes from V05.
+        let indexes: Vec<String> = conn
+            .prepare(
+                "SELECT name FROM sqlite_master \
+                 WHERE type='index' AND tbl_name='candidate_universe' \
+                 ORDER BY name",
+            )?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        for required in [
+            "idx_candidate_universe_decay",
+            "idx_candidate_universe_score_desc",
+            "idx_candidate_universe_last_seen_desc",
+            "idx_candidate_universe_promoted_at",
+        ] {
+            assert!(
+                indexes.iter().any(|n| n == required),
+                "missing index {required}; have {indexes:?}"
+            );
+        }
+
+        Ok(())
+    })
+    .await
+    .expect("with_conn ok");
+}
+
+#[tokio::test]
 async fn migration_v02_adds_archived_at_columns() {
     let tmp = temp_db_path();
     let db = Db::open(tmp.path()).expect("open db");
