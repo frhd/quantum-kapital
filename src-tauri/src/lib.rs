@@ -223,7 +223,12 @@ pub fn run() {
             // `Arc` clones of `ibkr_state.mcp_handle` and `llm_service`
             // before they're moved into `app.manage` below.
             let mcp_socket_path = db_dir.join("mcp.sock");
-            let mcp_handler = mcp::McpHandler::new(Arc::clone(&llm_service));
+            let mcp_handler = mcp::McpHandler::new(
+                Arc::clone(&llm_service),
+                Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&db),
+                Arc::clone(&financial_service),
+            );
             let mcp_server = mcp::server::McpServer::new(mcp_handler, mcp_socket_path);
             let mcp_state_handle = Arc::clone(&ibkr_state.mcp_handle);
             tauri::async_runtime::spawn(async move {

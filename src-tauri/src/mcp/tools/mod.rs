@@ -1,14 +1,25 @@
 //! MCP tool plumbing shared across the read-only tool surface.
 //!
-//! - `reads.rs` will host the data-shaped read tools (Steps 5–7).
-//! - `types.rs` will host shared request/response shapes.
+//! - One file per tool (`budget.rs`, `watchlist.rs`, `setups.rs`,
+//!   `alerts.rs`, `news.rs`). Each file owns a `#[tool_router]` block
+//!   composed into `McpHandler` via `ToolRouter::Add`.
+//! - `test_support.rs` lifts the `Db` + `FixedClock` + handler-builder
+//!   helpers out of the per-tool tests so each new tool re-uses them.
+//! - `reads.rs` and `types.rs` remain as legacy stubs for now; future
+//!   shared types land in `types.rs`.
 //! - This file holds cross-tool adapter helpers (e.g. service-error → MCP
 //!   `CallToolResult` mapping) so each tool stays a thin wrapper.
 
 #![allow(dead_code)] // helpers consumed by tools added in Steps 5–7.
 
+pub mod alerts;
+pub mod budget;
+pub mod news;
 pub mod reads;
+pub mod setups;
+pub mod test_support;
 pub mod types;
+pub mod watchlist;
 
 use std::fmt::Display;
 
