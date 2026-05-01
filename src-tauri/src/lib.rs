@@ -1,7 +1,7 @@
 mod config;
 mod events;
 mod ibkr;
-mod mcp;
+pub mod mcp;
 mod middleware;
 mod services;
 mod storage;

@@ -56,6 +56,66 @@ impl McpHandler {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for McpHandler {}
 
+/// Test-only constructor that produces an `McpHandler` wired to a fresh
+/// SQLite DB at `db_path` seeded with a single today's `llm_calls` row of
+/// the requested cost.
+///
+/// Lives here so the cross-crate integration test in `tests/mcp_tool_call.rs`
+/// can construct a realistic handler without exposing `LlmService` / `Db` /
+/// the test clock to the public API. Caller is responsible for the temp
+/// directory lifetime.
+#[doc(hidden)]
+pub async fn test_handler_with_seeded_spend(
+    db_path: &std::path::Path,
+    spent_today_usd: f64,
+    daily_budget_usd: f64,
+) -> std::io::Result<McpHandler> {
+    use std::sync::atomic::AtomicI64;
+    use std::sync::Arc;
+
+    use crate::services::llm_service::{LlmClock, LlmService};
+    use crate::storage::Db;
+
+    struct FixedClock(AtomicI64);
+    impl LlmClock for FixedClock {
+        fn now_unix(&self) -> i64 {
+            self.0.load(std::sync::atomic::Ordering::Relaxed)
+        }
+    }
+
+    let db =
+        Arc::new(Db::open(db_path).map_err(|e| std::io::Error::other(format!("open db: {e}")))?);
+
+    // 2023-11-14 22:13:20 UTC — well after that day's UTC midnight.
+    let now: i64 = 1_700_000_000;
+    let day_start: i64 = (now / 86_400) * 86_400;
+
+    db.with_conn(move |conn| {
+        conn.execute(
+            "INSERT INTO llm_calls (kind, model, input_tokens, output_tokens, \
+             cache_read_tokens, cost_usd, called_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                "thesis",
+                "claude-sonnet-4-6",
+                0i64,
+                0i64,
+                0i64,
+                spent_today_usd,
+                day_start
+            ],
+        )?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| std::io::Error::other(format!("seed llm_calls: {e}")))?;
+
+    let clock: Arc<dyn LlmClock> = Arc::new(FixedClock(AtomicI64::new(now)));
+    let llm =
+        Arc::new(LlmService::new("test-key".to_string(), db, daily_budget_usd).with_clock(clock));
+    Ok(McpHandler::new(llm))
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicI64, Ordering};
