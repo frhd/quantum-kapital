@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import { ibkrApi } from "../../../shared/api/ibkr"
 import type { Alert, AlertKind } from "../types"
 import type {
@@ -6,6 +7,18 @@ import type {
   SetupInvalidatedPayload,
   TickerStatusChangedPayload,
 } from "../types"
+
+// Phase 6 — `mark_alert_enriched` writes emit `AlertEnriched`; the dive
+// loop emits `AlertDiveSkipped` when the global budget gate fires. Both
+// patch the alerts table without reloading the feed.
+interface AlertEnrichedEvent {
+  type: "AlertEnriched"
+  data: { alert_id: number; research_note_id: number | null }
+}
+interface AlertDiveSkippedEvent {
+  type: "AlertDiveSkipped"
+  data: { alert_id: number; reason: string }
+}
 
 const PAGE_SIZE = 50
 const MAX_ALERTS = 500
@@ -134,6 +147,70 @@ export function useAlerts({
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, seen: true } : a)))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
+  // Phase 6 — patch enrichment state in place when the alert-dive agent
+  // (or a manual ack flow) flips an alert. Cheaper than refetching, and
+  // the row's "Enriching…" badge becomes "Deep dive" / "Dive skipped"
+  // without flashing the whole feed.
+  useEffect(() => {
+    const unlisteners: UnlistenFn[] = []
+    let cancelled = false
+    ;(async () => {
+      try {
+        const u1 = await listen<AlertEnrichedEvent>("alert-enriched", (event) => {
+          const payload = event.payload?.data
+          if (!payload) return
+          const enrichedAt = new Date().toISOString()
+          setAlerts((prev) =>
+            prev.map((a) =>
+              a.id === payload.alert_id
+                ? {
+                    ...a,
+                    enriched_at: enrichedAt,
+                    research_note_id: payload.research_note_id ?? null,
+                  }
+                : a,
+            ),
+          )
+        })
+        if (cancelled) {
+          u1()
+          return
+        }
+        unlisteners.push(u1)
+
+        const u2 = await listen<AlertDiveSkippedEvent>("alert-dive-skipped", (event) => {
+          const payload = event.payload?.data
+          if (!payload) return
+          const enrichedAt = new Date().toISOString()
+          setAlerts((prev) =>
+            prev.map((a) =>
+              a.id === payload.alert_id
+                ? { ...a, enriched_at: enrichedAt, research_note_id: null }
+                : a,
+            ),
+          )
+        })
+        if (cancelled) {
+          u2()
+          return
+        }
+        unlisteners.push(u2)
+      } catch (err) {
+        console.error("useAlerts: enrichment listeners failed", err)
+      }
+    })()
+    return () => {
+      cancelled = true
+      for (const fn of unlisteners) {
+        try {
+          fn()
+        } catch (err) {
+          console.error("useAlerts: enrichment unlisten failed", err)
+        }
+      }
     }
   }, [])
 

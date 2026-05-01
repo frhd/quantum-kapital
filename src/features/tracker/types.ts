@@ -146,6 +146,19 @@ export interface Alert {
   /** Event-specific JSON payload. Always carries `symbol` for click-through. */
   payload: { symbol?: string } & Record<string, unknown>
   seen: boolean
+  /**
+   * Phase 6 — alert-dive enrichment marker. `null` means the per-alert
+   * deep-dive agent hasn't reached this row yet ("Enriching..."); a
+   * non-null value means the dive completed (with or without a note —
+   * see `research_note_id`).
+   */
+  enriched_at?: string | null
+  /**
+   * Phase 6 — id of the research note authored by the alert-dive agent
+   * for this alert. `null` when not yet enriched, or when the dive was
+   * skipped (e.g. budget exhausted).
+   */
+  research_note_id?: number | null
 }
 
 // --- Tracker / scheduler events emitted by the Rust backend ---

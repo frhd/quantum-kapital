@@ -6,6 +6,31 @@ interface AlertRowProps {
   onClick: () => void
 }
 
+type EnrichmentState = "pending" | "ready" | "skipped"
+
+function enrichmentState(alert: Alert): EnrichmentState {
+  if (!alert.enriched_at) return "pending"
+  return alert.research_note_id ? "ready" : "skipped"
+}
+
+const ENRICHMENT_BADGE: Record<EnrichmentState, { label: string; cls: string; title: string }> = {
+  pending: {
+    label: "Enriching…",
+    cls: "border-slate-400/40 bg-slate-500/10 text-slate-300",
+    title: "Per-alert deep dive in progress",
+  },
+  ready: {
+    label: "Deep dive",
+    cls: "border-blue-400/60 bg-blue-500/15 text-blue-200",
+    title: "Click to open the linked research note",
+  },
+  skipped: {
+    label: "Dive skipped",
+    cls: "border-amber-400/40 bg-amber-500/10 text-amber-200",
+    title: "Deep dive was skipped (e.g. budget guardrail)",
+  },
+}
+
 function relativeTime(iso: string): string {
   const t = new Date(iso).getTime()
   if (Number.isNaN(t)) return ""
@@ -54,6 +79,7 @@ function pickSummary(alert: Alert): string {
 export function AlertRow({ alert, onClick }: AlertRowProps) {
   const symbol = typeof alert.payload.symbol === "string" ? alert.payload.symbol : "—"
   const summary = pickSummary(alert)
+  const dive = ENRICHMENT_BADGE[enrichmentState(alert)]
 
   return (
     <button
@@ -79,6 +105,14 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
             }
           >
             {ALERT_KIND_LABELS[alert.kind]}
+          </span>
+          <span
+            className={
+              "rounded-full border px-2 py-0.5 text-[10px] tracking-wide uppercase " + dive.cls
+            }
+            title={dive.title}
+          >
+            {dive.label}
           </span>
           <span className="text-muted-foreground ml-auto text-xs">
             {relativeTime(alert.fired_at)}

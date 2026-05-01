@@ -72,12 +72,7 @@ pub async fn mark_alert_enriched(
             conn.query_row(
                 "SELECT enriched_at, research_note_id FROM alerts WHERE id = ?1",
                 rusqlite::params![alert_id],
-                |row| {
-                    Ok((
-                        row.get::<_, Option<i64>>(0)?,
-                        row.get::<_, Option<i64>>(1)?,
-                    ))
-                },
+                |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<i64>>(1)?)),
             )
             .optional()
             .map_err(StorageError::from)
@@ -118,12 +113,7 @@ pub async fn mark_alert_enriched(
                 conn.query_row(
                     "SELECT enriched_at, research_note_id FROM alerts WHERE id = ?1",
                     rusqlite::params![alert_id],
-                    |row| {
-                        Ok((
-                            row.get::<_, Option<i64>>(0)?,
-                            row.get::<_, Option<i64>>(1)?,
-                        ))
-                    },
+                    |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<i64>>(1)?)),
                 )
                 .optional()
                 .map_err(StorageError::from)
