@@ -15,6 +15,7 @@ use rmcp::{
     handler::server::router::tool::ToolRouter, tool_handler, ErrorData as McpError, ServerHandler,
 };
 
+use crate::events::EventEmitter;
 use crate::mcp::ibkr_seam::AccountReader;
 use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
 use crate::services::financial_data_service::FinancialDataService;
@@ -58,6 +59,17 @@ pub struct McpHandler {
     pub(crate) auto_scanner: Arc<AutoScannerService>,
     /// Used by `tools::scanner` for the actual `scan(subscription)` call.
     pub(crate) market_scanner: Arc<dyn MarketScanner>,
+    /// Used by Phase-02 write tools to broadcast `AppEvent::*Written`
+    /// after a successful mutation so the React UI can re-query the
+    /// affected slice without polling.
+    pub(crate) emitter: Arc<EventEmitter>,
+    /// Caller identity stamped into `mcp_audit.caller` and
+    /// `research_notes.written_by` for every write tool invocation. v1
+    /// uses a single value per server instance — `"interactive"` for
+    /// the live Tauri-hosted server, `"agent_<loop>"` for headless
+    /// agent loops. Per-connection caller resolution is a future
+    /// enhancement once the agent loops land in Phase 5/6.
+    pub(crate) caller: String,
     pub(crate) tool_router: ToolRouter<Self>,
 }
 
@@ -78,7 +90,7 @@ impl McpHandler {
             .collect()
     }
 
-    #[allow(clippy::too_many_arguments)] // 9 Arcs — see module docs; one
+    #[allow(clippy::too_many_arguments)] // 11 Arcs — see module docs; one
                                          // Arc per service the tools touch.
                                          // Grouping them buys nothing.
     pub fn new(
@@ -91,6 +103,8 @@ impl McpHandler {
         ibkr_client: Arc<dyn AccountReader>,
         auto_scanner: Arc<AutoScannerService>,
         market_scanner: Arc<dyn MarketScanner>,
+        emitter: Arc<EventEmitter>,
+        caller: String,
     ) -> Self {
         // Each per-tool file declares its own `#[tool_router(router = X_router)]`
         // block; `ToolRouter` composes via `+`. Adding a tool means: drop a
@@ -105,7 +119,12 @@ impl McpHandler {
             + Self::quote_router()
             + Self::positions_router()
             + Self::account_summary_router()
-            + Self::scanner_router();
+            + Self::scanner_router()
+            + Self::add_ticker_router()
+            + Self::archive_ticker_router()
+            + Self::write_research_note_router()
+            + Self::write_morning_pack_router()
+            + Self::ack_alert_router();
         Self {
             llm,
             tracker,
@@ -116,6 +135,8 @@ impl McpHandler {
             ibkr_client,
             auto_scanner,
             market_scanner,
+            emitter,
+            caller,
             tool_router,
         }
     }

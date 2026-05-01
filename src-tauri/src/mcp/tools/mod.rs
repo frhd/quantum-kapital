@@ -14,7 +14,10 @@
 #![allow(dead_code)] // helpers consumed by tools added in Steps 5–7.
 
 pub mod account_summary;
+pub mod ack_alert;
+pub mod add_ticker;
 pub mod alerts;
+pub mod archive_ticker;
 pub mod bars;
 pub mod budget;
 pub mod fundamentals;
@@ -27,6 +30,9 @@ pub mod setups;
 pub mod test_support;
 pub mod types;
 pub mod watchlist;
+pub mod write_morning_pack;
+pub mod write_research_note;
+pub(crate) mod write_support;
 
 use std::fmt::Display;
 

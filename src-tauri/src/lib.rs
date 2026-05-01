@@ -237,6 +237,13 @@ pub fn run() {
                 mcp_ibkr_client,
                 Arc::clone(&auto_scanner_service),
                 mcp_market_scanner,
+                Arc::clone(&ibkr_state.event_emitter),
+                // v1: a single in-process MCP server, so every caller is
+                // either Claude Code or the future agent loops talking
+                // through the same `bin/mcp-server` bridge. Pin to
+                // "interactive" until per-connection caller resolution
+                // lands alongside the agent loops in Phase 5/6.
+                "interactive".to_string(),
             );
             let mcp_server = mcp::server::McpServer::new(mcp_handler, mcp_socket_path);
             let mcp_state_handle = Arc::clone(&ibkr_state.mcp_handle);

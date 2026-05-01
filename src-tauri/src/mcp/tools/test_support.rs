@@ -23,6 +23,7 @@ use tempfile::NamedTempFile;
 use async_trait::async_trait;
 
 use crate::config::settings::AutoScannerConfig;
+use crate::events::EventEmitter;
 use crate::ibkr::error::{IbkrError, Result as IbkrResult};
 use crate::ibkr::types::historical::{HistoricalBar, HistoricalDataRequest};
 use crate::ibkr::types::{
@@ -204,6 +205,7 @@ fn build_handler_with_llm(
         AutoScannerConfig::default(),
     ));
 
+    let emitter = Arc::new(EventEmitter::for_capture());
     McpHandler::new(
         llm,
         tracker,
@@ -214,6 +216,8 @@ fn build_handler_with_llm(
         ibkr_client,
         auto_scanner,
         market_scanner,
+        emitter,
+        "interactive".to_string(),
     )
 }
 
@@ -284,6 +288,7 @@ pub async fn test_handler_with_seeded_spend(
         Arc::clone(&db),
         AutoScannerConfig::default(),
     ));
+    let emitter = Arc::new(EventEmitter::for_capture());
     Ok(McpHandler::new(
         llm,
         tracker,
@@ -294,5 +299,7 @@ pub async fn test_handler_with_seeded_spend(
         ibkr_client,
         auto_scanner,
         market_scanner,
+        emitter,
+        "interactive".to_string(),
     ))
 }

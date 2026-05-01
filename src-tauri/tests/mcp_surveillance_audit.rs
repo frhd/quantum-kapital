@@ -96,14 +96,43 @@ async fn mcp_tool_registry_is_surveillance_only() {
 
     let names = handler.tool_names();
 
-    // Pin the count: catches accidental tool-router drops.
+    // Pin the count: catches accidental tool-router drops. 11 read tools +
+    // 5 write tools added in Phase 02 (add_ticker, archive_ticker,
+    // write_research_note, write_morning_pack, ack_alert).
     assert_eq!(
         names.len(),
-        11,
-        "expected 11 registered MCP tools, got {}: {:?}",
+        16,
+        "expected 16 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
+
+    // Phase-02 invariant: the only "write" verbs allowed are the closed
+    // set below. A future write tool whose name starts with `write_` /
+    // `add_` / `archive_` / `ack_` *must* be added here AND reviewed for
+    // surveillance-only compliance — never an order-placement primitive.
+    let allowed_writes: &[&str] = &[
+        "add_ticker",
+        "archive_ticker",
+        "write_research_note",
+        "write_morning_pack",
+        "ack_alert",
+    ];
+    for name in &names {
+        let n = name.to_ascii_lowercase();
+        let looks_like_write = n.starts_with("add_")
+            || n.starts_with("archive_")
+            || n.starts_with("write_")
+            || n.starts_with("ack_");
+        if looks_like_write {
+            assert!(
+                allowed_writes.contains(&name.as_str()),
+                "WRITE TOOL '{name}' not in the Phase-02 allowed-writes list. \
+                 Add it explicitly here and confirm it does NOT mutate orders \
+                 or live positions; see CLAUDE.md."
+            );
+        }
+    }
 
     for name in &names {
         assert!(

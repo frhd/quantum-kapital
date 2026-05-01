@@ -115,6 +115,32 @@ pub enum AppEvent {
         ranked_count: usize,
     },
 
+    // Phase 02 — research artifacts written via MCP write tools.
+    /// Emitted after `write_research_note` persists a row. Carries the
+    /// minimal identifiers the UI needs to refresh its query for the
+    /// affected symbol / alert without a full refetch of every note.
+    ResearchNoteWritten {
+        note_id: i64,
+        symbol: String,
+        alert_id: Option<i64>,
+        setup_id: Option<i64>,
+    },
+    /// Emitted after `write_morning_pack` upserts an agent-authored
+    /// pack. The frontend re-queries the pack for `date` to render the
+    /// new ranked ideas.
+    AgentMorningPackWritten {
+        date: NaiveDate,
+        idea_count: usize,
+    },
+    /// Emitted after `ack_alert` records a decision. The UI flips the
+    /// alert's row treatment (e.g. greying acted/passed alerts) without
+    /// reloading the whole feed.
+    AlertDecisionRecorded {
+        alert_id: i64,
+        decision: String,
+        note_id: Option<i64>,
+    },
+
     // System events
     RateLimitWarning {
         remaining: u32,
@@ -147,6 +173,9 @@ impl AppEvent {
             AppEvent::SetupInvalidated { .. } => "setup-invalidated",
             AppEvent::TickerStatusChanged { .. } => "ticker-status-changed",
             AppEvent::MorningPackReady { .. } => "morning-pack-ready",
+            AppEvent::ResearchNoteWritten { .. } => "research-note-written",
+            AppEvent::AgentMorningPackWritten { .. } => "agent-morning-pack-written",
+            AppEvent::AlertDecisionRecorded { .. } => "alert-decision-recorded",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }
