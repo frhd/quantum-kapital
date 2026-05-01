@@ -11,7 +11,7 @@ Stack-specific rules:
 
 ## Running the app
 
-`pnpm tauri dev` from the repo root brings up Vite + the Rust backend with hot reload. Frontend-only and prod-build commands are in `src/CLAUDE.md`.
+`pnpm tauri dev` from the repo root brings up Vite + the Rust backend with hot reload. **Use `pnpm`, not npm** — the lockfile is `pnpm-lock.yaml`. Frontend-only and prod-build commands are in `src/CLAUDE.md`.
 
 ## Secrets
 
@@ -24,6 +24,8 @@ Backend reads `src-tauri/.env` (Alpha Vantage `ALPHA_VANTAGE_API_KEY`, etc.). Th
 ## Tracker is surveillance-only
 
 The tracker pipeline (detectors → state machine → alerts) MUST NOT call order-placement code paths. Order commands exist in the IBKR adapter for manual UI use only. Wiring them into the tracker requires explicit project-level approval.
+
+The same rule binds the MCP server (`src-tauri/src/mcp/` + `bin/mcp-server.rs`): the external tool surface is **read-only plus an `ack_alert` rail** — no order tools, ever. Acks are audited through `services/mcp_audit/`.
 
 ## Test discipline
 
