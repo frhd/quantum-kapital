@@ -2,7 +2,7 @@
 
 > Part of [Quantum Kapital → Autonomous Researcher](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-01)
+**Status:** done (commit 0bd8511, 2026-05-02)
 
 **Depends on:** Phase 1 (MCP read tools — adds `get_sentiment`)
 
