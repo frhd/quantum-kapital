@@ -36,3 +36,14 @@ journal/
 
 # Vitest coverage output
 coverage/
+
+# Python (agent/ subtree)
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+agent/.env
+*.egg-info/
+
+# Morning sweep cron log
+loop/morning_sweep.log
