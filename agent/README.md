@@ -98,9 +98,34 @@ Compare each day's pack against your own picks before trusting it. Drop
 `--shadow` once the calibration looks right (Phase 8's eval harness will give
 this a number).
 
+## Alert-dive agent
+
+A long-running poller (Phase 6). Every 30s it pulls every tracker alert
+whose deep-dive isn't yet attached, gathers context via MCP read tools,
+asks the LLM to write a per-alert research note, persists it via
+`write_research_note`, and idempotently stamps `mark_alert_enriched` so
+the same alert is never enriched twice.
+
+```sh
+# Single tick (use for cron-style invocation or manual smoke-testing).
+uv run qk-alert-dive --once
+
+# Continuous polling (the systemd service uses this form).
+uv run qk-alert-dive --interval 30 --concurrent 2
+```
+
+Budget guardrails: per-alert USD cap (`--per-alert-usd`, default $0.05)
+plus the global daily ceiling. If 90%+ of the daily LLM budget is gone,
+the loop stamps every pending alert as "skipped" instead of running
+synthesis — the UI shows a "deep dive skipped (budget)" badge via the
+`AlertDiveSkipped` event.
+
+The systemd unit lives at `agent/cron/alert_dive.service`.
+
 ## Files
 
 - `morning_sweep.py` — orchestration + CLI entry.
+- `alert_dive.py` — per-alert dive poller + CLI entry (Phase 6).
 - `mcp_client.py` — async wrapper over the stdio MCP server.
 - `budget_guard.py` — server- and loop-budget enforcement.
 - `data_summary.py` — compact strings for the LLM (252d bars, fundamentals, news, sentiment, setups).
@@ -108,6 +133,8 @@ this a number).
 - `synthesizer.py` — LLM step #2: emit ranked ideas (forced tool: `write_morning_pack`).
 - `llm.py` — Anthropic SDK seam.
 - `config.py` + `config.toml` — typed config.
-- `prompts/morning_sweep.md` — system prompt.
+- `prompts/morning_sweep.md` — morning-sweep system prompt.
+- `prompts/alert_dive.md` — alert-dive system prompt.
 - `tests/` — pytest unit tests; mock both MCP and Anthropic.
 - `cron/morning_sweep.cron` — example crontab line.
+- `cron/alert_dive.service` — systemd unit for the long-running dive poller.

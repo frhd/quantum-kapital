@@ -17,6 +17,7 @@ dev = [
 
 [project.scripts]
 qk-morning-sweep = "morning_sweep:main"
+qk-alert-dive = "alert_dive:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -26,11 +27,14 @@ build-backend = "hatchling.build"
 packages = []
 include = [
     "morning_sweep.py",
+    "alert_dive.py",
     "mcp_client.py",
     "budget_guard.py",
     "ranker.py",
     "synthesizer.py",
     "config.py",
+    "data_summary.py",
+    "llm.py",
     "prompts/*.md",
 ]
 

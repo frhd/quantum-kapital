@@ -1,0 +1,42 @@
+[Unit]
+# Quantum Kapital alert-dive — long-running per-alert deep-dive agent.
+#
+# Polls `get_alerts(unenriched_only=true)` every 30s and attaches a
+# research note to each new alert. See agent/alert_dive.py for the full
+# behaviour and `loop/plan/phase-6-alert-dive.md` for the design notes.
+#
+# Install:
+#   1. Substitute the user / repo path placeholders below.
+#   2. Build the bridge: `cd <repo>/src-tauri && cargo build --release --bin mcp-server`.
+#   3. Install the Python venv: `cd <repo>/agent && uv venv && uv pip install -e .`.
+#   4. Copy this file to `~/.config/systemd/user/qk-alert-dive.service`.
+#   5. `systemctl --user daemon-reload`
+#   6. `systemctl --user enable --now qk-alert-dive.service`
+#
+# Logs land in the journal: `journalctl --user -u qk-alert-dive.service -f`.
+#
+# Prerequisite: the Tauri desktop app must be running so the MCP unix
+# socket is bound. Phase 9 will lift this — until then `Restart=always`
+# absorbs short Tauri restarts at the cost of a brief gap in coverage.
+
+Description=Quantum Kapital — per-alert deep-dive agent (Phase 6)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace <repo> with the absolute path to your quantum-kapital checkout
+# and <user> with the system user that runs the desktop app.
+WorkingDirectory=/home/<user>/<repo>/agent
+EnvironmentFile=/home/<user>/<repo>/agent/.env
+ExecStart=/home/<user>/<repo>/agent/.venv/bin/python -m alert_dive --interval 30 --concurrent 2
+Restart=always
+RestartSec=10
+# Keep stderr so the journal carries warnings.
+StandardOutput=journal
+StandardError=journal
+# Avoid runaway resource usage if synthesis turns into a tight loop.
+MemoryMax=512M
+
+[Install]
+WantedBy=default.target
