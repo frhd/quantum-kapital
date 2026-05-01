@@ -152,6 +152,60 @@ async fn migration_history_records_every_version() {
 }
 
 #[tokio::test]
+async fn migration_v03_creates_research_artifact_tables() {
+    let tmp = temp_db_path();
+    let db = Db::open(tmp.path()).expect("open db");
+
+    db.with_conn(|conn| {
+        for table in ["research_notes", "mcp_audit", "agent_morning_packs"] {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?1",
+                rusqlite::params![table],
+                |row| row.get(0),
+            )?;
+            assert_eq!(count, 1, "{table} must exist after V03");
+        }
+
+        // alerts gained the ack_alert decision rail.
+        for col in ["decision", "decision_note_id", "decided_at"] {
+            let has_col: bool = conn
+                .prepare("PRAGMA table_info(alerts)")?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .filter_map(|r| r.ok())
+                .any(|name| name == col);
+            assert!(has_col, "alerts.{col} must exist after V03");
+        }
+
+        // research_notes columns we'll rely on.
+        let names: Vec<String> = conn
+            .prepare("PRAGMA table_info(research_notes)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(|r| r.ok())
+            .collect();
+        for col in [
+            "id",
+            "symbol",
+            "body_md",
+            "conviction",
+            "evidence_refs",
+            "written_by",
+            "written_at",
+            "setup_id",
+            "alert_id",
+        ] {
+            assert!(
+                names.iter().any(|n| n == col),
+                "research_notes.{col} expected; have {names:?}"
+            );
+        }
+
+        Ok(())
+    })
+    .await
+    .expect("with_conn ok");
+}
+
+#[tokio::test]
 async fn migration_v02_adds_archived_at_columns() {
     let tmp = temp_db_path();
     let db = Db::open(tmp.path()).expect("open db");
