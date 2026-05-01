@@ -274,6 +274,35 @@ pub fn run() {
                 });
             }
 
+            // Phase 4: candidate-universe upkeep. Sentiment-surge
+            // refresh + decay sweep on a fixed cadence. Calendar-
+            // agnostic — sentiment moves on weekends and the decay
+            // sweep needs to run regardless of market hours so the
+            // morning agent inbox isn't drowned in stale rows.
+            let sentiment_surge_scanner = Arc::new(
+                services::sentiment_surge_scanner::SentimentSurgeScanner::new(
+                    Arc::clone(&db),
+                    Arc::clone(&candidate_promoter),
+                ),
+            );
+            let candidate_scheduler = Arc::new(
+                services::candidate_scheduler::CandidateScheduler::new(
+                    Arc::clone(&sentiment_surge_scanner),
+                    Arc::clone(&candidate_universe),
+                    Duration::from_secs(60 * 60),
+                ),
+            );
+            // Always spawn — decay needs to run independently of any
+            // user opt-in, otherwise stale rows accumulate forever.
+            // Sentiment-surge inside the tick is a no-op when
+            // `social_sentiment` is disabled (no rows to spike against).
+            {
+                let scheduler = Arc::clone(&candidate_scheduler);
+                tauri::async_runtime::spawn(async move {
+                    let _handle = scheduler.spawn();
+                });
+            }
+
             // Phase 1 / Step 4: MCP read-only server. Listens on a local
             // socket (Unix) / named pipe (Windows) so Claude Code (and
             // other MCP clients) can drive interactive research sessions
@@ -338,6 +367,10 @@ pub fn run() {
             app.manage(quote_service);
             app.manage(social_sentiment_service);
             app.manage(social_sentiment_scheduler);
+            app.manage(candidate_universe);
+            app.manage(candidate_promoter);
+            app.manage(sentiment_surge_scanner);
+            app.manage(candidate_scheduler);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -391,6 +424,10 @@ pub fn run() {
             ibkr::commands::social_list_window,
             ibkr::commands::social_refresh_now,
             ibkr::commands::social_scheduler_status,
+            ibkr::commands::candidates_list,
+            ibkr::commands::candidates_promote,
+            ibkr::commands::candidates_refresh_now,
+            ibkr::commands::candidates_scheduler_status,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

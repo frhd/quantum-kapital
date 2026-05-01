@@ -4,6 +4,7 @@
 pub mod accounts;
 pub mod analysis;
 pub mod auto_scanner;
+pub mod candidates;
 pub mod connection;
 pub mod market_data;
 pub mod research;
@@ -16,6 +17,7 @@ pub mod trading;
 pub use accounts::*;
 pub use analysis::*;
 pub use auto_scanner::*;
+pub use candidates::*;
 pub use connection::*;
 pub use market_data::*;
 pub use research::*;
