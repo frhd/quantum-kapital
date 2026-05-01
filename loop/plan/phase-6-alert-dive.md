@@ -2,7 +2,7 @@
 
 > Part of [Quantum Kapital → Autonomous Researcher](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-02)
+**Status:** done (commit 6f6c15a, 2026-05-02)
 
 **Depends on:** Phase 1 (MCP read), Phase 2 (MCP write — `write_research_note`)
 
