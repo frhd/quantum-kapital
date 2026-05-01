@@ -19,7 +19,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Variables - paths relative to script directory
-ITERATION_COUNT=100
+ITERATION_COUNT=200
 PROMPT_FILE="${1:-$SCRIPT_DIR/prompt.md}"
 LOG_FILE="$SCRIPT_DIR/loop.log"
 MCP_CONFIG="${MCP_CONFIG:-$SCRIPT_DIR/mcp.json}"
@@ -30,8 +30,9 @@ MAX_RETRIES=10
 INITIAL_WAIT=60      # Start with 1 minute
 MAX_WAIT=600         # Cap at 10 minutes
 
-# Token pricing for Opus 4.5 (per token, will be divided by 100 for dollars)
-# Input: $5/MTok, Output: $25/MTok, Cache read: 90% discount, Cache write: 25% premium
+# Token pricing for Opus 4.5/4.6/4.7 (per token, divided by 100 for dollars)
+# Input: $5/MTok, Output: $25/MTok, Cache read: $0.50/MTok (90% discount), Cache write: $6.25/MTok (25% premium)
+# Source: https://platform.claude.com/docs/en/about-claude/pricing
 PRICE_INPUT=0.0005
 PRICE_CACHE_READ=0.00005
 PRICE_CACHE_WRITE=0.000625

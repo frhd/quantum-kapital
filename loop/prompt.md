@@ -1,10 +1,31 @@
-lets start or continue with the next phase of @IMPL.md. mark completed when done, then write a short and concise commit message for staged and unstaged changes, and untracked files and commit and push. after each phase, wait for further instructions.
+Drive @/home/farhad/.claude/plans/what-do-you-think-magical-llama.md to completion. Sub-plans: @/home/farhad/.claude/plans/what-do-you-think-magical-llama/phase-N-*.md.
 
-use subagents whenever possible to speed things up and save context.
-when spawning subagents, select the appropriate model:
-- haiku: quick tasks like searching, grepping, running tests
-- sonnet: moderate tasks like code exploration, multi-step implementation, reviewing
-- opus: complex reasoning, planning
-spawn subagents in parallel, but make sure they can coordinate when touching same code.
+EACH ITERATION:
+1. Read the master plan's Phase index.
+2. Pick the FIRST phase with Status=todo whose dependencies are all `done (commit <sha>, ...)`. If no eligible phase remains, run `touch loop/BREAK` and exit. DO NOT touch BREAK any other time.
+3. Open the sub-plan. If not already in-progress, flip BOTH the master-plan index entry AND the sub-plan's `**Status:**` header to `in-progress (started <today YYYY-MM-DD>)`. Commit (`chore(plan): mark phase N in-progress`).
+4. Work the phase per its Scope / Files / Tools / Exit criteria. Discipline:
+   - TDD red→green→refactor. Use trait seams (`IbkrClientTrait`, `QuoteFetcher`, etc.) — never a live IBKR client in tests.
+   - All LLM calls go through LlmService (budget-enforced) — even in tests, via the trait seam.
+   - SURVEILLANCE-ONLY: never add `place_order` / `modify_order` / `cancel_order` MCP tools, never wire orders into the tracker. Ever.
+   - Every MCP write is audited (`written_by` column).
+   - Pre-commit (`cargo fmt --check`, `cargo clippy -D warnings`, `prettier`, `eslint`) MUST pass. Never `--no-verify` — fix the underlying issue.
+   - File-size caps: soft 300 (Rust) / 200 (TS) — past hard caps requires `// allow-large-file: <reason>`.
+5. When exit criteria are met: run pre-commit + the relevant `cargo`/`pnpm` tests, commit the work, flip BOTH status entries to `done (commit <sha>, <today YYYY-MM-DD>)`, commit (`chore(plan): mark phase N done`), then `git push`.
+6. Re-read the master plan. If more eligible phases remain, continue from step 2 in the same iteration if context allows, otherwise the next iteration picks it up. DO NOT touch BREAK between phases — only when zero eligible phases remain.
 
-only if there is nothing left to do (i.e., all todos have been marked as completed), signal the loop to stop by running: `touch loop/BREAK`, but make sure there are no empty checkboxes.
+OPERATING RULES:
+- COMMIT FREQUENTLY. Every logical step (failing test, passing impl, refactor, status flip) is its own commit. Many small commits >> one giant commit. Phase boundaries MUST be marked by `chore(plan): mark phase N {in-progress,done}` so `git log --oneline` is a readable progress narrative.
+- PUSH after every phase `done` commit (more often is fine). `git push` on the current branch only — never `--force`, never to a different branch.
+- DO NOT create new branches, open PRs, or merge anything. All 9 phases land as commits on the current branch.
+- DO NOT rebase, force-push, or `git reset --hard`. DO NOT amend prior commits — append new ones.
+- If blocked by genuine ambiguity (multiple defensible designs, missing requirement), append the question to @/home/farhad/.claude/plans/what-do-you-think-magical-llama/QUESTIONS.md with the phase name, then continue with the safer / narrower interpretation. Do not block.
+- Verify before claiming done: run the exit-criteria checks, don't assume. Read your own diff before committing.
+- Hard invariants in the master plan (`### Hard invariants`) override anything here.
+
+USE SUBAGENTS IN PARALLEL when a phase has 2+ independent sub-tasks (multiple MCP tools, independent migrations, schema + handler split). Model tier:
+- haiku — search/grep, running tests, mechanical lookups
+- sonnet — code exploration, multi-step implementation, code review
+- opus — design, planning, complex reasoning
+
+Subagents must coordinate when touching the same files; serialize those sub-tasks instead.
