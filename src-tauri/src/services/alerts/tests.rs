@@ -274,3 +274,46 @@ async fn mark_alerts_seen_empty_input_is_noop() {
     let n = mark_alerts_seen(&db, vec![]).await.expect("empty");
     assert_eq!(n, 0);
 }
+
+#[tokio::test]
+async fn list_alerts_unenriched_only_filters_marked_rows() {
+    use super::mark_alert_enriched;
+
+    let (_tmp, db) = make_db();
+    let setup_id = seed_setup(&db, "AAPL").await;
+
+    let a = record_alert(&db, setup_id, AlertKind::Detected, json!({"n": 1}))
+        .await
+        .unwrap()
+        .unwrap();
+    let b = record_alert(&db, setup_id, AlertKind::Invalidated, json!({"n": 2}))
+        .await
+        .unwrap()
+        .unwrap();
+    let _c = record_alert(&db, setup_id, AlertKind::ThesisChanged, json!({"n": 3}))
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Mark `a` as enriched (skipped — no note id).
+    mark_alert_enriched(&db, a.id, None).await.unwrap();
+    // Default listing still shows all rows.
+    let all = list_alerts(&db, ListAlertsQuery::default())
+        .await
+        .expect("list");
+    assert_eq!(all.len(), 3);
+    // unenriched_only filters out `a`.
+    let pending = list_alerts(
+        &db,
+        ListAlertsQuery {
+            unenriched_only: true,
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("pending");
+    assert_eq!(pending.len(), 2);
+    let ids: Vec<i64> = pending.iter().map(|x| x.id).collect();
+    assert!(!ids.contains(&a.id));
+    assert!(ids.contains(&b.id));
+}

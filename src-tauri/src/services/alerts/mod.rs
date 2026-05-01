@@ -21,9 +21,13 @@ use crate::storage::Db;
 use crate::utils::helpers::unix_to_utc;
 
 mod ack;
+mod enrich;
 pub use ack::{ack_alert, AlertDecision};
 #[allow(unused_imports)] // public surface for downstream MCP / Tauri callers.
 pub use ack::{AckAlertError, AckAlertOutcome};
+pub use enrich::mark_alert_enriched;
+#[allow(unused_imports)] // public surface for downstream MCP / Tauri callers.
+pub use enrich::{MarkEnrichedError, MarkEnrichedOutcome};
 
 #[cfg(test)]
 mod tests;
@@ -41,6 +45,10 @@ pub struct ListAlertsQuery {
     pub since: Option<DateTime<Utc>>,
     pub kind: Option<AlertKind>,
     pub only_unseen: bool,
+    /// Phase 6 — when `true`, return only alerts whose `enriched_at` is
+    /// still NULL (i.e. the per-alert deep-dive agent hasn't reached
+    /// them yet). The agent polls with this flag set.
+    pub unenriched_only: bool,
 }
 
 impl Default for ListAlertsQuery {
@@ -51,6 +59,7 @@ impl Default for ListAlertsQuery {
             since: None,
             kind: None,
             only_unseen: false,
+            unenriched_only: false,
         }
     }
 }
@@ -108,6 +117,8 @@ pub async fn record_alert(
         fired_at: unix_to_utc(now_unix),
         payload,
         seen: false,
+        enriched_at: None,
+        research_note_id: None,
     }))
 }
 
@@ -119,11 +130,13 @@ pub async fn list_alerts(db: &Arc<Db>, query: ListAlertsQuery) -> Result<Vec<Ale
     let since_unix = query.since.map(|d| d.timestamp());
     let kind_str = query.kind.map(|k| k.as_str().to_string());
     let only_unseen = query.only_unseen;
+    let unenriched_only = query.unenriched_only;
 
     let raws = db
         .with_conn(move |conn| {
-            let mut sql =
-                String::from("SELECT id, setup_id, kind, fired_at, payload, seen FROM alerts");
+            let mut sql = String::from(
+                "SELECT id, setup_id, kind, fired_at, payload, seen, enriched_at, research_note_id FROM alerts",
+            );
             let mut clauses: Vec<String> = Vec::new();
             let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
             if let Some(ts) = since_unix {
@@ -136,6 +149,9 @@ pub async fn list_alerts(db: &Arc<Db>, query: ListAlertsQuery) -> Result<Vec<Ale
             }
             if only_unseen {
                 clauses.push("seen = 0".to_string());
+            }
+            if unenriched_only {
+                clauses.push("enriched_at IS NULL".to_string());
             }
             if !clauses.is_empty() {
                 sql.push_str(" WHERE ");
@@ -188,12 +204,14 @@ pub async fn mark_alerts_seen(db: &Arc<Db>, ids: Vec<i64>) -> Result<usize, Stor
 // ---------------- internals ----------------
 
 type RawRow = (
-    i64,    // id
-    i64,    // setup_id
-    String, // kind
-    i64,    // fired_at unix
-    String, // payload json
-    i64,    // seen 0/1
+    i64,         // id
+    i64,         // setup_id
+    String,      // kind
+    i64,         // fired_at unix
+    String,      // payload json
+    i64,         // seen 0/1
+    Option<i64>, // enriched_at unix
+    Option<i64>, // research_note_id
 );
 
 fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -204,11 +222,13 @@ fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         row.get(3)?,
         row.get(4)?,
         row.get(5)?,
+        row.get(6)?,
+        row.get(7)?,
     ))
 }
 
 fn decode_raw(r: RawRow) -> Result<Alert, StorageError> {
-    let (id, setup_id, kind_s, fired_at, payload_s, seen) = r;
+    let (id, setup_id, kind_s, fired_at, payload_s, seen, enriched_at, research_note_id) = r;
     let kind = AlertKind::parse(&kind_s).ok_or_else(|| {
         StorageError::Migration(format!("unknown alert kind '{kind_s}' on alert#{id}"))
     })?;
@@ -221,5 +241,7 @@ fn decode_raw(r: RawRow) -> Result<Alert, StorageError> {
         fired_at: unix_to_utc(fired_at),
         payload,
         seen: seen != 0,
+        enriched_at: enriched_at.map(unix_to_utc),
+        research_note_id,
     })
 }

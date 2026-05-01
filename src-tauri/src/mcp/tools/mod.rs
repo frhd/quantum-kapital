@@ -23,6 +23,7 @@ pub mod budget;
 pub mod fundamentals;
 pub mod get_candidates;
 pub mod get_sentiment;
+pub mod mark_alert_enriched;
 pub mod news;
 pub mod positions;
 pub mod promote_candidate;

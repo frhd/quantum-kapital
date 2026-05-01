@@ -142,6 +142,7 @@ impl McpHandler {
             + Self::write_research_note_router()
             + Self::write_morning_pack_router()
             + Self::ack_alert_router()
+            + Self::mark_alert_enriched_router()
             + Self::get_sentiment_router()
             + Self::get_candidates_router()
             + Self::promote_candidate_router();

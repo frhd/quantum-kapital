@@ -140,6 +140,22 @@ pub enum AppEvent {
         decision: String,
         note_id: Option<i64>,
     },
+    /// Phase 6 — emitted after `mark_alert_enriched` flips an alert
+    /// from "pending dive" to "enriched" (or "dive skipped"). The UI
+    /// flips the alert detail panel from "Enriching..." to "Deep dive
+    /// ready" / "skipped" using `research_note_id`.
+    AlertEnriched {
+        alert_id: i64,
+        research_note_id: Option<i64>,
+    },
+    /// Phase 6 — emitted when the per-alert dive bypassed an alert
+    /// (currently: global LLM budget below the per-alert reserve). Lets
+    /// the UI render a "deep dive skipped (budget)" badge without
+    /// having to inspect the audit row.
+    AlertDiveSkipped {
+        alert_id: i64,
+        reason: String,
+    },
 
     // System events
     RateLimitWarning {
@@ -176,6 +192,8 @@ impl AppEvent {
             AppEvent::ResearchNoteWritten { .. } => "research-note-written",
             AppEvent::AgentMorningPackWritten { .. } => "agent-morning-pack-written",
             AppEvent::AlertDecisionRecorded { .. } => "alert-decision-recorded",
+            AppEvent::AlertEnriched { .. } => "alert-enriched",
+            AppEvent::AlertDiveSkipped { .. } => "alert-dive-skipped",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }

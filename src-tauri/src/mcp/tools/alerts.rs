@@ -41,13 +41,18 @@ pub struct GetAlertsArgs {
     /// When `true`, return only rows whose `seen` flag is still 0.
     #[serde(default)]
     pub only_unseen: Option<bool>,
+    /// Phase 6 — when `true`, return only rows whose `enriched_at` is
+    /// still NULL (i.e. the per-alert deep-dive agent hasn't reached
+    /// them). The alert-dive loop polls with this flag set.
+    #[serde(default)]
+    pub unenriched_only: Option<bool>,
 }
 
 #[tool_router(router = alerts_router, vis = "pub(crate)")]
 impl McpHandler {
     #[tool(
         name = "get_alerts",
-        description = "List the tracker alert feed, newest-first, with optional filters: `since` (RFC3339 cutoff), `kind` (\"detected\" | \"invalidated\" | \"target_hit\" | \"thesis_changed\"), `limit` (default 50, capped at 500), `offset`, `only_unseen`. Use this to surface fresh detector events the user has not yet acknowledged, or to scope research to a specific lifecycle event. Returns `{ items: [Alert, ...], count: N }`."
+        description = "List the tracker alert feed, newest-first, with optional filters: `since` (RFC3339 cutoff), `kind` (\"detected\" | \"invalidated\" | \"target_hit\" | \"thesis_changed\"), `limit` (default 50, capped at 500), `offset`, `only_unseen`, `unenriched_only` (Phase 6 — only alerts whose deep-dive hasn't completed). Use this to surface fresh detector events the user has not yet acknowledged, or to scope research to a specific lifecycle event. Returns `{ items: [Alert, ...], count: N }`."
     )]
     pub async fn get_alerts(
         &self,
@@ -80,6 +85,7 @@ impl McpHandler {
             .max(1);
         let offset = args.offset.unwrap_or(0);
         let only_unseen = args.only_unseen.unwrap_or(false);
+        let unenriched_only = args.unenriched_only.unwrap_or(false);
 
         let query = ListAlertsQuery {
             limit,
@@ -87,6 +93,7 @@ impl McpHandler {
             since,
             kind,
             only_unseen,
+            unenriched_only,
         };
         let result = list_alerts(&self.db, query)
             .await

@@ -262,6 +262,7 @@ pub async fn tracker_list_alerts(
         since,
         kind,
         only_unseen: only_unseen.unwrap_or(false),
+        unenriched_only: false,
     };
     list_alerts(&db, q).await.map_err(|e| e.to_string())
 }

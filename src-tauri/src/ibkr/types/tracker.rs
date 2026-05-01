@@ -211,6 +211,17 @@ pub struct Alert {
     pub fired_at: DateTime<Utc>,
     pub payload: serde_json::Value,
     pub seen: bool,
+    /// Phase 6 — alert-dive enrichment marker. `None` means the per-alert
+    /// deep-dive agent hasn't reached this row yet; `Some(_)` means the
+    /// dive completed (with or without writing a note — see
+    /// `research_note_id`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enriched_at: Option<DateTime<Utc>>,
+    /// Phase 6 — research note authored by the alert-dive agent for this
+    /// alert. `None` when not yet enriched, or when enrichment was
+    /// skipped (e.g. budget exhausted).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub research_note_id: Option<i64>,
 }
 
 /// Persisted strategy setup row, mirroring the `setups` table. The
