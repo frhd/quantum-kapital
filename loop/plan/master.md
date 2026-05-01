@@ -56,7 +56,7 @@ Each phase is a standalone file with scope, files, tools, exit criteria, and got
 | 2. MCP write tools + research artifacts | [phase-2-mcp-write.md](phase-2-mcp-write.md) | 1 | done (commit 00b1b1a, 2026-05-01) |
 | 3. Social sentiment ingestion | [phase-3-sentiment.md](phase-3-sentiment.md) | 1 | done (commit 0bd8511, 2026-05-02) |
 | 4. Universe staging + scanner expansion | [phase-4-universe-staging.md](phase-4-universe-staging.md) | 1, 2 | done (commit 7269f2c, 2026-05-02) |
-| 5. Pre-market research agent loop | [phase-5-morning-sweep.md](phase-5-morning-sweep.md) | 1, 2, 3, 4 | in-progress (started 2026-05-02) |
+| 5. Pre-market research agent loop | [phase-5-morning-sweep.md](phase-5-morning-sweep.md) | 1, 2, 3, 4 | done (commit 55fbc73, 2026-05-02) |
 | 6. Per-alert deep-dive agent | [phase-6-alert-dive.md](phase-6-alert-dive.md) | 1, 2 | todo |
 | 7. EOD review + journal | [phase-7-eod-review.md](phase-7-eod-review.md) | 1, 2, 5 | todo |
 | 8. Eval harness | [phase-8-eval-harness.md](phase-8-eval-harness.md) | 5 (data); meaningful at ~30d | todo |
