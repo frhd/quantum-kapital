@@ -200,9 +200,18 @@ pub fn run() {
             // available for manual `auto_scanner_start`.
             let market_scanner: Arc<dyn MarketScanner> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn MarketScanner>;
+            let candidate_universe = Arc::new(
+                services::candidate_universe::CandidateUniverseService::new(Arc::clone(&db)),
+            );
+            let candidate_promoter = Arc::new(services::candidate_promoter::CandidatePromoter::new(
+                Arc::clone(&candidate_universe),
+                Arc::clone(&ibkr_state.tracker),
+                config.auto_scanner.auto_promote_threshold,
+            ));
             let auto_scanner_service = Arc::new(AutoScannerService::new(
                 market_scanner,
                 Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&candidate_promoter),
                 Arc::clone(&db),
                 config.auto_scanner.clone(),
             ));

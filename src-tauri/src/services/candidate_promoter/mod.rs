@@ -70,6 +70,13 @@ impl CandidatePromoter {
         self.auto_threshold
     }
 
+    /// Read-only handle for callers that need to upsert candidates
+    /// before invoking [`Self::try_auto_promote`] (the auto-scanner
+    /// loop, sentiment-surge scanner, etc.).
+    pub fn candidates(&self) -> &Arc<CandidateUniverseService> {
+        &self.candidates
+    }
+
     /// Score-gated promotion called by the scanner pipelines.
     ///
     /// Skips silently when the candidate is already promoted (idempotent

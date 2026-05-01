@@ -8,10 +8,17 @@ use tempfile::NamedTempFile;
 use crate::config::settings::{AutoScannerConfig, ScanProfile};
 use crate::ibkr::error::Result as IbkrResult;
 use crate::ibkr::types::{ContractDetails, ScannerData, ScannerSubscription, SecurityType};
+use crate::services::candidate_promoter::CandidatePromoter;
+use crate::services::candidate_universe::CandidateUniverseService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
 
 use super::{AutoScannerService, MarketScanner};
+
+/// Promote-everything threshold so existing tests' assertions on
+/// `tracker.list()` keep their pre-Phase-4 semantics. Tests that want
+/// to exercise staging-only behaviour build their own promoter.
+const TEST_AUTO_PROMOTE_THRESHOLD: f64 = 0.0;
 
 // ---------------- helpers ----------------
 
@@ -83,10 +90,17 @@ fn make_harness(
     let tmp = NamedTempFile::new().expect("tempfile");
     let db = Arc::new(Db::open(tmp.path()).expect("open db"));
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+    let candidates = Arc::new(CandidateUniverseService::new(Arc::clone(&db)));
+    let promoter = Arc::new(CandidatePromoter::new(
+        Arc::clone(&candidates),
+        Arc::clone(&tracker),
+        TEST_AUTO_PROMOTE_THRESHOLD,
+    ));
     let scanner = Arc::new(FakeScanner::default());
     let service = AutoScannerService::new(
         scanner.clone() as Arc<dyn MarketScanner>,
         Arc::clone(&tracker),
+        promoter,
         Arc::clone(&db),
         config,
     );
@@ -323,10 +337,17 @@ async fn run_once_persists_source_metadata_for_audit() {
         row.source,
         crate::ibkr::types::tracker::TrackerSource::AutoScanner
     );
+    // Phase 4: scanner provenance lives in `candidate_universe.sources`;
+    // the watchlist `source_meta` carries a thin wrapper pointing to it.
     let meta = row.source_meta.expect("source_meta JSON present");
-    assert_eq!(meta["profile"], "Top Gainers");
-    assert_eq!(meta["scan_code"], "TOP_PERC_GAIN");
-    assert_eq!(meta["rank"], 7);
+    assert_eq!(meta["via"], "candidate_universe");
+    assert!(meta["score"].as_f64().is_some(), "score present in meta");
+    let sources = meta["sources"].as_array().expect("sources array");
+    assert!(sources.iter().any(|s| s["source"]
+        .as_str()
+        .map(|v| v == "scanner_top_perc_gain")
+        .unwrap_or(false)));
+    assert!(sources.iter().any(|s| s["rank"].as_i64() == Some(7)));
 }
 
 #[tokio::test]
@@ -406,6 +427,7 @@ fn cfg_one_profile(daily_cap: u32, interval_minutes: u32) -> AutoScannerConfig {
             number_of_rows: 25,
         }],
         industries: Vec::new(),
+        auto_promote_threshold: TEST_AUTO_PROMOTE_THRESHOLD,
     }
 }
 

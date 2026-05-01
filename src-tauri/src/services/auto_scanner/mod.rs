@@ -1,7 +1,15 @@
-//! First automation step: scheduled IBKR scanner runs that promote
-//! top-ranked rows directly into the tracker watchlist with
-//! `source = auto_scanner`. The detector pipeline (intraday + EOD
-//! schedulers) then processes them with no further human action.
+//! Phase-1 automation: scheduled IBKR scanner runs feed the
+//! `candidate_universe` staging layer; from there
+//! [`crate::services::candidate_promoter::CandidatePromoter`] either
+//! auto-promotes top-scoring rows into the tracker watchlist or leaves
+//! them for the agent to review via `promote_candidate`.
+//!
+//! Phase 4 inverted the previous direct-add behaviour: every scanner
+//! row now lands as a [`crate::services::candidate_universe::Candidate`]
+//! first; the promoter is the only writer touching `tracked_tickers`.
+//! Score-by-rank is `1.0 - (rank - 1) * 0.05`, floored at 0; the
+//! promoter's `auto_threshold` plus the per-profile `promote_top_k`
+//! still cap how many rows leave staging per run.
 //!
 //! See `services/auto_scanner/tests.rs` for the behavioural contract.
 
@@ -24,8 +32,40 @@ use crate::ibkr::client::IbkrClient;
 use crate::ibkr::error::Result as IbkrResult;
 use crate::ibkr::types::tracker::TrackerSource;
 use crate::ibkr::types::{ScannerData, ScannerSubscription};
+use crate::services::candidate_promoter::{CandidatePromoter, PromotionOutcome};
+use crate::services::candidate_universe::types::{CandidateSource, NewCandidate};
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
+
+/// Default decay window for IBKR scanner candidates. Matches the
+/// "7 days for fundamentals-driven" half of the phase plan; sentiment
+/// surges (handled by their own scanner) decay faster.
+const SCANNER_TTL_SECONDS: i64 = 7 * 86_400;
+
+/// Score-by-rank curve for IBKR scanner rows. Top-of-list = 1.0,
+/// decays 0.05 per rank, floored at 0. Pairs with the promoter's
+/// `auto_threshold` (default 0.7 ⇒ top 7 rows auto-promote, the rest
+/// stage for agent review).
+fn rank_score(rank: i32) -> f64 {
+    let r = rank.max(1) as f64;
+    (1.0 - (r - 1.0) * 0.05).max(0.0)
+}
+
+/// Source identifier persisted in `candidate_universe.sources[].source`.
+/// `scanner_<lowered scan_code>` (with `::<industry>` suffix when the
+/// profile is industry-filtered) so multi-source dedup at upsert time
+/// merges hits from the same scan but keeps independent profiles
+/// distinct.
+fn source_id_for(profile: &ScanProfile) -> String {
+    let base = format!("scanner_{}", profile.scan_code.to_lowercase());
+    match &profile.industry_filter {
+        Some(ind) => format!(
+            "{base}::{}",
+            ind.to_lowercase().replace(char::is_whitespace, "_")
+        ),
+        None => base,
+    }
+}
 
 #[cfg(test)]
 mod tests;
@@ -79,6 +119,7 @@ pub struct RunSummary {
 pub struct AutoScannerService {
     scanner: Arc<dyn MarketScanner>,
     tracker: Arc<TrackerService>,
+    promoter: Arc<CandidatePromoter>,
     db: Arc<Db>,
     config: Arc<RwLock<AutoScannerConfig>>,
 }
@@ -87,12 +128,14 @@ impl AutoScannerService {
     pub fn new(
         scanner: Arc<dyn MarketScanner>,
         tracker: Arc<TrackerService>,
+        promoter: Arc<CandidatePromoter>,
         db: Arc<Db>,
         config: AutoScannerConfig,
     ) -> Self {
         Self {
             scanner,
             tracker,
+            promoter,
             db,
             config: Arc::new(RwLock::new(config)),
         }
@@ -164,6 +207,7 @@ impl AutoScannerService {
                 }
             };
             let mut promoted_this_profile: u32 = 0;
+            let source_id = source_id_for(&profile);
             for row in rows {
                 if remaining_cap == 0 || promoted_this_profile as usize >= profile.promote_top_k {
                     break;
@@ -178,37 +222,62 @@ impl AutoScannerService {
                         .push(format!("{symbol} already on watchlist"));
                     continue;
                 }
-                let meta = json!({
-                    "profile": profile.name,
-                    "scan_code": profile.scan_code,
-                    "industry": profile.industry_filter,
-                    "rank": row.rank,
-                    "leg": row.leg,
-                });
-                match self
-                    .tracker
-                    .add(
-                        &symbol,
-                        TrackerSource::AutoScanner,
-                        Some(meta),
-                        vec![],
-                        None,
-                    )
-                    .await
-                {
-                    Ok(_) => {
+                let score = rank_score(row.rank);
+                let new_candidate = NewCandidate {
+                    symbol: symbol.clone(),
+                    source: CandidateSource {
+                        source: source_id.clone(),
+                        score,
+                        rank: Some(i64::from(row.rank)),
+                        meta: json!({
+                            "profile": profile.name,
+                            "scan_code": profile.scan_code,
+                            "industry": profile.industry_filter,
+                            "leg": row.leg,
+                        }),
+                        last_seen: 0,
+                    },
+                    reason_md: Some(format!(
+                        "{} via {} (rank {})",
+                        symbol, profile.name, row.rank
+                    )),
+                    ttl_seconds: SCANNER_TTL_SECONDS,
+                };
+                let candidate = match self.promoter.candidates().upsert(new_candidate).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        warn!("auto-scanner candidate upsert failed for {symbol}: {e}");
+                        summary.skipped.push(format!("{symbol}: {e}"));
+                        continue;
+                    }
+                };
+                match self.promoter.try_auto_promote(&candidate).await {
+                    PromotionOutcome::Promoted => {
                         info!(
-                            "auto-scanner promoted {symbol} via '{}' (rank {})",
-                            profile.name, row.rank
+                            "auto-scanner promoted {symbol} via '{}' (rank {}, score {:.2})",
+                            profile.name, row.rank, candidate.score
                         );
                         summary.added.push(symbol.clone());
                         watched.insert(symbol);
                         remaining_cap = remaining_cap.saturating_sub(1);
                         promoted_this_profile += 1;
                     }
-                    Err(e) => {
-                        warn!("auto-scanner add failed for {symbol}: {e}");
-                        summary.skipped.push(format!("{symbol}: {e}"));
+                    PromotionOutcome::AlreadyTracked => {
+                        // Race: a concurrent path added it. Don't count
+                        // toward the cap (we didn't author it) and don't
+                        // surface it as a hard skip — the staging row
+                        // got stamped so the agent inbox stays clean.
+                        watched.insert(symbol);
+                    }
+                    PromotionOutcome::BelowThreshold { score, threshold } => {
+                        summary.skipped.push(format!(
+                            "{symbol} staged: score {score:.2} < threshold {threshold:.2}"
+                        ));
+                    }
+                    PromotionOutcome::InCooldown { until } => {
+                        summary
+                            .skipped
+                            .push(format!("{symbol} in cooldown until {until}"));
                     }
                 }
             }

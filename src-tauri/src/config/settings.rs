@@ -90,6 +90,20 @@ pub struct AutoScannerConfig {
     /// expands at runtime into one TOP_PERC_GAIN profile filtered by
     /// `industryLike`.
     pub industries: Vec<String>,
+    /// Phase 4 — auto-promotion gate. Candidates whose merged
+    /// [`crate::services::candidate_universe::Candidate::score`]
+    /// crosses this threshold are added straight to `tracked_tickers`
+    /// (capped per profile by `promote_top_k` and per day by
+    /// `daily_cap`). Below the threshold they stay in
+    /// `candidate_universe` for the agent's `promote_candidate` review
+    /// path. `0.0` = promote everything that passes the per-profile
+    /// cap (legacy behaviour); raise it as you trust the scoring.
+    #[serde(default = "default_auto_promote_threshold")]
+    pub auto_promote_threshold: f64,
+}
+
+pub fn default_auto_promote_threshold() -> f64 {
+    0.7
 }
 
 /// Single scan invocation. Maps almost 1:1 to
@@ -124,9 +138,15 @@ fn default_number_of_rows() -> i32 {
 }
 
 impl AutoScannerConfig {
-    /// Seeds two broad profiles (`TOP_PERC_GAIN` + `HOT_BY_VOLUME`) with
-    /// sensible price/volume floors so `Default::default()` is usable
-    /// out of the box.
+    /// Seeds the broad-market profiles so `Default::default()` covers
+    /// the Phase-4 "5+ sources in the morning candidate set" target out
+    /// of the box: top % gainers, top % losers, hot-by-volume, most-
+    /// active, and a 52-week-high breakout proxy. Each carries
+    /// reasonable price/volume floors so penny-stock noise stays out
+    /// of the candidate universe. Sentiment-surge candidates are
+    /// produced by [`crate::services::sentiment_surge_scanner`] and
+    /// don't appear here — they're a synthetic source, not an IBKR
+    /// scan.
     fn default_broad_profiles() -> Vec<ScanProfile> {
         vec![
             ScanProfile {
@@ -140,6 +160,16 @@ impl AutoScannerConfig {
                 number_of_rows: default_number_of_rows(),
             },
             ScanProfile {
+                name: "Top % Losers".to_string(),
+                scan_code: "TOP_PERC_LOSE".to_string(),
+                location_code: default_location_code(),
+                above_price: Some(5.0),
+                above_volume: Some(500_000),
+                industry_filter: None,
+                promote_top_k: 3,
+                number_of_rows: default_number_of_rows(),
+            },
+            ScanProfile {
                 name: "Hot by Volume".to_string(),
                 scan_code: "HOT_BY_VOLUME".to_string(),
                 location_code: default_location_code(),
@@ -147,6 +177,29 @@ impl AutoScannerConfig {
                 above_volume: None,
                 industry_filter: None,
                 promote_top_k: 5,
+                number_of_rows: default_number_of_rows(),
+            },
+            ScanProfile {
+                name: "Most Active".to_string(),
+                scan_code: "MOST_ACTIVE".to_string(),
+                location_code: default_location_code(),
+                above_price: Some(5.0),
+                above_volume: None,
+                industry_filter: None,
+                promote_top_k: 3,
+                number_of_rows: default_number_of_rows(),
+            },
+            ScanProfile {
+                name: "52-Week Highs".to_string(),
+                // IBKR exposes this as `HIGH_VS_52W_HL` (% off the
+                // 52-week high/low). Newly-confirmed breakouts cluster
+                // at the top of the list.
+                scan_code: "HIGH_VS_52W_HL".to_string(),
+                location_code: default_location_code(),
+                above_price: Some(10.0),
+                above_volume: Some(500_000),
+                industry_filter: None,
+                promote_top_k: 3,
                 number_of_rows: default_number_of_rows(),
             },
         ]
@@ -218,6 +271,7 @@ impl Default for AutoScannerConfig {
             daily_cap: 10,
             profiles: Self::default_broad_profiles(),
             industries: Vec::new(),
+            auto_promote_threshold: default_auto_promote_threshold(),
         }
     }
 }
@@ -344,8 +398,19 @@ mod tests {
         assert_eq!(cfg.daily_cap, 10);
         assert!(cfg.industries.is_empty());
         let scan_codes: Vec<&str> = cfg.profiles.iter().map(|p| p.scan_code.as_str()).collect();
-        assert_eq!(scan_codes, vec!["TOP_PERC_GAIN", "HOT_BY_VOLUME"]);
+        assert_eq!(
+            scan_codes,
+            vec![
+                "TOP_PERC_GAIN",
+                "TOP_PERC_LOSE",
+                "HOT_BY_VOLUME",
+                "MOST_ACTIVE",
+                "HIGH_VS_52W_HL",
+            ]
+        );
         assert!(cfg.profiles.iter().all(|p| p.industry_filter.is_none()));
+        // Phase 4 default: 0.7 score threshold for auto-promotion.
+        assert!((cfg.auto_promote_threshold - 0.7).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -355,8 +420,8 @@ mod tests {
             ..Default::default()
         };
         let effective = cfg.effective_profiles();
-        // 2 broad + 2 industry-filtered.
-        assert_eq!(effective.len(), 4);
+        // 5 broad + 2 industry-filtered.
+        assert_eq!(effective.len(), 7);
         let industry_filtered: Vec<&Option<String>> = effective
             .iter()
             .filter(|p| p.industry_filter.is_some())
@@ -405,6 +470,8 @@ mod tests {
         }"#;
         let cfg: AppConfig = serde_json::from_str(pre_existing).unwrap();
         assert!(!cfg.auto_scanner.enabled);
-        assert_eq!(cfg.auto_scanner.profiles.len(), 2);
+        assert_eq!(cfg.auto_scanner.profiles.len(), 5);
+        // The new field round-trips with its default when absent from JSON.
+        assert!((cfg.auto_scanner.auto_promote_threshold - 0.7).abs() < f64::EPSILON);
     }
 }

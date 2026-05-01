@@ -127,6 +127,7 @@ mod tests {
             daily_cap: 10,
             profiles: vec![profile_top_gainers()],
             industries: vec![],
+            auto_promote_threshold: 0.0,
         };
         handler.auto_scanner.set_config(cfg).await;
 

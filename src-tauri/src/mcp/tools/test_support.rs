@@ -33,6 +33,8 @@ use crate::mcp::handler::McpHandler;
 use crate::mcp::ibkr_seam::AccountReader;
 use crate::middleware::HistoricalRateLimiter;
 use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
+use crate::services::candidate_promoter::CandidatePromoter;
+use crate::services::candidate_universe::CandidateUniverseService;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
@@ -199,9 +201,16 @@ fn build_handler_with_llm(
     let quote = Arc::new(QuoteService::new(quote_fetcher));
     let ibkr_client: Arc<dyn AccountReader> = Arc::clone(&mock) as Arc<dyn AccountReader>;
     let market_scanner: Arc<dyn MarketScanner> = Arc::clone(&mock) as Arc<dyn MarketScanner>;
+    let candidates = Arc::new(CandidateUniverseService::new(Arc::clone(&db)));
+    let promoter = Arc::new(CandidatePromoter::new(
+        Arc::clone(&candidates),
+        Arc::clone(&tracker),
+        0.0,
+    ));
     let auto_scanner = Arc::new(AutoScannerService::new(
         Arc::clone(&market_scanner),
         Arc::clone(&tracker),
+        Arc::clone(&promoter),
         Arc::clone(&db),
         AutoScannerConfig::default(),
     ));
@@ -287,9 +296,16 @@ pub async fn test_handler_with_seeded_spend(
     let quote = Arc::new(QuoteService::new(quote_fetcher));
     let ibkr_client: Arc<dyn AccountReader> = Arc::clone(&stub) as Arc<dyn AccountReader>;
     let market_scanner: Arc<dyn MarketScanner> = Arc::clone(&stub) as Arc<dyn MarketScanner>;
+    let candidates = Arc::new(CandidateUniverseService::new(Arc::clone(&db)));
+    let promoter = Arc::new(CandidatePromoter::new(
+        Arc::clone(&candidates),
+        Arc::clone(&tracker),
+        0.0,
+    ));
     let auto_scanner = Arc::new(AutoScannerService::new(
         Arc::clone(&market_scanner),
         Arc::clone(&tracker),
+        Arc::clone(&promoter),
         Arc::clone(&db),
         AutoScannerConfig::default(),
     ));
