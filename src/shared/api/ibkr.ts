@@ -27,6 +27,11 @@ import type {
 } from "../../features/tracker/types"
 import type { AgentMorningPack, McpAuditEntry, ResearchNote } from "../../features/research/types"
 import type { SocialSentimentRow } from "../../features/sentiment/types"
+import type {
+  Candidate,
+  CandidatesQuery,
+  CandidatesRefreshOutcome,
+} from "../../features/candidates/types"
 
 export const ibkrApi = {
   connect: async (config: ConnectionConfig) => {
@@ -257,6 +262,25 @@ export const ibkrApi = {
       return invoke<number>("social_refresh_now", {
         symbols: symbols ?? null,
       })
+    },
+  },
+
+  /** Phase 4 — candidate-universe staging layer. The agent inbox of
+   *  scanner + sentiment-surge hits that haven't been promoted into
+   *  the watchlist yet. */
+  candidates: {
+    list: async (query?: CandidatesQuery) => {
+      return invoke<Candidate[]>("candidates_list", {
+        query: query ?? null,
+      })
+    },
+
+    promote: async (symbol: string, reason: string) => {
+      return invoke<boolean>("candidates_promote", { symbol, reason })
+    },
+
+    refreshNow: async () => {
+      return invoke<CandidatesRefreshOutcome>("candidates_refresh_now")
     },
   },
 }

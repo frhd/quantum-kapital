@@ -2,6 +2,7 @@ import {
   BarChart3,
   Eye,
   FileText,
+  Inbox,
   LineChart,
   type LucideIcon,
   Menu,
@@ -13,7 +14,14 @@ import {
 import { cn } from "../../lib/utils"
 import { useTheme } from "../../hooks/useTheme"
 
-export type PageId = "analysis" | "scanner" | "tracker" | "research" | "positions" | "account"
+export type PageId =
+  | "analysis"
+  | "scanner"
+  | "candidates"
+  | "tracker"
+  | "research"
+  | "positions"
+  | "account"
 
 interface NavItem {
   id: PageId
@@ -32,6 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "analysis", label: "Analysis", icon: LineChart },
       { id: "scanner", label: "Scanner", icon: Search },
+      { id: "candidates", label: "Candidates", icon: Inbox },
       { id: "tracker", label: "Tracker", icon: Eye },
       { id: "research", label: "Research", icon: FileText },
     ],

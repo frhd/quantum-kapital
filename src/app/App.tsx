@@ -11,6 +11,7 @@ import { OptionPositions } from "../features/portfolio/components/OptionPosition
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
 import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
+import { CandidateBrowser } from "../features/candidates/components/CandidateBrowser"
 import { TrackerTab } from "../features/tracker/components/TrackerTab"
 import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerDialog"
 import { ResearchTab } from "../features/research/components/ResearchTab"
@@ -140,6 +141,8 @@ export default function App() {
                 onAddToTracker={handleRequestAddToTracker}
               />
             )}
+
+            {currentPage === "candidates" && <CandidateBrowser />}
 
             {currentPage === "tracker" && (
               <TrackerTab
