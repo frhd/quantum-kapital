@@ -16,6 +16,7 @@ pub mod news_interpreter;
 pub mod projection_service;
 pub mod quote_service;
 pub mod research_notes;
+pub mod sentiment_surge_scanner;
 pub mod social_sentiment;
 pub mod social_sentiment_scheduler;
 pub mod thesis_generator;
