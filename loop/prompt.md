@@ -2,7 +2,7 @@ Drive @loop/plan/master.md to completion. Sub-plans: @loop/plan/phase-N-*.md.
 
 EACH ITERATION:
 1. Read the master plan's Phase index.
-2. Pick the FIRST phase with Status=todo whose dependencies are all `done (commit <sha>, ...)`. If no eligible phase remains, run `touch loop/BREAK` and exit. DO NOT touch BREAK any other time.
+2. Pick the FIRST phase with Status=todo whose dependencies are all `done (commit <sha>, ...)`. If no eligible phase remains, run `touch loop/BREAK` and exit (or end your final message with the literal token `<<<LOOP_DONE>>>` — the Stop hook will write BREAK for you). DO NOT signal completion any other time.
 3. Open the sub-plan. If not already in-progress, flip BOTH the master-plan index entry AND the sub-plan's `**Status:**` header to `in-progress (started <today YYYY-MM-DD>)`. Commit (`chore(plan): mark phase N in-progress`).
 4. Work the phase per its Scope / Files / Tools / Exit criteria. Discipline:
    - TDD red→green→refactor. Use trait seams (`IbkrClientTrait`, `QuoteFetcher`, etc.) — never a live IBKR client in tests.

@@ -38,8 +38,10 @@ PRICE_CACHE_READ=0.00005
 PRICE_CACHE_WRITE=0.000625
 PRICE_OUTPUT=0.0025
 
-# Context window size
-CONTEXT_WINDOW=200000
+# Context window size — Opus 4.7 ships in a 1M-context variant (claude-opus-4-7[1m]).
+# Pricing math above is the ≤200K input tier; above 200K the 1M tier roughly doubles
+# input rates, so the cost summary slightly underestimates long-context iterations.
+CONTEXT_WINDOW=1000000
 
 # Color codes
 C_RESET='\033[0m'
@@ -291,14 +293,32 @@ run_once() {
   local in_tmux=0
   [ -n "${TMUX:-}" ] && in_tmux=1
 
-  # Run claude and tee output to log file and pipe to jq
+  # Optional loop-local settings (Stop hook for completion sentinel detection)
+  local settings_args=""
+  if [ -f "$SCRIPT_DIR/settings.json" ]; then
+    settings_args="--settings $SCRIPT_DIR/settings.json"
+  fi
+
+  # Run claude and tee output to log file and pipe to jq.
+  # Flag rationale:
+  # --permission-mode bypassPermissions   modern equivalent of --dangerously-skip-permissions
+  # --fallback-model sonnet               auto-fallback when opus is overloaded (529)
+  # --max-budget-usd 100                  per-iteration spend ceiling (subscription-side notional)
+  # --exclude-dynamic-system-prompt-sections   moves cwd/env/git from sys-prompt to first user msg,
+  #                                            keeping the static system prompt cache-eligible across iterations
+  # --include-hook-events                 hook lifecycle events appear in the stream (observability + Stop hook)
   cat "$PROMPT_FILE" \
   | claude -p \
     --model opus \
     --verbose \
-    --dangerously-skip-permissions \
+    --permission-mode bypassPermissions \
+    --fallback-model sonnet \
+    --max-budget-usd 100 \
+    --exclude-dynamic-system-prompt-sections \
     --include-partial-messages \
+    --include-hook-events \
     --output-format=stream-json \
+    $settings_args \
     $mcp_args \
   | tee -a "$LOG_FILE" \
   | jq -rj --unbuffered --argjson iter "$iter" --argjson total "$ITERATION_COUNT" --argjson in_tmux "$in_tmux" \
