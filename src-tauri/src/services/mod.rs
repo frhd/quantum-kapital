@@ -3,6 +3,7 @@ pub mod alerts;
 pub mod auto_scanner;
 pub mod cache_service;
 pub mod candidate_promoter;
+pub mod candidate_scheduler;
 pub mod candidate_universe;
 pub mod daily_ranker;
 pub mod decay_watcher;
