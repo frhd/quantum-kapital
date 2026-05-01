@@ -20,6 +20,9 @@ use crate::storage::error::StorageError;
 use crate::storage::Db;
 use crate::utils::helpers::unix_to_utc;
 
+mod ack;
+pub use ack::{ack_alert, AckAlertError, AckAlertOutcome, AlertDecision};
+
 #[cfg(test)]
 mod tests;
 
