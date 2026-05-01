@@ -24,7 +24,7 @@ pub struct GetAccountSummaryArgs {
 impl McpHandler {
     #[tool(
         name = "get_account_summary",
-        description = "Return account-level summary metrics (NetLiquidation, BuyingPower, TotalCashValue, etc.) for IBKR `account`. Each row carries a `tag` (the metric name), `value` (string-encoded number), and `currency`. Use this to gauge available headroom before sizing a position. Errors if the IBKR connection is down."
+        description = "Return account-level summary metrics (NetLiquidation, BuyingPower, TotalCashValue, etc.) for IBKR `account`. Each row carries a `tag` (the metric name), `value` (string-encoded number), and `currency`. Use this to gauge available headroom before sizing a position. Errors if the IBKR connection is down. Returns `{ items: [AccountSummary, ...], count: N }`."
     )]
     pub async fn get_account_summary(
         &self,
@@ -78,12 +78,12 @@ mod tests {
             .await
             .expect("tool ok");
         assert_eq!(result.is_error, Some(false), "{:?}", result);
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 2);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 2);
         assert_eq!(arr[0]["tag"].as_str().unwrap(), "NetLiquidation");
         assert_eq!(arr[0]["value"].as_str().unwrap(), "100000.0");

@@ -36,7 +36,7 @@ pub struct RunScannerArgs {
 impl McpHandler {
     #[tool(
         name = "run_scanner",
-        description = "Run the IBKR market scanner using a named auto-scanner profile (configured under `auto_scanner.profiles` in settings). Returns the raw scanner rows (rank, contract, leg). Does NOT promote rows into the watchlist — that's only done by the auto-scanner background sweep. Use this for ad-hoc discovery: 'Show me top % gainers right now,' 'What's hitting volume breakouts?' Errors with 'unknown profile' if `profile_name` isn't in settings."
+        description = "Run the IBKR market scanner using a named auto-scanner profile (configured under `auto_scanner.profiles` in settings). Returns the raw scanner rows (rank, contract, leg). Does NOT promote rows into the watchlist — that's only done by the auto-scanner background sweep. Use this for ad-hoc discovery: 'Show me top % gainers right now,' 'What's hitting volume breakouts?' Errors with 'unknown profile' if `profile_name` isn't in settings. Returns `{ items: [ScannerData, ...], count: N }`."
     )]
     pub async fn run_scanner(
         &self,
@@ -137,12 +137,12 @@ mod tests {
             .await
             .expect("tool ok");
         assert_eq!(result.is_error, Some(false), "{:?}", result);
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 2);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 2);
         assert_eq!(arr[0]["contract"]["symbol"].as_str().unwrap(), "NVDA");
         assert_eq!(arr[0]["rank"].as_i64().unwrap(), 1);

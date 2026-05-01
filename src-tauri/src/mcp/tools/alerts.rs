@@ -47,7 +47,7 @@ pub struct GetAlertsArgs {
 impl McpHandler {
     #[tool(
         name = "get_alerts",
-        description = "List the tracker alert feed, newest-first, with optional filters: `since` (RFC3339 cutoff), `kind` (\"detected\" | \"invalidated\" | \"target_hit\" | \"thesis_changed\"), `limit` (default 50, capped at 500), `offset`, `only_unseen`. Use this to surface fresh detector events the user has not yet acknowledged, or to scope research to a specific lifecycle event."
+        description = "List the tracker alert feed, newest-first, with optional filters: `since` (RFC3339 cutoff), `kind` (\"detected\" | \"invalidated\" | \"target_hit\" | \"thesis_changed\"), `limit` (default 50, capped at 500), `offset`, `only_unseen`. Use this to surface fresh detector events the user has not yet acknowledged, or to scope research to a specific lifecycle event. Returns `{ items: [Alert, ...], count: N }`."
     )]
     pub async fn get_alerts(
         &self,
@@ -159,12 +159,12 @@ mod tests {
             .get_alerts(Parameters(GetAlertsArgs::default()))
             .await
             .expect("ok");
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 2);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 2);
         // Newest-first: target_hit (most recent) before detected.
         assert_eq!(arr[0]["kind"].as_str().unwrap(), "target_hit");
@@ -177,12 +177,12 @@ mod tests {
             }))
             .await
             .expect("ok");
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 1);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["kind"].as_str().unwrap(), "detected");
     }

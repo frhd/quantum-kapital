@@ -29,7 +29,7 @@ pub struct GetWatchlistArgs {
 impl McpHandler {
     #[tool(
         name = "get_watchlist",
-        description = "List tracked tickers from the tracker watchlist, newest-added first. Optional `status` filter accepts \"watching\", \"in_play\", \"setup_active\", or \"cool_down\". Use this to ground research about which symbols the user is currently surveilling, before reaching for live quotes or scans."
+        description = "List tracked tickers from the tracker watchlist, newest-added first. Optional `status` filter accepts \"watching\", \"in_play\", \"setup_active\", or \"cool_down\". Use this to ground research about which symbols the user is currently surveilling, before reaching for live quotes or scans. Returns `{ items: [TrackedTicker, ...], count: N }`."
     )]
     pub async fn get_watchlist(
         &self,
@@ -91,7 +91,8 @@ mod tests {
             .structured_content
             .as_ref()
             .expect("structured_content");
-        let arr = body.as_array().expect("array");
+        assert_eq!(body["count"].as_u64().unwrap(), 2);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 2);
         let symbols: Vec<&str> = arr.iter().map(|r| r["symbol"].as_str().unwrap()).collect();
         assert!(symbols.contains(&"AAPL"));
@@ -130,12 +131,12 @@ mod tests {
             }))
             .await
             .expect("tool ok");
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 1);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["symbol"].as_str().unwrap(), "AAPL");
         assert_eq!(arr[0]["status"].as_str().unwrap(), "in_play");

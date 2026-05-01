@@ -51,9 +51,22 @@ where
 {
     match result {
         Ok(value) => {
-            let json = serde_json::to_value(&value).map_err(|e| {
+            let raw = serde_json::to_value(&value).map_err(|e| {
                 McpError::internal_error(format!("serialize tool result: {e}"), None)
             })?;
+            // MCP convention: `structuredContent` MUST be a JSON object,
+            // never a top-level array (a tool that publishes a structured-
+            // output schema must publish a JSON-Schema object schema).
+            // Wrap arrays into `{ items: [...], count: N }` so every list-
+            // returning tool gets a uniform envelope without per-tool
+            // boilerplate. Object payloads pass through unchanged.
+            let json = match raw {
+                serde_json::Value::Array(arr) => {
+                    let count = arr.len();
+                    serde_json::json!({ "items": arr, "count": count })
+                }
+                other => other,
+            };
             Ok(CallToolResult::structured(json))
         }
         Err(e) => Ok(CallToolResult::error(vec![Content::text(e.to_string())])),
@@ -82,6 +95,25 @@ mod tests {
         let body = out.structured_content.expect("structured present");
         assert_eq!(body["ticker"], "TSLA");
         assert_eq!(body["score"], 7);
+    }
+
+    /// Locks in the `{ items, count }` envelope contract for top-level
+    /// JSON arrays. MCP clients (e.g. Claude Code) reject
+    /// `structuredContent` that is a top-level array — every list-
+    /// returning tool relies on this auto-wrap to stay protocol-compliant.
+    #[test]
+    fn map_tool_result_wraps_top_level_array_into_items_count() {
+        let r: Result<Vec<i32>, &str> = Ok(vec![1, 2, 3]);
+        let out = map_tool_result(r).expect("ok mapping");
+        assert_eq!(out.is_error, Some(false));
+        let body = out.structured_content.expect("structured present");
+        assert!(body.is_object(), "envelope must be a JSON object");
+        let items = body["items"].as_array().expect("items array");
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].as_i64().unwrap(), 1);
+        assert_eq!(items[1].as_i64().unwrap(), 2);
+        assert_eq!(items[2].as_i64().unwrap(), 3);
+        assert_eq!(body["count"].as_u64().unwrap(), 3);
     }
 
     #[test]

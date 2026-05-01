@@ -31,7 +31,7 @@ pub struct GetSetupsArgs {
 impl McpHandler {
     #[tool(
         name = "get_setups",
-        description = "Returns persisted strategy setups (any status) for the given symbol since the given timestamp. Newest-first. Use this to recall what the detector pipeline has flagged — including invalidated and completed rows — before forming a thesis. Post-filter on the `status` field for active-only views."
+        description = "Returns persisted strategy setups (any status) for the given symbol since the given timestamp. Newest-first. Use this to recall what the detector pipeline has flagged — including invalidated and completed rows — before forming a thesis. Post-filter on the `status` field for active-only views. Returns `{ items: [Setup, ...], count: N }`."
     )]
     pub async fn get_setups(
         &self,
@@ -130,12 +130,12 @@ mod tests {
             }))
             .await
             .expect("tool ok");
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 2);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 2);
         for row in arr {
             assert_eq!(row["symbol"].as_str().unwrap(), "AAPL");

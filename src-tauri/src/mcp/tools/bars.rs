@@ -59,7 +59,7 @@ fn parse_bar_size(s: &str) -> Result<BarSize, String> {
 impl McpHandler {
     #[tool(
         name = "get_bars",
-        description = "Return historical OHLCV bars for `symbol` over the last `lookback_days` trading days at `bar_size` resolution. Cache-first: returns instantly when bars are already in `bars_cache`, otherwise fetches from IBKR (subject to the historical-data rate limit). Use this to anchor pattern claims to real bars before reasoning. `bar_size` must be one of \"1m\", \"5m\", \"15m\", \"1h\", \"1d\"; `lookback_days` is capped at 365."
+        description = "Return historical OHLCV bars for `symbol` over the last `lookback_days` trading days at `bar_size` resolution. Cache-first: returns instantly when bars are already in `bars_cache`, otherwise fetches from IBKR (subject to the historical-data rate limit). Use this to anchor pattern claims to real bars before reasoning. `bar_size` must be one of \"1m\", \"5m\", \"15m\", \"1h\", \"1d\"; `lookback_days` is capped at 365. Returns `{ items: [Bar, ...], count: N }`."
     )]
     pub async fn get_bars(
         &self,
@@ -159,12 +159,12 @@ mod tests {
             .await
             .expect("tool ok");
         assert_eq!(result.is_error, Some(false), "{:?}", result);
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 5);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 5, "all five seeded bars returned");
         // Bars are sorted ascending by `bar_time`; first row is the
         // oldest seeded close (i=0 → 100.0).

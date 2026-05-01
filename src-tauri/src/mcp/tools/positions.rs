@@ -27,7 +27,7 @@ pub struct GetPositionsArgs {
 impl McpHandler {
     #[tool(
         name = "get_positions",
-        description = "Return current open positions (symbol, quantity, average cost, market price, unrealized P&L) for the given IBKR `account`. Use this when reasoning about portfolio composition, exposure, or whether a setup overlaps an existing position. Errors if the IBKR connection is down."
+        description = "Return current open positions (symbol, quantity, average cost, market price, unrealized P&L) for the given IBKR `account`. Use this when reasoning about portfolio composition, exposure, or whether a setup overlaps an existing position. Errors if the IBKR connection is down. Returns `{ items: [Position, ...], count: N }`."
     )]
     pub async fn get_positions(
         &self,
@@ -89,12 +89,12 @@ mod tests {
             .await
             .expect("tool ok");
         assert_eq!(result.is_error, Some(false), "{:?}", result);
-        let arr = result
+        let body = result
             .structured_content
             .as_ref()
-            .expect("structured_content")
-            .as_array()
-            .expect("array");
+            .expect("structured_content");
+        assert_eq!(body["count"].as_u64().unwrap(), 2);
+        let arr = body["items"].as_array().expect("items array");
         assert_eq!(arr.len(), 2);
         assert_eq!(arr[0]["symbol"].as_str().unwrap(), "AAPL");
         assert!((arr[0]["position"].as_f64().unwrap() - 100.0).abs() < 1e-9);
