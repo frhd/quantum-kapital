@@ -1,8 +1,10 @@
 Drive @loop/plan/master.md to completion. Sub-plans: @loop/plan/phase-N-*.md.
 
+**ONE PHASE PER ITERATION.** End your turn after the phase is `done` and pushed — `loop.sh` will start a fresh iteration with clean context for the next phase. Touch `loop/BREAK` only when zero phases remain eligible.
+
 EACH ITERATION:
 1. Read the master plan's Phase index.
-2. Pick the FIRST phase with Status=todo whose dependencies are all `done (commit <sha>, ...)`. If no eligible phase remains, run `touch loop/BREAK` and exit (or end your final message with the literal token `<<<LOOP_DONE>>>` — the Stop hook will write BREAK for you). DO NOT signal completion any other time.
+2. Pick the FIRST phase with Status=todo whose dependencies are all `done (commit <sha>, ...)`. If no eligible phase remains, the project is complete — run `touch loop/BREAK` and exit (or end your final message with the literal token `<<<LOOP_DONE>>>` — the Stop hook will write BREAK for you).
 3. Open the sub-plan. If not already in-progress, flip BOTH the master-plan index entry AND the sub-plan's `**Status:**` header to `in-progress (started <today YYYY-MM-DD>)`. Commit (`chore(plan): mark phase N in-progress`).
 4. Work the phase per its Scope / Files / Tools / Exit criteria. Discipline:
    - TDD red→green→refactor. Use trait seams (`IbkrClientTrait`, `QuoteFetcher`, etc.) — never a live IBKR client in tests.
@@ -11,8 +13,7 @@ EACH ITERATION:
    - Every MCP write is audited (`written_by` column).
    - Pre-commit (`cargo fmt --check`, `cargo clippy -D warnings`, `prettier`, `eslint`) MUST pass. Never `--no-verify` — fix the underlying issue.
    - File-size caps: soft 300 (Rust) / 200 (TS) — past hard caps requires `// allow-large-file: <reason>`.
-5. When exit criteria are met: run pre-commit + the relevant `cargo`/`pnpm` tests, commit the work, flip BOTH status entries to `done (commit <sha>, <today YYYY-MM-DD>)`, commit (`chore(plan): mark phase N done`), then `git push`.
-6. Re-read the master plan. If more eligible phases remain, continue from step 2 in the same iteration if context allows, otherwise the next iteration picks it up. DO NOT touch BREAK between phases — only when zero eligible phases remain.
+5. When exit criteria are met: run pre-commit + the relevant `cargo`/`pnpm` tests, commit the work, flip BOTH status entries to `done (commit <sha>, <today YYYY-MM-DD>)`, commit (`chore(plan): mark phase N done`), `git push`, then end your turn with a brief summary of what landed.
 
 OPERATING RULES:
 - COMMIT FREQUENTLY. Every logical step (failing test, passing impl, refactor, status flip) is its own commit. Many small commits >> one giant commit. Phase boundaries MUST be marked by `chore(plan): mark phase N {in-progress,done}` so `git log --oneline` is a readable progress narrative.
