@@ -11,7 +11,7 @@
 use chrono::Utc;
 
 use crate::config::AppConfig;
-use crate::ibkr::types::{HistoricalBar, NewsItem, TickerSentiment};
+use crate::ibkr::types::{DataTier, HistoricalBar, NewsItem, TickerSentiment};
 use crate::strategies::breakout::BreakoutDetector;
 use crate::strategies::episodic_pivot::EpisodicPivotDetector;
 use crate::strategies::parabolic_short::ParabolicShortDetector;
@@ -88,6 +88,7 @@ fn breakout_ctx<'a>(symbol: &'a str, bars: &'a [HistoricalBar]) -> MarketContext
         recent_news: &[],
         news_verdict: None,
         current_quote: None,
+        data_tier: DataTier::Unknown,
         now: Utc::now(),
     }
 }
@@ -207,6 +208,7 @@ fn ep_ctx<'a>(
         recent_news: news,
         news_verdict: None,
         current_quote: None,
+        data_tier: DataTier::Unknown,
         now: Utc::now(),
     }
 }
@@ -311,6 +313,7 @@ fn ps_ctx<'a>(daily: &'a [HistoricalBar], intraday: &'a [HistoricalBar]) -> Mark
         recent_news: &[],
         news_verdict: None,
         current_quote: None,
+        data_tier: DataTier::Unknown,
         now: Utc::now(),
     }
 }

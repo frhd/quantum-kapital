@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
 
-use crate::ibkr::types::{BarSize, StrategyTag};
+use crate::ibkr::types::{BarSize, DataTier, StrategyTag};
 
 use super::candidate::{targets_for_risk_profile, Direction, SetupCandidate, TargetLevel};
 use super::context::MarketContext;
@@ -47,6 +47,7 @@ fn empty_ctx<'a>(symbol: &'a str) -> MarketContext<'a> {
         recent_news: &[],
         news_verdict: None,
         current_quote: None,
+        data_tier: DataTier::Unknown,
         now: Utc::now(),
     }
 }

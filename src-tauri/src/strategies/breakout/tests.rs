@@ -6,7 +6,7 @@
 
 use chrono::Utc;
 
-use crate::ibkr::types::{HistoricalBar, StrategyTag};
+use crate::ibkr::types::{DataTier, HistoricalBar, StrategyTag};
 use crate::strategies::trait_def::DetectorError;
 use crate::strategies::{Direction, MarketContext, StrategyDetector};
 
@@ -21,6 +21,7 @@ fn ctx<'a>(symbol: &'a str, bars: &'a [HistoricalBar]) -> MarketContext<'a> {
         recent_news: &[],
         news_verdict: None,
         current_quote: None,
+        data_tier: DataTier::Unknown,
         now: Utc::now(),
     }
 }

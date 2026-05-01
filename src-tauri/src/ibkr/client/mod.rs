@@ -7,14 +7,25 @@ pub use self::streams::StreamHandle;
 
 use ibapi::accounts::types::AccountId;
 use ibapi::client::blocking::Client;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, info};
 
+use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::{IbkrError, Result};
 use crate::ibkr::types::{
-    AccountSummary, ConnectionConfig, ConnectionStatus, MarketDataType, Position,
+    AccountSummary, ConnectionConfig, ConnectionStatus, DataTier, MarketDataType, Position,
 };
+
+/// Sink wired in by `IbkrState::new` so the probe-on-connect task and
+/// the disconnect path can publish a tier without `IbkrClient` knowing
+/// about state. Stays `None` in tests that construct an `IbkrClient`
+/// directly.
+#[derive(Clone)]
+pub(super) struct TierSink {
+    pub tier: Arc<RwLock<DataTier>>,
+    pub emitter: Arc<EventEmitter>,
+}
 
 pub struct IbkrClient {
     client: Arc<RwLock<Option<Arc<Client>>>>,
@@ -25,6 +36,7 @@ pub struct IbkrClient {
     // between them and the first to see AccountDownloadEnd will break out
     // before the other has consumed its share. See client.rs:get_positions.
     account_updates_lock: Arc<Mutex<()>>,
+    tier_sink: Arc<StdMutex<Option<TierSink>>>,
 }
 
 impl IbkrClient {
@@ -45,6 +57,7 @@ impl IbkrClient {
             client: Arc::new(RwLock::new(None)),
             config: Arc::new(RwLock::new(config)),
             account_updates_lock: Arc::new(Mutex::new(())),
+            tier_sink: Arc::new(StdMutex::new(None)),
         }
     }
 
@@ -53,6 +66,32 @@ impl IbkrClient {
             client: Arc::new(RwLock::new(None)),
             config,
             account_updates_lock: Arc::new(Mutex::new(())),
+            tier_sink: Arc::new(StdMutex::new(None)),
+        }
+    }
+
+    /// Wire the data-tier sink. `IbkrState::new` calls this once after
+    /// constructing both the client and the emitter, so the
+    /// probe-on-connect task and `disconnect()` can publish without
+    /// going back through `IbkrState`. Sync because `IbkrState::new`
+    /// is sync and the `std::sync::Mutex` is uncontended at that
+    /// point.
+    pub fn set_tier_sink(&self, tier: Arc<RwLock<DataTier>>, emitter: Arc<EventEmitter>) {
+        let mut sink = self.tier_sink.lock().expect("tier_sink poisoned");
+        *sink = Some(TierSink { tier, emitter });
+    }
+
+    /// Snapshot of the wired sink (cloned so callers don't hold the
+    /// lock across awaits).
+    fn tier_sink_snapshot(&self) -> Option<TierSink> {
+        self.tier_sink.lock().expect("tier_sink poisoned").clone()
+    }
+
+    async fn publish_tier(sink: &TierSink, tier: DataTier) {
+        *sink.tier.write().await = tier;
+        if let Err(e) = sink.emitter.emit(AppEvent::DataTierDetected { tier }).await {
+            // Pre-AppHandle attachment (early startup) returns this — not fatal.
+            tracing::debug!("DataTierDetected emit skipped: {}", e);
         }
     }
 
@@ -122,7 +161,29 @@ impl IbkrClient {
                 Self::apply_market_data_type(&client, market_data_type).await;
 
                 let mut client_lock = self.client.write().await;
-                *client_lock = Some(client);
+                *client_lock = Some(Arc::clone(&client));
+                drop(client_lock);
+
+                // Probe the actual delivered tier off the live connection.
+                // Async + non-blocking so the connect button stays snappy;
+                // the sink defaults to `Unknown` until the probe completes.
+                if let Some(sink) = self.tier_sink_snapshot() {
+                    let probe_client = Arc::clone(&client);
+                    tokio::spawn(async move {
+                        Self::apply_market_data_type(&probe_client, MarketDataType::Live).await;
+                        let tier = market_data::run_probe(Arc::clone(&probe_client), "SPY")
+                            .await
+                            .unwrap_or_else(|e| {
+                                tracing::warn!("data-tier probe failed: {}", e);
+                                DataTier::Unknown
+                            });
+                        // Restore so live operation matches user intent.
+                        Self::apply_market_data_type(&probe_client, market_data_type).await;
+                        info!("🟢 DATA TIER PROBE → {:?}", tier);
+                        Self::publish_tier(&sink, tier).await;
+                    });
+                }
+
                 Ok(())
             }
             Err(e) => {
@@ -165,6 +226,12 @@ impl IbkrClient {
 
     pub async fn disconnect(&self) -> Result<()> {
         info!("🔴 CLIENT DISCONNECT METHOD CALLED");
+        // Reset the tier first so consumers see `Unknown` immediately
+        // (before the blocking client drop holds the write lock).
+        if let Some(sink) = self.tier_sink_snapshot() {
+            Self::publish_tier(&sink, DataTier::Unknown).await;
+        }
+
         let mut client_lock = self.client.write().await;
         info!("🔴 CLIENT WRITE LOCK ACQUIRED");
 

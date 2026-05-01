@@ -11,6 +11,7 @@ import type {
   ProjectionAssumptions,
   ScannerSubscription,
   Quote,
+  DataTier,
 } from "../types"
 import type {
   Alert,
@@ -72,6 +73,10 @@ export const ibkrApi = {
 
   getQuote: async (symbol: string) => {
     return invoke<Quote>("ibkr_get_quote", { symbol })
+  },
+
+  getDataTier: async () => {
+    return invoke<DataTier>("ibkr_get_data_tier")
   },
 
   generateProjections: async (symbol: string, assumptions?: ProjectionAssumptions) => {

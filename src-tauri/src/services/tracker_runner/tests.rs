@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::error::{IbkrError, Result as IbkrResult};
+use crate::ibkr::types::data_tier::DataTier;
 use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{StrategyTag, TrackerSource, TrackerStatus};
@@ -259,6 +260,27 @@ async fn gathers_context_for_symbol_with_daily_bars_only() {
     assert_eq!(ctx.daily_bars.len(), 5);
     assert!(ctx.intraday_bars.is_none());
     assert!(ctx.recent_news.is_empty());
+    // Without `with_data_tier`, the runner falls back to Unknown.
+    assert_eq!(ctx.data_tier, DataTier::Unknown);
+}
+
+#[tokio::test]
+async fn context_reflects_wired_data_tier() {
+    let (_tmp, db) = make_db();
+    let bars = Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+    let news = Arc::new(MockNews::new());
+    let (_tracker, _emitter, runner) = build_runner(db, bars, news, DetectorRegistry::new());
+
+    let tier_source = Arc::new(tokio::sync::RwLock::new(DataTier::Delayed));
+    let runner = runner.with_data_tier(Arc::clone(&tier_source));
+
+    let ctx = runner.context_for("AAPL").await.expect("context");
+    assert_eq!(ctx.data_tier, DataTier::Delayed);
+
+    // Live updates flow through.
+    *tier_source.write().await = DataTier::RealTime;
+    let ctx = runner.context_for("AAPL").await.expect("context");
+    assert_eq!(ctx.data_tier, DataTier::RealTime);
 }
 
 #[tokio::test]

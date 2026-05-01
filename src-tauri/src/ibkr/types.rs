@@ -3,6 +3,7 @@
 
 pub mod account;
 pub mod connection;
+pub mod data_tier;
 pub mod fundamentals;
 pub mod market_data;
 pub mod orders;
@@ -17,6 +18,7 @@ pub mod tracker;
 // Re-export all types at the root level for backward compatibility
 pub use account::*;
 pub use connection::*;
+pub use data_tier::*;
 pub use fundamentals::*;
 pub use market_data::*;
 pub use orders::*;
