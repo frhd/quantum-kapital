@@ -96,21 +96,22 @@ async fn mcp_tool_registry_is_surveillance_only() {
 
     let names = handler.tool_names();
 
-    // Pin the count: catches accidental tool-router drops. 12 read tools
-    // (Phase 1 + Phase 3 `get_sentiment`) + 5 write tools added in
-    // Phase 02 (add_ticker, archive_ticker, write_research_note,
-    // write_morning_pack, ack_alert).
+    // Pin the count: catches accidental tool-router drops. Phase 1 (11
+    // reads) + Phase 02 (5 writes: add_ticker, archive_ticker,
+    // write_research_note, write_morning_pack, ack_alert) + Phase 3 (1
+    // read: get_sentiment) + Phase 4 (1 read: get_candidates, 1 write:
+    // promote_candidate) = 19.
     assert_eq!(
         names.len(),
-        17,
-        "expected 17 registered MCP tools, got {}: {:?}",
+        19,
+        "expected 19 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
 
-    // Phase-02 invariant: the only "write" verbs allowed are the closed
-    // set below. A future write tool whose name starts with `write_` /
-    // `add_` / `archive_` / `ack_` *must* be added here AND reviewed for
+    // The only "write" verbs allowed are the closed set below. A future
+    // write tool whose name starts with `write_` / `add_` / `archive_` /
+    // `ack_` / `promote_` *must* be added here AND reviewed for
     // surveillance-only compliance — never an order-placement primitive.
     let allowed_writes: &[&str] = &[
         "add_ticker",
@@ -118,17 +119,19 @@ async fn mcp_tool_registry_is_surveillance_only() {
         "write_research_note",
         "write_morning_pack",
         "ack_alert",
+        "promote_candidate",
     ];
     for name in &names {
         let n = name.to_ascii_lowercase();
         let looks_like_write = n.starts_with("add_")
             || n.starts_with("archive_")
             || n.starts_with("write_")
-            || n.starts_with("ack_");
+            || n.starts_with("ack_")
+            || n.starts_with("promote_");
         if looks_like_write {
             assert!(
                 allowed_writes.contains(&name.as_str()),
-                "WRITE TOOL '{name}' not in the Phase-02 allowed-writes list. \
+                "WRITE TOOL '{name}' not in the allowed-writes list. \
                  Add it explicitly here and confirm it does NOT mutate orders \
                  or live positions; see CLAUDE.md."
             );

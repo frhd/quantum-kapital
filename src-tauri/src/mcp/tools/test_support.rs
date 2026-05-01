@@ -231,6 +231,8 @@ fn build_handler_with_llm(
         market_scanner,
         emitter,
         social_sentiment,
+        candidates,
+        promoter,
         "interactive".to_string(),
     )
 }
@@ -323,6 +325,8 @@ pub async fn test_handler_with_seeded_spend(
         market_scanner,
         emitter,
         social_sentiment,
+        candidates,
+        promoter,
         "interactive".to_string(),
     ))
 }

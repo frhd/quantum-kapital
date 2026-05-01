@@ -18,6 +18,8 @@ use rmcp::{
 use crate::events::EventEmitter;
 use crate::mcp::ibkr_seam::AccountReader;
 use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
+use crate::services::candidate_promoter::CandidatePromoter;
+use crate::services::candidate_universe::CandidateUniverseService;
 use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
@@ -68,6 +70,13 @@ pub struct McpHandler {
     /// `social_sentiment` snapshots. Read-only path — refreshes are
     /// driven by the in-app `SocialSentimentScheduler`.
     pub(crate) social_sentiment: Arc<SocialSentimentService>,
+    /// Used by `tools::get_candidates` (Phase 4) for the agent's
+    /// candidate-universe inbox. Read-only — auto-scanner +
+    /// sentiment-surge populate the rows.
+    pub(crate) candidates: Arc<CandidateUniverseService>,
+    /// Used by `tools::promote_candidate` (Phase 4) to move a
+    /// candidate row into the live `tracked_tickers` watchlist.
+    pub(crate) candidate_promoter: Arc<CandidatePromoter>,
     /// Caller identity stamped into `mcp_audit.caller` and
     /// `research_notes.written_by` for every write tool invocation. v1
     /// uses a single value per server instance — `"interactive"` for
@@ -95,7 +104,7 @@ impl McpHandler {
             .collect()
     }
 
-    #[allow(clippy::too_many_arguments)] // 11 Arcs — see module docs; one
+    #[allow(clippy::too_many_arguments)] // 13 Arcs — see module docs; one
                                          // Arc per service the tools touch.
                                          // Grouping them buys nothing.
     pub fn new(
@@ -110,6 +119,8 @@ impl McpHandler {
         market_scanner: Arc<dyn MarketScanner>,
         emitter: Arc<EventEmitter>,
         social_sentiment: Arc<SocialSentimentService>,
+        candidates: Arc<CandidateUniverseService>,
+        candidate_promoter: Arc<CandidatePromoter>,
         caller: String,
     ) -> Self {
         // Each per-tool file declares its own `#[tool_router(router = X_router)]`
@@ -131,7 +142,9 @@ impl McpHandler {
             + Self::write_research_note_router()
             + Self::write_morning_pack_router()
             + Self::ack_alert_router()
-            + Self::get_sentiment_router();
+            + Self::get_sentiment_router()
+            + Self::get_candidates_router()
+            + Self::promote_candidate_router();
         Self {
             llm,
             tracker,
@@ -144,6 +157,8 @@ impl McpHandler {
             market_scanner,
             emitter,
             social_sentiment,
+            candidates,
+            candidate_promoter,
             caller,
             tool_router,
         }

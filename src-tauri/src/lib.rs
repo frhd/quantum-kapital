@@ -299,6 +299,8 @@ pub fn run() {
                 mcp_market_scanner,
                 Arc::clone(&ibkr_state.event_emitter),
                 Arc::clone(&social_sentiment_service),
+                Arc::clone(&candidate_universe),
+                Arc::clone(&candidate_promoter),
                 // v1: a single in-process MCP server, so every caller is
                 // either Claude Code or the future agent loops talking
                 // through the same `bin/mcp-server` bridge. Pin to
