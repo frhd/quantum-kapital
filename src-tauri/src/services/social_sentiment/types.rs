@@ -95,14 +95,6 @@ pub struct SocialSentimentRow {
 /// `latest` is the freshest row from each source; `samples` is the
 /// time-series within the requested window for charts/audit.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SentimentSnapshot {
-    pub symbol: String,
-    pub since_unix: i64,
-    pub now_unix: i64,
-    pub by_source: Vec<SourceSummary>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SourceSummary {
     pub source: String,
     pub latest: Option<SocialSentimentRow>,

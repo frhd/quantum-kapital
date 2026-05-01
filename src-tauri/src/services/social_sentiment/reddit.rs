@@ -69,11 +69,13 @@ impl RedditWsbProvider {
         }
     }
 
+    #[allow(dead_code)] // builder used by unit tests + future settings overrides
     pub fn with_url(mut self, url: impl Into<String>) -> Self {
         self.url = url.into();
         self
     }
 
+    #[allow(dead_code)] // public seam for callers with curated symbol whitelists
     pub fn with_filter(mut self, filter: TickerFilterConfig) -> Self {
         self.filter = filter;
         self

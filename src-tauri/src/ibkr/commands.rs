@@ -8,6 +8,7 @@ pub mod connection;
 pub mod market_data;
 pub mod research;
 pub mod scanner;
+pub mod sentiment;
 pub mod tracker;
 pub mod trading;
 
@@ -19,5 +20,6 @@ pub use connection::*;
 pub use market_data::*;
 pub use research::*;
 pub use scanner::*;
+pub use sentiment::*;
 pub use tracker::*;
 pub use trading::*;

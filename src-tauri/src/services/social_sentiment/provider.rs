@@ -104,6 +104,7 @@ struct MockState {
 }
 
 #[cfg(test)]
+#[allow(dead_code)] // helpers consumed across tool/test files asymmetrically
 impl MockHttpFetcher {
     pub fn new() -> Self {
         Self::default()

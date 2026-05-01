@@ -37,6 +37,7 @@ use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
 use crate::services::quote_service::{QuoteFetcher, QuoteService};
+use crate::services::social_sentiment::SocialSentimentService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
 
@@ -206,6 +207,9 @@ fn build_handler_with_llm(
     ));
 
     let emitter = Arc::new(EventEmitter::for_capture());
+    // No providers wired — `get_sentiment` only reads `social_sentiment`,
+    // and any provider-needing test seeds rows directly via `repo`.
+    let social_sentiment = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
     McpHandler::new(
         llm,
         tracker,
@@ -217,6 +221,7 @@ fn build_handler_with_llm(
         auto_scanner,
         market_scanner,
         emitter,
+        social_sentiment,
         "interactive".to_string(),
     )
 }
@@ -289,6 +294,7 @@ pub async fn test_handler_with_seeded_spend(
         AutoScannerConfig::default(),
     ));
     let emitter = Arc::new(EventEmitter::for_capture());
+    let social_sentiment = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
     Ok(McpHandler::new(
         llm,
         tracker,
@@ -300,6 +306,7 @@ pub async fn test_handler_with_seeded_spend(
         auto_scanner,
         market_scanner,
         emitter,
+        social_sentiment,
         "interactive".to_string(),
     ))
 }

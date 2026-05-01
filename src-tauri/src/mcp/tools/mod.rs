@@ -21,6 +21,7 @@ pub mod archive_ticker;
 pub mod bars;
 pub mod budget;
 pub mod fundamentals;
+pub mod get_sentiment;
 pub mod news;
 pub mod positions;
 pub mod quote;

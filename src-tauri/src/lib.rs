@@ -24,6 +24,12 @@ use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataSer
 use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
 use services::news_interpreter::NewsInterpreter;
+use services::social_sentiment::apewisdom::ApewisdomProvider;
+use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
+use services::social_sentiment::reddit::RedditWsbProvider;
+use services::social_sentiment::stocktwits::StocktwitsProvider;
+use services::social_sentiment::SocialSentimentService;
+use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::thesis_generator::ThesisGenerator;
 use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
 use storage::Db;
@@ -214,6 +220,52 @@ pub fn run() {
                 });
             }
 
+            // Phase 3: social-sentiment ingestion. Provider list is
+            // built from `social_sentiment` settings — flipping a
+            // source off in settings.json drops it from the fan-out.
+            // The scheduler ships dark; the user opts in via
+            // `social_sentiment.enabled = true` and the `social_*`
+            // Tauri commands (or by editing settings.json directly).
+            let sentiment_http: Arc<dyn services::social_sentiment::provider::HttpFetcher> =
+                Arc::new(ReqwestHttpFetcher::default());
+            let mut sentiment_providers: Vec<Arc<dyn SentimentProvider>> = Vec::new();
+            if config.social_sentiment.source_apewisdom_enabled {
+                sentiment_providers.push(Arc::new(ApewisdomProvider::new(Arc::clone(
+                    &sentiment_http,
+                ))));
+            }
+            if config.social_sentiment.source_stocktwits_enabled {
+                sentiment_providers.push(Arc::new(StocktwitsProvider::new(Arc::clone(
+                    &sentiment_http,
+                ))));
+            }
+            if config.social_sentiment.source_reddit_enabled {
+                sentiment_providers
+                    .push(Arc::new(RedditWsbProvider::new(Arc::clone(&sentiment_http))));
+            }
+            let social_sentiment_service = Arc::new(SocialSentimentService::new(
+                Arc::clone(&db),
+                sentiment_providers,
+            ));
+            let social_sentiment_scheduler = Arc::new(SocialSentimentScheduler::new(
+                Arc::clone(&social_sentiment_service),
+                Arc::clone(&ibkr_state.tracker),
+                Duration::from_secs(
+                    u64::from(config.social_sentiment.min_interval_minutes) * 60,
+                ),
+            ));
+            if config.social_sentiment.enabled {
+                let scheduler = Arc::clone(&social_sentiment_scheduler);
+                tauri::async_runtime::spawn(async move {
+                    let _handle = scheduler.spawn();
+                    // Detached: handle drops at the end of run() since the
+                    // scheduler stops cleanly when the runtime tears down.
+                    // A future refactor can store the handle on IbkrState
+                    // alongside the EOD/intraday handles for explicit
+                    // start/stop commands.
+                });
+            }
+
             // Phase 1 / Step 4: MCP read-only server. Listens on a local
             // socket (Unix) / named pipe (Windows) so Claude Code (and
             // other MCP clients) can drive interactive research sessions
@@ -238,6 +290,7 @@ pub fn run() {
                 Arc::clone(&auto_scanner_service),
                 mcp_market_scanner,
                 Arc::clone(&ibkr_state.event_emitter),
+                Arc::clone(&social_sentiment_service),
                 // v1: a single in-process MCP server, so every caller is
                 // either Claude Code or the future agent loops talking
                 // through the same `bin/mcp-server` bridge. Pin to
@@ -273,6 +326,8 @@ pub fn run() {
             app.manage(auto_scanner_service);
             app.manage(auto_scanner_scheduler);
             app.manage(quote_service);
+            app.manage(social_sentiment_service);
+            app.manage(social_sentiment_scheduler);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -322,6 +377,10 @@ pub fn run() {
             ibkr::commands::auto_scanner_get_config,
             ibkr::commands::auto_scanner_set_config,
             ibkr::commands::auto_scanner_run_once,
+            ibkr::commands::social_get_latest,
+            ibkr::commands::social_list_window,
+            ibkr::commands::social_refresh_now,
+            ibkr::commands::social_scheduler_status,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

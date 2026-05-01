@@ -55,6 +55,7 @@ impl ApewisdomProvider {
         }
     }
 
+    #[allow(dead_code)] // builder used by unit tests + future settings overrides
     pub fn with_url(mut self, url: impl Into<String>) -> Self {
         self.url = url.into();
         self

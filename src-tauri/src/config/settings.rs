@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub detectors: DetectorsConfig,
     #[serde(default)]
     pub auto_scanner: AutoScannerConfig,
+    #[serde(default)]
+    pub social_sentiment: SocialSentimentConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,6 +171,42 @@ impl AutoScannerConfig {
             });
         }
         out
+    }
+}
+
+/// Phase 3 — knobs for the [`SocialSentimentScheduler`] and per-provider
+/// enable flags. Ships dark: `enabled` defaults to `false`. Reddit auth
+/// uses public-JSON in v1 — the `reddit_*` fields are placeholders for
+/// the future OAuth backend mentioned in `loop/plan/phase-3-sentiment.md`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SocialSentimentConfig {
+    pub enabled: bool,
+    /// Minimum minutes between successful fetches. The scheduler still
+    /// polls every 60s but skips ticks inside this window.
+    pub min_interval_minutes: u32,
+    pub source_apewisdom_enabled: bool,
+    pub source_stocktwits_enabled: bool,
+    pub source_reddit_enabled: bool,
+    /// Optional Reddit OAuth credentials. Unused by the v1 public-JSON
+    /// path; serialised so settings.json can carry them for the future
+    /// PRAW / `roux` backend without a second migration.
+    #[serde(default)]
+    pub reddit_client_id: Option<String>,
+    #[serde(default)]
+    pub reddit_client_secret: Option<String>,
+}
+
+impl Default for SocialSentimentConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            min_interval_minutes: 60,
+            source_apewisdom_enabled: true,
+            source_stocktwits_enabled: true,
+            source_reddit_enabled: true,
+            reddit_client_id: std::env::var("REDDIT_CLIENT_ID").ok(),
+            reddit_client_secret: std::env::var("REDDIT_CLIENT_SECRET").ok(),
+        }
     }
 }
 

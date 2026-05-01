@@ -77,6 +77,7 @@ impl SocialSentimentScheduler {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)] // exposed for future scheduler tests with clock pinning
     pub async fn set_clock(&self, clock: Clock) {
         *self.clock.write().await = clock;
     }

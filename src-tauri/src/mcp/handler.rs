@@ -22,6 +22,7 @@ use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
 use crate::services::quote_service::QuoteService;
+use crate::services::social_sentiment::SocialSentimentService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
 
@@ -63,6 +64,10 @@ pub struct McpHandler {
     /// after a successful mutation so the React UI can re-query the
     /// affected slice without polling.
     pub(crate) emitter: Arc<EventEmitter>,
+    /// Used by `tools::get_sentiment` (Phase 3) to read durable
+    /// `social_sentiment` snapshots. Read-only path — refreshes are
+    /// driven by the in-app `SocialSentimentScheduler`.
+    pub(crate) social_sentiment: Arc<SocialSentimentService>,
     /// Caller identity stamped into `mcp_audit.caller` and
     /// `research_notes.written_by` for every write tool invocation. v1
     /// uses a single value per server instance — `"interactive"` for
@@ -104,6 +109,7 @@ impl McpHandler {
         auto_scanner: Arc<AutoScannerService>,
         market_scanner: Arc<dyn MarketScanner>,
         emitter: Arc<EventEmitter>,
+        social_sentiment: Arc<SocialSentimentService>,
         caller: String,
     ) -> Self {
         // Each per-tool file declares its own `#[tool_router(router = X_router)]`
@@ -124,7 +130,8 @@ impl McpHandler {
             + Self::archive_ticker_router()
             + Self::write_research_note_router()
             + Self::write_morning_pack_router()
-            + Self::ack_alert_router();
+            + Self::ack_alert_router()
+            + Self::get_sentiment_router();
         Self {
             llm,
             tracker,
@@ -136,6 +143,7 @@ impl McpHandler {
             auto_scanner,
             market_scanner,
             emitter,
+            social_sentiment,
             caller,
             tool_router,
         }

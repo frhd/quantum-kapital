@@ -96,13 +96,14 @@ async fn mcp_tool_registry_is_surveillance_only() {
 
     let names = handler.tool_names();
 
-    // Pin the count: catches accidental tool-router drops. 11 read tools +
-    // 5 write tools added in Phase 02 (add_ticker, archive_ticker,
-    // write_research_note, write_morning_pack, ack_alert).
+    // Pin the count: catches accidental tool-router drops. 12 read tools
+    // (Phase 1 + Phase 3 `get_sentiment`) + 5 write tools added in
+    // Phase 02 (add_ticker, archive_ticker, write_research_note,
+    // write_morning_pack, ack_alert).
     assert_eq!(
         names.len(),
-        16,
-        "expected 16 registered MCP tools, got {}: {:?}",
+        17,
+        "expected 17 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );

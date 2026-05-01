@@ -64,6 +64,7 @@ impl StocktwitsProvider {
         }
     }
 
+    #[allow(dead_code)] // builder used by unit tests + future settings overrides
     pub fn with_base_url(mut self, base: impl Into<String>) -> Self {
         self.base_url = base.into();
         self

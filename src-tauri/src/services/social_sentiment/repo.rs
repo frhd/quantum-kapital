@@ -29,6 +29,7 @@ fn map_row(row: &Row<'_>) -> rusqlite::Result<SocialSentimentRow> {
     })
 }
 
+#[allow(dead_code)] // exercised through `insert_sample` + tests
 fn insert_sample_sync(
     conn: &mut Connection,
     sample: &SentimentSample,
@@ -57,6 +58,7 @@ fn insert_sample_sync(
 /// Persist one [`SentimentSample`]. `fetched_at` is the wall-clock
 /// timestamp the caller wants to record (so callers with a `Clock`
 /// seam can pin it deterministically in tests).
+#[allow(dead_code)] // exercised by per-tool tests + integration paths
 pub async fn insert_sample(
     db: Arc<Db>,
     sample: SentimentSample,

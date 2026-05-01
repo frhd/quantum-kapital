@@ -66,7 +66,9 @@ impl ClockFn for SystemClock {
 
 /// Test clock with an interior-mutable counter. Public for use from
 /// the scheduler's tests; gated behind `cfg(test)` in the inner module.
+#[cfg(test)]
 pub struct FixedClock(pub std::sync::atomic::AtomicI64);
+#[cfg(test)]
 impl ClockFn for FixedClock {
     fn now_unix(&self) -> i64 {
         self.0.load(std::sync::atomic::Ordering::Relaxed)
