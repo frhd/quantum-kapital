@@ -32,6 +32,9 @@ strategies/    StrategyDetector trait + MarketContext + SetupCandidate + Detecto
 services/      Business logic. Each service is constructed in lib.rs and managed via
                app.manage(...) so Tauri commands can fetch them via State<T>.
 middleware/    Cross-cutting: RateLimiter, HistoricalRateLimiter, logging
+mcp/           In-process MCP server (handler, server, transport, tools, ibkr_seam) —
+               the read-only / ack-only API surface for external MCP clients
+bin/           Standalone binaries (`mcp-server.rs` = stdio↔socket bridge)
 utils/         Calendar (RTH/holidays), shared helpers
 lib.rs         Tauri setup. Wires Db → IbkrState → services → schedulers and registers
                every #[tauri::command] handler.
@@ -53,3 +56,14 @@ Watchlist → detectors → LLM enrichment → alerts pipeline:
 4. **State machine** (`services/tracker_state_machine`) owns `watching → in_play → cool_down` transitions per ticker.
 
 SQLite tables (see `src/storage/schema.sql`): `tracked_tickers`, `setups`, `alerts`, `bars_cache`, `news_cache`, `llm_calls`. The pre-existing file-based `cache_service.rs` (JSON, 7-day TTL for fundamentals/projections) is intentionally **not** migrated to SQLite.
+
+## MCP server
+
+External MCP clients (Claude Code, etc.) talk to the running app via two pieces:
+
+- **`bin/mcp-server.rs`** — a standalone stdio↔unix-socket bridge. The MCP client spawns this binary; it just shovels JSON-RPC bytes between its stdin/stdout and the local socket bound by the running Tauri app. Stdout is reserved for the protocol stream — diagnostics go to stderr only. Default socket path is derived from the Tauri identifier (`com.quantyc.qqk` → `…/mcp.sock`); override with `QK_MCP_SOCKET`.
+- **`mcp/`** — the in-process server hosted inside Tauri. Holds the protocol handler, transport, the `ibkr_seam` (read-only adapter over `IbkrClientTrait`), and the tool registry under `mcp/tools/`. New MCP tools are added here, not in `ibkr/commands/`.
+
+The MCP surface is **read-only plus an `ack_alert` rail** — no order tools, ever. Acks are audited through `services/mcp_audit/`. Surveillance-only invariant from the root CLAUDE.md applies here too: a tool that places an order would violate the project contract.
+
+Integration tests live at `tests/mcp_tool_call.rs` and `tests/mcp_surveillance_audit.rs`; run them like any other cargo test.

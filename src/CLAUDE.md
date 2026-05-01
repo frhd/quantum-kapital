@@ -11,6 +11,8 @@ pnpm tauri build  # production binaries → src-tauri/target/release/
 pnpm typecheck
 pnpm lint
 pnpm format
+pnpm test         # vitest watch (jsdom env, setup at src/test/setup.ts)
+pnpm test:run     # vitest one-shot, used by CI
 ```
 
 ## Layout
