@@ -136,10 +136,8 @@ pub async fn rows_for_symbol_since(
         }
         sql.push_str(" ORDER BY fetched_at DESC");
 
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![
-            Box::new(symbol_upper.clone()),
-            Box::new(since),
-        ];
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> =
+            vec![Box::new(symbol_upper.clone()), Box::new(since)];
         if let Some(srcs) = sources {
             for s in srcs {
                 params_vec.push(Box::new(s));
@@ -249,7 +247,12 @@ mod tests {
         let now = 1_700_000_000;
         let id = insert_sample(
             Arc::clone(&db),
-            sample(SentimentSource::Apewisdom, "TSLA", Some(0.5), Some(SentimentLabel::Bullish)),
+            sample(
+                SentimentSource::Apewisdom,
+                "TSLA",
+                Some(0.5),
+                Some(SentimentLabel::Bullish),
+            ),
             now,
         )
         .await
@@ -294,16 +297,14 @@ mod tests {
         .await
         .unwrap();
 
-        let in_window = rows_for_symbol_since(
-            Arc::clone(&db),
-            "TSLA".into(),
-            now - 86_400,
-            None,
-        )
-        .await
-        .unwrap();
+        let in_window = rows_for_symbol_since(Arc::clone(&db), "TSLA".into(), now - 86_400, None)
+            .await
+            .unwrap();
         assert_eq!(in_window.len(), 2);
-        assert!(in_window[0].fetched_at >= in_window[1].fetched_at, "newest first");
+        assert!(
+            in_window[0].fetched_at >= in_window[1].fetched_at,
+            "newest first"
+        );
 
         let only_stocktwits = rows_for_symbol_since(
             Arc::clone(&db),
@@ -327,13 +328,9 @@ mod tests {
             (SentimentSource::Apewisdom, now - 60, 0.7),
             (SentimentSource::Stocktwits, now - 30, -0.2),
         ] {
-            insert_sample(
-                Arc::clone(&db),
-                sample(src, "TSLA", Some(score), None),
-                ts,
-            )
-            .await
-            .unwrap();
+            insert_sample(Arc::clone(&db), sample(src, "TSLA", Some(score), None), ts)
+                .await
+                .unwrap();
         }
 
         let latest = latest_per_source(Arc::clone(&db), "TSLA".into())
@@ -372,6 +369,10 @@ mod tests {
         let latest = latest_per_source(Arc::clone(&db), "TSLA".into())
             .await
             .unwrap();
-        assert_eq!(latest.len(), 3, "three sources persisted, symbol upper-cased");
+        assert_eq!(
+            latest.len(),
+            3,
+            "three sources persisted, symbol upper-cased"
+        );
     }
 }

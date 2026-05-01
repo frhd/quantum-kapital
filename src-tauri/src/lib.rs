@@ -240,8 +240,9 @@ pub fn run() {
                 ))));
             }
             if config.social_sentiment.source_reddit_enabled {
-                sentiment_providers
-                    .push(Arc::new(RedditWsbProvider::new(Arc::clone(&sentiment_http))));
+                sentiment_providers.push(Arc::new(RedditWsbProvider::new(Arc::clone(
+                    &sentiment_http,
+                ))));
             }
             let social_sentiment_service = Arc::new(SocialSentimentService::new(
                 Arc::clone(&db),
@@ -250,9 +251,7 @@ pub fn run() {
             let social_sentiment_scheduler = Arc::new(SocialSentimentScheduler::new(
                 Arc::clone(&social_sentiment_service),
                 Arc::clone(&ibkr_state.tracker),
-                Duration::from_secs(
-                    u64::from(config.social_sentiment.min_interval_minutes) * 60,
-                ),
+                Duration::from_secs(u64::from(config.social_sentiment.min_interval_minutes) * 60),
             ));
             if config.social_sentiment.enabled {
                 let scheduler = Arc::clone(&social_sentiment_scheduler);

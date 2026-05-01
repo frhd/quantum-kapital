@@ -72,10 +72,7 @@ impl HttpFetcher for ReqwestHttpFetcher {
         }
         let resp = req.send().await.map_err(|e| format!("http send: {e}"))?;
         let status = resp.status();
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| format!("http body: {e}"))?;
+        let body = resp.text().await.map_err(|e| format!("http body: {e}"))?;
         if !status.is_success() {
             return Err(format!("http {status}: {body}"));
         }
@@ -144,4 +141,3 @@ impl HttpFetcher for MockHttpFetcher {
             .unwrap_or_else(|| Err(format!("MockHttpFetcher: no response for {url}")))
     }
 }
-

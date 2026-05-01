@@ -198,9 +198,8 @@ mod tests {
             r#"{"results":[{"ticker":"TSLA","rank":1,"mentions":50,
                             "sentiment":"Bullish","sentiment_score":60.0}]}"#,
         );
-        let provider: ArcProvider = Arc::new(
-            ApewisdomProvider::new(http).with_url("https://test.local/ape"),
-        );
+        let provider: ArcProvider =
+            Arc::new(ApewisdomProvider::new(http).with_url("https://test.local/ape"));
         let svc = Arc::new(SocialSentimentService::new(Arc::clone(&db), vec![provider]));
 
         let scheduler = Arc::new(SocialSentimentScheduler::new(
@@ -225,9 +224,8 @@ mod tests {
             "https://test.local/ape",
             r#"{"results":[{"ticker":"TSLA","rank":1,"mentions":1,"sentiment":"Neutral","sentiment_score":0.0}]}"#,
         );
-        let provider: ArcProvider = Arc::new(
-            ApewisdomProvider::new(http).with_url("https://test.local/ape"),
-        );
+        let provider: ArcProvider =
+            Arc::new(ApewisdomProvider::new(http).with_url("https://test.local/ape"));
         let svc = Arc::new(SocialSentimentService::new(Arc::clone(&db), vec![provider]));
 
         let scheduler = Arc::new(SocialSentimentScheduler::new(
@@ -238,6 +236,9 @@ mod tests {
         let first = scheduler.tick().await.expect("ok");
         assert!(first.is_some(), "first tick fires");
         let second = scheduler.tick().await.expect("ok");
-        assert!(second.is_none(), "second tick within 1h cooldown is a no-op");
+        assert!(
+            second.is_none(),
+            "second tick within 1h cooldown is a no-op"
+        );
     }
 }

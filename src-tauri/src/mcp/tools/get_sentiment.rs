@@ -112,8 +112,20 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
         // Seed one row per source within the trailing 24h window.
         for s in [
-            sample(SentimentSource::Apewisdom, "TSLA", Some(0.6), Some(420), Some(SentimentLabel::Bullish)),
-            sample(SentimentSource::Stocktwits, "TSLA", Some(0.2), Some(31), Some(SentimentLabel::Bullish)),
+            sample(
+                SentimentSource::Apewisdom,
+                "TSLA",
+                Some(0.6),
+                Some(420),
+                Some(SentimentLabel::Bullish),
+            ),
+            sample(
+                SentimentSource::Stocktwits,
+                "TSLA",
+                Some(0.2),
+                Some(31),
+                Some(SentimentLabel::Bullish),
+            ),
             sample(SentimentSource::RedditWsb, "TSLA", None, Some(15), None),
         ] {
             insert_sample(Arc::clone(&db), s, now - 30).await.unwrap();

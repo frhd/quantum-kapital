@@ -21,9 +21,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::services::social_sentiment::provider::{HttpFetcher, SentimentProvider};
-use crate::services::social_sentiment::ticker_filter::{
-    extract_valid_tickers, TickerFilterConfig,
-};
+use crate::services::social_sentiment::ticker_filter::{extract_valid_tickers, TickerFilterConfig};
 use crate::services::social_sentiment::types::{SentimentSample, SentimentSource};
 
 pub const REDDIT_DEFAULT_URL: &str = "https://www.reddit.com/r/wallstreetbets/new.json?limit=100";
@@ -85,10 +83,8 @@ impl RedditWsbProvider {
         // Pre-build a per-symbol whitelist filter so we can credit bare
         // uppercase tokens (Reddit titles often use "TSLA pumping" with
         // no `$`).
-        let wanted: std::collections::HashSet<String> = symbols
-            .iter()
-            .map(|s| s.to_ascii_uppercase())
-            .collect();
+        let wanted: std::collections::HashSet<String> =
+            symbols.iter().map(|s| s.to_ascii_uppercase()).collect();
         let scoped = TickerFilterConfig {
             whitelist: Some(wanted.clone()),
             ..self.filter.clone()
@@ -124,14 +120,9 @@ impl SentimentProvider for RedditWsbProvider {
             .http
             .get_text(&self.url, &[("Accept", "application/json")])
             .await?;
-        let listing: RedditListing = serde_json::from_str(&body)
-            .map_err(|e| format!("reddit parse: {e}"))?;
-        let posts: Vec<PostData> = listing
-            .data
-            .children
-            .into_iter()
-            .map(|c| c.data)
-            .collect();
+        let listing: RedditListing =
+            serde_json::from_str(&body).map_err(|e| format!("reddit parse: {e}"))?;
+        let posts: Vec<PostData> = listing.data.children.into_iter().map(|c| c.data).collect();
 
         let counts = self.count_mentions(&posts, symbols);
         let mut out = Vec::with_capacity(counts.len());
@@ -181,8 +172,10 @@ mod tests {
             .await
             .expect("ok");
 
-        let by_sym: std::collections::HashMap<_, _> =
-            out.iter().map(|s| (s.symbol.clone(), s.mentions_24h.unwrap_or(0))).collect();
+        let by_sym: std::collections::HashMap<_, _> = out
+            .iter()
+            .map(|s| (s.symbol.clone(), s.mentions_24h.unwrap_or(0)))
+            .collect();
         // One mention per post the ticker appears in (dedup within a
         // post: "$TSLA … TSLA" still counts as one post-level mention).
         assert_eq!(by_sym.get("TSLA").copied(), Some(1), "post 1 mentions TSLA");

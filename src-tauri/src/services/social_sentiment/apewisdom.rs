@@ -16,9 +16,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::services::social_sentiment::provider::{HttpFetcher, SentimentProvider};
-use crate::services::social_sentiment::types::{
-    SentimentLabel, SentimentSample, SentimentSource,
-};
+use crate::services::social_sentiment::types::{SentimentLabel, SentimentSample, SentimentSource};
 
 pub const APEWISDOM_DEFAULT_URL: &str =
     "https://apewisdom.io/api/v1.0/filter/wallstreetbets/page/1";
@@ -118,13 +116,11 @@ impl SentimentProvider for ApewisdomProvider {
 
     async fn fetch(&self, symbols: &[String]) -> Result<Vec<SentimentSample>, String> {
         let body = self.http.get_text(&self.url, &[]).await?;
-        let parsed: ApewisdomResponse = serde_json::from_str(&body)
-            .map_err(|e| format!("apewisdom parse: {e}"))?;
+        let parsed: ApewisdomResponse =
+            serde_json::from_str(&body).map_err(|e| format!("apewisdom parse: {e}"))?;
 
-        let wanted: std::collections::HashSet<String> = symbols
-            .iter()
-            .map(|s| s.to_ascii_uppercase())
-            .collect();
+        let wanted: std::collections::HashSet<String> =
+            symbols.iter().map(|s| s.to_ascii_uppercase()).collect();
 
         let mut out = Vec::new();
         for item in parsed.results {
@@ -164,15 +160,25 @@ mod tests {
 
         let tsla = out.iter().find(|s| s.symbol == "TSLA").unwrap();
         assert_eq!(tsla.label, Some(SentimentLabel::Bullish));
-        assert!((tsla.score.unwrap() - 0.8).abs() < 1e-9, "0.8 from 80% bullish");
+        assert!(
+            (tsla.score.unwrap() - 0.8).abs() < 1e-9,
+            "0.8 from 80% bullish"
+        );
         assert_eq!(tsla.mentions_24h, Some(420));
         assert_eq!(tsla.rank, Some(1));
 
         let gme = out.iter().find(|s| s.symbol == "GME").unwrap();
-        assert!((gme.score.unwrap() + 0.5).abs() < 1e-9, "-0.5 from 50% bearish");
+        assert!(
+            (gme.score.unwrap() + 0.5).abs() < 1e-9,
+            "-0.5 from 50% bearish"
+        );
 
         let note = out.iter().find(|s| s.symbol == "NOTE").unwrap();
-        assert_eq!(note.score, Some(0.0), "neutral always 0 regardless of confidence");
+        assert_eq!(
+            note.score,
+            Some(0.0),
+            "neutral always 0 regardless of confidence"
+        );
     }
 
     #[tokio::test]

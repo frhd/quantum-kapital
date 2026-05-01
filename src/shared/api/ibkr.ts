@@ -26,6 +26,7 @@ import type {
   MorningPack,
 } from "../../features/tracker/types"
 import type { AgentMorningPack, McpAuditEntry, ResearchNote } from "../../features/research/types"
+import type { SocialSentimentRow } from "../../features/sentiment/types"
 
 export const ibkrApi = {
   connect: async (config: ConnectionConfig) => {
@@ -233,6 +234,28 @@ export const ibkrApi = {
       return invoke<McpAuditEntry[]>("research_list_mcp_audit", {
         limit: params?.limit ?? null,
         offset: params?.offset ?? null,
+      })
+    },
+  },
+
+  /** Phase 3 — social-sentiment ingestion. Read-only over `social_sentiment`
+   *  plus a manual `refreshNow` that bypasses the scheduler cooldown. */
+  socialSentiment: {
+    getLatest: async (symbol: string) => {
+      return invoke<SocialSentimentRow[]>("social_get_latest", { symbol })
+    },
+
+    listWindow: async (symbol: string, sinceUnix: number, sources?: string[] | null) => {
+      return invoke<SocialSentimentRow[]>("social_list_window", {
+        symbol,
+        sinceUnix,
+        sources: sources ?? null,
+      })
+    },
+
+    refreshNow: async (symbols?: string[]) => {
+      return invoke<number>("social_refresh_now", {
+        symbols: symbols ?? null,
       })
     },
   },

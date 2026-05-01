@@ -184,14 +184,10 @@ impl SocialSentimentService {
         sources: Option<Vec<String>>,
     ) -> Result<Vec<SourceSummary>, String> {
         let symbol_upper = symbol.to_uppercase();
-        let rows = repo::rows_for_symbol_since(
-            Arc::clone(&self.db),
-            symbol_upper.clone(),
-            since,
-            sources,
-        )
-        .await
-        .map_err(|e| format!("rows_for_symbol_since: {e}"))?;
+        let rows =
+            repo::rows_for_symbol_since(Arc::clone(&self.db), symbol_upper.clone(), since, sources)
+                .await
+                .map_err(|e| format!("rows_for_symbol_since: {e}"))?;
 
         // Group by source preserving newest-first order.
         let mut by_source: std::collections::BTreeMap<String, Vec<SocialSentimentRow>> =
@@ -253,15 +249,13 @@ mod tests {
             r#"{"results":[{"ticker":"TSLA","rank":1,"mentions":99,
                             "sentiment":"Bullish","sentiment_score":75.0}]}"#,
         );
-        let ape: ArcProvider = Arc::new(
-            ApewisdomProvider::new(http_ape).with_url("https://test.local/ape"),
-        );
+        let ape: ArcProvider =
+            Arc::new(ApewisdomProvider::new(http_ape).with_url("https://test.local/ape"));
 
         let http_st = Arc::new(MockHttpFetcher::new());
         // Stocktwits has nothing for AMD and errors for TSLA -> stale rows for both.
-        let st: ArcProvider = Arc::new(
-            StocktwitsProvider::new(http_st).with_base_url("https://test.local/twits"),
-        );
+        let st: ArcProvider =
+            Arc::new(StocktwitsProvider::new(http_st).with_base_url("https://test.local/twits"));
 
         let http_red = Arc::new(MockHttpFetcher::new());
         http_red.respond_with(
@@ -270,9 +264,8 @@ mod tests {
                 {"data":{"title":"TSLA pumping $AMD too","selftext":""}}
             ]}}"#,
         );
-        let red: ArcProvider = Arc::new(
-            RedditWsbProvider::new(http_red).with_url("https://test.local/wsb.json"),
-        );
+        let red: ArcProvider =
+            Arc::new(RedditWsbProvider::new(http_red).with_url("https://test.local/wsb.json"));
 
         let svc = SocialSentimentService::new(db, vec![ape, st, red]).with_clock(clock);
         let symbols = vec!["TSLA".to_string(), "AMD".to_string()];
@@ -291,7 +284,9 @@ mod tests {
             .await
             .expect("snapshot");
         assert!(!snap.is_empty());
-        assert!(snap.iter().any(|s| s.source == "apewisdom" && s.latest.as_ref().unwrap().score == Some(0.75)));
+        assert!(snap
+            .iter()
+            .any(|s| s.source == "apewisdom" && s.latest.as_ref().unwrap().score == Some(0.75)));
         assert!(snap.iter().any(|s| s.source == "reddit_wsb"));
     }
 

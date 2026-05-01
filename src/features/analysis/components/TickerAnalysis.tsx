@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
 import { TickerSearch } from "./TickerSearch"
 import { TickerCards } from "./TickerCards"
 import { ProjectionView } from "./ProjectionView"
+import { SentimentWidget } from "../../sentiment/components/SentimentWidget"
 import { useTickerSearch } from "../hooks/useTickerSearch"
 import { useProjections } from "../hooks/useProjections"
 import { useQuote } from "../hooks/useQuote"
@@ -73,6 +74,10 @@ export function TickerAnalysis({ pendingSymbol }: TickerAnalysisProps = {}) {
       {selectedTicker && !loading && (
         <TickerCards ticker={selectedTicker} quote={quote} quoteError={quoteError} />
       )}
+
+      {/* Phase 3 — Social-sentiment widget. Read-only over `social_sentiment`;
+          empty until the SocialSentimentScheduler has run at least once. */}
+      {selectedTicker && !loading && <SentimentWidget symbol={selectedTicker.symbol} />}
 
       {/* Forward Analysis - Projections */}
       {selectedTicker && !loading && (

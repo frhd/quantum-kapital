@@ -31,9 +31,9 @@ use std::collections::HashSet;
 /// See module docs for rationale; lower-case so the comparison is
 /// case-insensitive after `to_ascii_lowercase`.
 const COMMON_WORD_BLOCKLIST: &[&str] = &[
-    "a", "an", "the", "to", "be", "do", "go", "we", "us", "you", "i", "me", "my", "no", "so",
-    "or", "of", "on", "at", "is", "it", "if", "as", "by", "in", "all", "are", "dis", "any",
-    "for", "and", "but", "now", "out",
+    "a", "an", "the", "to", "be", "do", "go", "we", "us", "you", "i", "me", "my", "no", "so", "or",
+    "of", "on", "at", "is", "it", "if", "as", "by", "in", "all", "are", "dis", "any", "for", "and",
+    "but", "now", "out",
 ];
 
 /// Behaviour knobs for [`extract_valid_tickers`]. Defaults match the
@@ -60,7 +60,10 @@ impl Default for TickerFilterConfig {
         Self {
             min_len: 2,
             max_len: 5,
-            blocklist: COMMON_WORD_BLOCKLIST.iter().map(|s| s.to_string()).collect(),
+            blocklist: COMMON_WORD_BLOCKLIST
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             whitelist: None,
         }
     }
@@ -194,7 +197,11 @@ mod tests {
     #[test]
     fn extract_with_whitelist_promotes_bare_tokens() {
         let cfg = TickerFilterConfig {
-            whitelist: Some(["AAPL".to_string(), "TSLA".to_string()].into_iter().collect()),
+            whitelist: Some(
+                ["AAPL".to_string(), "TSLA".to_string()]
+                    .into_iter()
+                    .collect(),
+            ),
             ..TickerFilterConfig::default()
         };
         // No `$`, but AAPL is in the whitelist so it should be picked up.

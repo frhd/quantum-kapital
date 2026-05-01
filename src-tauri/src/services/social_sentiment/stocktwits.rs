@@ -19,9 +19,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::services::social_sentiment::provider::{HttpFetcher, SentimentProvider};
-use crate::services::social_sentiment::types::{
-    SentimentLabel, SentimentSample, SentimentSource,
-};
+use crate::services::social_sentiment::types::{SentimentLabel, SentimentSample, SentimentSource};
 
 pub const STOCKTWITS_DEFAULT_BASE: &str = "https://api.stocktwits.com/api/2/streams/symbol";
 
@@ -75,8 +73,8 @@ impl StocktwitsProvider {
     }
 
     fn reduce(symbol: &str, body: &str, now: DateTime<Utc>) -> Result<SentimentSample, String> {
-        let parsed: StocktwitsResponse = serde_json::from_str(body)
-            .map_err(|e| format!("stocktwits parse: {e}"))?;
+        let parsed: StocktwitsResponse =
+            serde_json::from_str(body).map_err(|e| format!("stocktwits parse: {e}"))?;
 
         let cutoff = now - Duration::hours(24);
         let mut bullish = 0_i64;
