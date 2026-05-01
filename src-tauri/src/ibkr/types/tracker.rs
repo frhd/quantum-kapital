@@ -15,6 +15,11 @@ pub enum TrackerSource {
     Manual,
     News,
     AutoScanner,
+    /// Phase 02 — added via the MCP `add_ticker` tool by the headless
+    /// research agent (or interactive Claude Code session). Distinct from
+    /// `AutoScanner` so analytics can separate deterministic scanner
+    /// promotions from LLM-driven ones.
+    Agent,
 }
 
 impl TrackerSource {
@@ -24,6 +29,7 @@ impl TrackerSource {
             TrackerSource::Manual => "manual",
             TrackerSource::News => "news",
             TrackerSource::AutoScanner => "auto_scanner",
+            TrackerSource::Agent => "agent",
         }
     }
 
@@ -33,6 +39,7 @@ impl TrackerSource {
             "manual" => Some(TrackerSource::Manual),
             "news" => Some(TrackerSource::News),
             "auto_scanner" => Some(TrackerSource::AutoScanner),
+            "agent" => Some(TrackerSource::Agent),
             _ => None,
         }
     }
@@ -261,6 +268,20 @@ mod tests {
             TrackerSource::parse("auto_scanner"),
             Some(TrackerSource::AutoScanner)
         );
+    }
+
+    #[test]
+    fn tracker_source_agent_round_trips() {
+        // Phase 02 — MCP `add_ticker` tool path; the audit / analytics
+        // need to tell agent-driven adds apart from manual UI ones.
+        assert_eq!(
+            serde_json::to_string(&TrackerSource::Agent).unwrap(),
+            "\"agent\""
+        );
+        let parsed: TrackerSource = serde_json::from_str("\"agent\"").unwrap();
+        assert_eq!(parsed, TrackerSource::Agent);
+        assert_eq!(TrackerSource::Agent.as_str(), "agent");
+        assert_eq!(TrackerSource::parse("agent"), Some(TrackerSource::Agent));
     }
 
     #[test]
