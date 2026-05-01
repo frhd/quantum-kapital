@@ -163,6 +163,54 @@ pub async fn get_pack(
     }
 }
 
+/// List packs whose `date >= since`, newest-first. Used by the
+/// Phase 7 `get_outcomes` tool to walk recent packs and score
+/// predictions against realized bars.
+pub async fn list_packs_since(
+    db: &Arc<Db>,
+    since: NaiveDate,
+) -> Result<Vec<AgentMorningPack>, AgentMorningPackError> {
+    let since_str = since.to_string();
+    let rows = db
+        .with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT date, payload, written_by, written_at \
+                 FROM agent_morning_packs WHERE date >= ?1 \
+                 ORDER BY date DESC",
+            )?;
+            let rows = stmt
+                .query_map(rusqlite::params![since_str], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })
+        .await?;
+
+    rows.into_iter()
+        .map(|(d, payload, written_by, ts)| {
+            let date = NaiveDate::parse_from_str(&d, "%Y-%m-%d")
+                .map_err(|e| StorageError::Migration(format!("invalid pack date '{d}': {e}")))?;
+            let parsed: serde_json::Value = serde_json::from_str(&payload)?;
+            let ranked_ideas: Vec<RankedIdea> = match parsed.get("ranked_ideas") {
+                Some(v) => serde_json::from_value(v.clone())?,
+                None => Vec::new(),
+            };
+            Ok(AgentMorningPack {
+                date,
+                ranked_ideas,
+                written_by,
+                written_at: unix_to_utc(ts),
+            })
+        })
+        .collect()
+}
+
 /// List packs newest-first. Lightweight; the UI shows a compact log of
 /// recent agent runs.
 pub async fn list_packs(

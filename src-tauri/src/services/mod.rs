@@ -11,6 +11,7 @@ pub mod eod_scheduler;
 pub mod financial_data_service;
 pub mod historical_data_service;
 pub mod intraday_scheduler;
+pub mod journal_writer;
 pub mod llm_service;
 pub mod mcp_audit;
 pub mod news_interpreter;

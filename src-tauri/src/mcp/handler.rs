@@ -145,7 +145,10 @@ impl McpHandler {
             + Self::mark_alert_enriched_router()
             + Self::get_sentiment_router()
             + Self::get_candidates_router()
-            + Self::promote_candidate_router();
+            + Self::promote_candidate_router()
+            + Self::get_morning_pack_router()
+            + Self::get_outcomes_router()
+            + Self::append_journal_entry_router();
         Self {
             llm,
             tracker,
