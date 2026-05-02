@@ -3,15 +3,16 @@ use serde::{Deserialize, Serialize};
 
 /// IBKR market data type. Mirrors `ibapi::market_data::MarketDataType`.
 ///
-/// Defaults to `Delayed` so accounts without real-time market data subscriptions
-/// (e.g. paper-trading) still receive ticks instead of error 354.
+/// Defaults to `DelayedFrozen` so accounts without real-time subscriptions still
+/// receive ticks during RTH (delayed) and the last frozen quote outside RTH
+/// (weekends, after-hours) instead of silent 5s snapshot timeouts.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum MarketDataType {
     Live,
     Frozen,
-    #[default]
     Delayed,
+    #[default]
     DelayedFrozen,
 }
 
