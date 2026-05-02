@@ -13,6 +13,8 @@ Stack-specific rules:
 
 `pnpm tauri dev` from the repo root brings up Vite + the Rust backend with hot reload. **Use `pnpm`, not npm** — the lockfile is `pnpm-lock.yaml`. Frontend-only and prod-build commands are in `src/CLAUDE.md`.
 
+The `tauri` script is wrapped by `scripts/tauri.sh`: `pnpm tauri dev` sets `RUST_LOG=info,quantum_kapital_lib=debug,rmcp=info,ibapi=info` and tees combined stdout/stderr to `/tmp/qk-tauri.log` (truncated each session). Tail/grep that file when debugging — Claude Code reads it on demand. Other subcommands (`build`, `info`, `icon`) pass through untouched. Override the log path with `QK_TAURI_LOG=...`, the filter with `RUST_LOG=...`, or set `QK_TAURI_LOG_APPEND=1` to keep history across sessions.
+
 ## Secrets
 
 Backend reads `src-tauri/.env` (Alpha Vantage `ALPHA_VANTAGE_API_KEY`, etc.). The frontend never sees these — all external API calls go through Rust services. App falls back to mock data if the key is missing; failures here are silent in the UI, so check logs if fundamentals look stale.

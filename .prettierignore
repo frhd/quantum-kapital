@@ -10,6 +10,9 @@ src-tauri/target
 src-tauri/gen
 src-tauri/capabilities
 
+# Shell scripts — prettier has no parser
+scripts/*.sh
+
 # Documentation — preserve hand-authored layout
 *.md
 work
