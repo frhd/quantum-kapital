@@ -11,10 +11,8 @@
 //!   3. `AAPL_article_<id>.json` — `NewsArticleBody` for the first
 //!      historical item (output of `client.news_article()`).
 //!
-//! Unlike the Phase 2 fundamentals spike (which is a stub because
-//! `ibapi = "2.11.x"` does not expose `req_fundamental_data`), this
-//! binary uses the public news methods directly. The fork from
-//! Phase 2 is not needed here.
+//! Uses the public news methods on `ibapi::Client` directly — no fork
+//! needed for the news side.
 //!
 //! Run after starting TWS / IB Gateway with API access enabled and
 //! at least one news subscription on the account:
@@ -25,7 +23,7 @@
 //! ```
 //!
 //! Gated behind `--features ibkr-spike` so it never builds in CI or
-//! pre-commit. Deleted (or kept feature-gated) at the end of Phase 6.
+//! pre-commit.
 
 use std::env;
 use std::fs;

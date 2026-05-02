@@ -21,10 +21,9 @@
 //!   against the daily quota.
 //!
 //! Only the AV branch of the composite consults the ledger. The manual
-//! store (Hard Invariant #8) bypasses it; AV cache hits also bypass it
+//! store always wins and bypasses it; AV cache hits also bypass it
 //! (the `is_cache_fresh` short-circuit lives in
-//! [`super::composite::CompositeFundamentalsProvider`]). See
-//! `loop/plan/phase-5-cutover.md` § "Decisions to make in this phase".
+//! [`super::composite::CompositeFundamentalsProvider`]).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

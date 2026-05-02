@@ -1,9 +1,8 @@
 //! `set_fundamentals` — manual fundamentals write tool.
 //!
-//! Phase 4 of the AV strip-out (`loop/plan/master.md`). The IBKR
-//! fundamentals migration was abandoned 2026-05-02 (deprecated API +
-//! missing entitlement), so the operator-curated manual path is the
-//! primary source going forward; AV survives as an opportunistic
+//! The IBKR fundamentals migration was abandoned 2026-05-02 (deprecated
+//! API + missing entitlement), so the operator-curated manual path is
+//! the primary source going forward; AV survives as an opportunistic
 //! fallback only.
 //!
 //! ## Surface

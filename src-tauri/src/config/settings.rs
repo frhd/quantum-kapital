@@ -227,10 +227,10 @@ impl AutoScannerConfig {
     }
 }
 
-/// Phase 3 — knobs for the [`SocialSentimentScheduler`] and per-provider
-/// enable flags. Ships dark: `enabled` defaults to `false`. Reddit auth
-/// uses public-JSON in v1 — the `reddit_*` fields are placeholders for
-/// the future OAuth backend mentioned in `loop/plan/phase-3-sentiment.md`.
+/// Knobs for the [`SocialSentimentScheduler`] and per-provider enable
+/// flags. Ships dark: `enabled` defaults to `false`. Reddit auth uses
+/// public-JSON in v1 — the `reddit_*` fields are placeholders for a
+/// future OAuth backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SocialSentimentConfig {
     pub enabled: bool,

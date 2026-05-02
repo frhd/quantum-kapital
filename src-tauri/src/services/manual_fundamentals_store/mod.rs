@@ -3,8 +3,7 @@
 //! The `manual_fundamentals` table is written by the MCP
 //! `set_fundamentals` tool (see [`crate::mcp::tools::set_fundamentals`])
 //! and read first by [`crate::services::fundamentals_provider::composite::CompositeFundamentalsProvider`].
-//! A row here always wins over the AV cache + AV API for that symbol —
-//! see Hard Invariant #8 in `loop/plan/master.md`.
+//! A row here always wins over the AV cache + AV API for that symbol.
 //!
 //! The module mirrors `services::mcp_audit` / `services::research_notes`:
 //! free functions over `&Arc<Db>` are wrapped in a thin struct so call

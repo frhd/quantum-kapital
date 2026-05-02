@@ -2,14 +2,14 @@
 //! sites (MCP `get_news` tool, the `tracker_get_news` Tauri command, the
 //! `TrackerRunner`) don't bind to a specific backend.
 //!
-//! Production wires `IbkrNewsProvider` (Phase 7 part B), backed by the
-//! released `ibapi = "2.11.x"` news APIs. The Alpha Vantage news adapter
-//! was removed in Phase 8.
+//! Production wires [`ibkr::IbkrNewsProvider`], backed by the released
+//! `ibapi = "2.11.x"` news APIs. The Alpha Vantage news adapter was
+//! removed when the IBKR backend became the default.
 //!
-//! See [`loop/plan/master.md`](../../../../loop/plan/master.md) "Hard
-//! invariants" — particularly #1 (the `NewsItem` shape is the contract),
-//! #2 (`Send + Sync + 'static` + dyn-compatible), and #5 (no silent
-//! mock-data fallback on the migration path).
+//! Hard invariants: the `NewsItem` shape is the contract (adding a
+//! field requires updating every impl in lockstep); impls are
+//! `Send + Sync + 'static` and dyn-compatible; no silent mock-data
+//! fallback on errors — typed errors propagate.
 
 use std::time::Duration;
 

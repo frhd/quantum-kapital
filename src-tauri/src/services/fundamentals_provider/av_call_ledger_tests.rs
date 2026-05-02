@@ -1,6 +1,5 @@
 //! Tests for [`AvCallLedger`]. Cover the per-symbol cap, daily soft/hard
-//! caps, daily rollover, and SQLite-backed restart survival described
-//! in `loop/plan/phase-5-cutover.md`.
+//! caps, daily rollover, and SQLite-backed restart survival.
 
 use std::sync::{Arc, Mutex};
 

@@ -2,16 +2,18 @@
 //! fetch path so call sites (MCP `get_fundamentals` tool, the analysis
 //! Tauri commands) don't bind to a specific backend.
 //!
-//! Phase 3 wires a single impl ([`alpha_vantage::AlphaVantageFundamentalsProvider`])
-//! that wraps the existing [`crate::services::financial_data_service::FinancialDataService`].
-//! Phase 4 adds a `ManualFundamentalsProvider` (SQLite-backed, written by
-//! the MCP `set_fundamentals` tool) and a `CompositeFundamentalsProvider`
-//! that composes the two; the trait surface is designed so that change
-//! is a wiring swap in `lib.rs`, not a touch on every caller.
+//! Production wires a [`composite::CompositeFundamentalsProvider`] over
+//! a [`manual::ManualFundamentalsProvider`] (SQLite-backed, written by
+//! the MCP `set_fundamentals` tool) and an
+//! [`alpha_vantage::AlphaVantageFundamentalsProvider`] (opportunistic
+//! fallback wrapping [`crate::services::financial_data_service::FinancialDataService`]).
+//! Manual rows always win; AV is only consulted when the manual store
+//! is empty for a symbol.
 //!
-//! See [`loop/plan/master.md`](../../../../loop/plan/master.md) "Hard
-//! invariants" — particularly #1 (the `FundamentalData` shape is the
-//! contract) and #6 (the tracker must NOT depend on this trait).
+//! Hard invariants worth remembering: the `FundamentalData` shape is
+//! the contract (adding a field requires updating every impl in
+//! lockstep), and the tracker pipeline MUST NOT depend on this trait —
+//! enforced by `tests/tracker_no_fundamentals.rs`.
 
 use std::time::Duration;
 

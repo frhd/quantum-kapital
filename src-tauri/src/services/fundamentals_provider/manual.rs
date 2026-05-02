@@ -4,8 +4,7 @@
 //! AV adapter so the composite provider can fall through to AV when the
 //! store is empty for a symbol.
 //!
-//! The store always wins when present (Hard Invariant #8 in
-//! `loop/plan/master.md`). Empty / missing rows surface as
+//! The store always wins when present. Empty / missing rows surface as
 //! [`FundamentalsError::NotFound`] so the composite can detect "no
 //! manual entry" and try the next layer without coupling to the store
 //! type directly.

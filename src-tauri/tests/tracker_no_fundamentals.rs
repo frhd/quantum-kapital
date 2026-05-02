@@ -1,14 +1,12 @@
-//! Hard Invariant #6 (master.md): the tracker pipeline MUST NOT depend
-//! on the `FundamentalsProvider` trait or `FundamentalData` type. The
-//! morning sweep is news-driven; pulling fundamentals into the
-//! 100-ticker sweep would burn AV's daily quota in a single tick.
+//! Tracker invariant: the tracker pipeline MUST NOT depend on the
+//! `FundamentalsProvider` trait or `FundamentalData` type. The morning
+//! sweep is news-driven; pulling fundamentals into the 100-ticker sweep
+//! would burn AV's daily quota in a single tick.
 //!
 //! This test asserts the invariant via grep against the tracker-adjacent
-//! source files. Mirrors the master-plan default (option `a`) recorded
-//! in `loop/plan/phase-5-cutover.md` § "Files". Renaming
-//! `FundamentalsProvider` / `FundamentalData` would break the test —
-//! that's intentional, the rename should be reviewed against the
-//! invariant in the same commit.
+//! source files. Renaming `FundamentalsProvider` / `FundamentalData`
+//! would break the test — that's intentional, the rename should be
+//! reviewed against the invariant in the same commit.
 
 use std::fs;
 use std::path::{Path, PathBuf};
