@@ -62,7 +62,7 @@ Violating the letter of these rules is violating the spirit.
 | 3. Fundamentals provider trait + AV adapter | [phase-3-provider-trait.md](phase-3-provider-trait.md) | 1 | done (commit bd6e835, 2026-05-02) |
 | 4. MCP `set_fundamentals` write tool + manual store + composite provider | [phase-4-mcp-fundamentals.md](phase-4-mcp-fundamentals.md) | 3 | done (commit ab87c5d, 2026-05-02) |
 | 5. Cutover: composite default + AV guardrails (daily cap + per-symbol cap + tracker invariant test) | [phase-5-cutover.md](phase-5-cutover.md) | 4 | done (commit e201093, 2026-05-02) |
-| 6. IBKR news spike (de-risk) | [phase-6-ibkr-news-spike.md](phase-6-ibkr-news-spike.md) | — | in-progress (started 2026-05-02) |
+| 6. IBKR news spike (de-risk) | [phase-6-ibkr-news-spike.md](phase-6-ibkr-news-spike.md) | — | done (2026-05-02 — fixtures captured against paper Gateway port 4004; 8 providers, 50 AAPL headlines / 24h) |
 | 7. News provider trait + IBKR news provider | [phase-7-news-provider.md](phase-7-news-provider.md) | 3, 6 | in-progress (part A done 2026-05-02 — trait + AV adapter + consumer rewire + `news_source` flag; part B awaits Phase 6 fixtures) |
 | 8. AV news deletion (fundamentals AV adapter retained as fallback) | [phase-8-av-deletion.md](phase-8-av-deletion.md) | 5, 7 | todo |
 

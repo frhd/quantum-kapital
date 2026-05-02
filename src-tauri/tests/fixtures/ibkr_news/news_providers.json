@@ -1,0 +1,34 @@
+[
+  {
+    "code": "BRFG",
+    "name": "Briefing.com General Market Columns"
+  },
+  {
+    "code": "BRFUPDN",
+    "name": "Briefing.com Analyst Actions"
+  },
+  {
+    "code": "DJ-N",
+    "name": "Dow Jones Global Equity Trader"
+  },
+  {
+    "code": "DJ-RT",
+    "name": "Dow Jones Trader News"
+  },
+  {
+    "code": "DJ-RTA",
+    "name": "Dow Jones Top Stories Asia Pacific"
+  },
+  {
+    "code": "DJ-RTE",
+    "name": "Dow Jones Top Stories Europe"
+  },
+  {
+    "code": "DJ-RTG",
+    "name": "Dow Jones Top Stories Global"
+  },
+  {
+    "code": "DJNL",
+    "name": "Dow Jones Newsletters"
+  }
+]

@@ -166,6 +166,28 @@ continue. Resolve and prune as phases progress.
 
 ## P3: Phase 6 spike capture is human-in-the-loop — TWS + at least one news subscription required
 
+- **RESOLVED 2026-05-02 (later same day):** User ran the spike against
+  port 4004 (paper Gateway). All three fixtures landed under
+  `src-tauri/tests/fixtures/ibkr_news/` and exit criteria #1-#3 cleared:
+  - **`news_providers.json`:** 8 active providers — `BRFG`
+    (Briefing.com General), `BRFUPDN` (Briefing.com Analyst Actions),
+    plus the full Dow Jones bundle: `DJ-N` (Global Equity Trader),
+    `DJ-RT` (Trader News), `DJ-RTA/E/G` (Asia Pacific / Europe / Global
+    Top Stories), `DJNL` (Newsletters). No Reuters Real-time News
+    line on this account, but Briefing + DJ together easily cover the
+    AAPL test universe. Cost has been baked into the existing IBKR
+    Research Platform subscription — no incremental upgrade needed for
+    Phase 7.
+  - **`AAPL_historical.json`:** 50 headlines / 24h window, far above
+    the ≥10 floor. Inline `{A:800015:L:en}` metadata blocks at the
+    head of each headline (Apple's IBKR conid 265598 + locale tag) —
+    the Phase 7 parser will need to strip these. Times are RFC3339
+    UTC. `provider_code` per-article (DJ-N dominant in the spot-check
+    sample).
+  - **`AAPL_article_DJ_N_1e4fc3a3.json`:** `article_type: "Text"`,
+    body is HTML-with-entities (`<p>...&apos;...</p>` chunks plus a
+    closing disclaimer block). Confirms the Phase 6 gotcha — the
+    Phase 7 parser must accept HTML and Base64 binary alike.
 - **Found:** Phase 6, 2026-05-02
 - **What's blocked:** Three of Phase 6's exit criteria need a live
   IBKR account with at least one news subscription enabled (Reuters

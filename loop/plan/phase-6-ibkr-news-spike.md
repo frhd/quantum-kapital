@@ -2,7 +2,7 @@
 
 > Part of [Alpha Vantage → IBKR: Full Vendor Strip-out](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-02)
+**Status:** done (fixtures captured 2026-05-02 against paper Gateway port 4004 — 8 providers, 50 AAPL headlines / 24h, 1 Text-type article body)
 
 **Depends on:** none (independent of Phases 2–5; can run in parallel)
 
