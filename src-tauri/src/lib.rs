@@ -30,6 +30,8 @@ use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
 use services::manual_fundamentals_store::ManualFundamentalsStore;
 use services::news_interpreter::NewsInterpreter;
+use services::news_provider::alpha_vantage::AlphaVantageNewsProvider;
+use services::news_provider::NewsProvider;
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
 use services::social_sentiment::reddit::RedditWsbProvider;
@@ -37,7 +39,7 @@ use services::social_sentiment::stocktwits::StocktwitsProvider;
 use services::social_sentiment::SocialSentimentService;
 use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::thesis_generator::ThesisGenerator;
-use services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
+use services::tracker_runner::{BarsFetcher, TrackerRunner};
 use storage::Db;
 use strategies::registry_from_config;
 use tauri::Manager;
@@ -189,7 +191,32 @@ pub fn run() {
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
             let decay_bars: Arc<dyn BarsFetcher> =
                 Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
-            let news: Arc<dyn NewsFetcher> = Arc::clone(&financial_service) as Arc<dyn NewsFetcher>;
+
+            // Phase 7 (AV migration): the news fetch path now goes
+            // through `Arc<dyn NewsProvider>`. Phase 7 part A only ships
+            // the AV adapter; the `news_source` settings flag is
+            // recognised here for forward-compat — Phase 7 part B
+            // introduces `IbkrNewsProvider` and starts honouring the
+            // flag's `"ibkr"` branch. Hard Invariant #5: a missing AV
+            // key short-circuits with a friendly typed error inside the
+            // adapter rather than silently returning empty.
+            let resolved_news_source = config.resolved_news_source();
+            let news_provider: Arc<dyn NewsProvider> = match resolved_news_source.as_str() {
+                config::settings::NEWS_SOURCE_IBKR => {
+                    tracing::warn!(
+                        "news_source = \"ibkr\" is not yet implemented (Phase 7 part B); \
+                         falling back to alpha_vantage for now"
+                    );
+                    Arc::new(AlphaVantageNewsProvider::new(
+                        Arc::clone(&financial_service),
+                        api_key_present,
+                    ))
+                }
+                _ => Arc::new(AlphaVantageNewsProvider::new(
+                    Arc::clone(&financial_service),
+                    api_key_present,
+                )),
+            };
 
             // Phase 17: thesis generator runs after each persisted setup
             // and re-emits `SetupDetected` with the populated thesis.
@@ -206,7 +233,7 @@ pub fn run() {
                     Arc::clone(&ibkr_state.state_machine),
                     Arc::clone(&ibkr_state.event_emitter),
                     bars,
-                    news,
+                    Arc::clone(&news_provider),
                     Arc::new(registry_from_config(&config.detectors)),
                 )
                 .with_thesis_generator(Arc::clone(&thesis_generator))
@@ -381,6 +408,7 @@ pub fn run() {
                 Arc::clone(&financial_service),
                 Arc::clone(&fundamentals_provider),
                 Arc::clone(&manual_fundamentals_store),
+                Arc::clone(&news_provider),
                 Arc::clone(&hist_service),
                 Arc::clone(&quote_service),
                 mcp_ibkr_client,
@@ -417,6 +445,7 @@ pub fn run() {
             app.manage(financial_service);
             app.manage(fundamentals_provider);
             app.manage(manual_fundamentals_store);
+            app.manage(news_provider);
             app.manage(av_call_ledger);
             app.manage(tracker_runner);
             app.manage(eod_scheduler);

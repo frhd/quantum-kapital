@@ -17,6 +17,7 @@ use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{StrategyTag, TrackerSource, TrackerStatus};
 use crate::services::historical_data_service::Lookback;
+use crate::services::news_provider::{NewsError, NewsProvider};
 use crate::services::tracker_service::TrackerService;
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
@@ -25,7 +26,7 @@ use crate::strategies::{
     TargetLevel,
 };
 
-use super::{BarsFetcher, NewsFetcher, RunResult, TrackerRunner};
+use super::{BarsFetcher, RunResult, TrackerRunner};
 
 // ---------------- mocks ----------------
 
@@ -92,12 +93,13 @@ impl MockNews {
 }
 
 #[async_trait]
-impl NewsFetcher for MockNews {
-    async fn fetch(&self, symbol: &str, _lookback_hours: u32) -> Vec<NewsItem> {
-        self.items
+impl NewsProvider for MockNews {
+    async fn fetch(&self, symbol: &str, _lookback_hours: u32) -> Result<Vec<NewsItem>, NewsError> {
+        Ok(self
+            .items
             .get(&symbol.to_uppercase())
             .cloned()
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
 }
 
@@ -224,7 +226,7 @@ async fn add_ticker(svc: &TrackerService, symbol: &str, status: TrackerStatus) {
 fn build_runner(
     db: Arc<Db>,
     bars: Arc<dyn BarsFetcher>,
-    news: Arc<dyn NewsFetcher>,
+    news: Arc<dyn NewsProvider>,
     registry: DetectorRegistry,
 ) -> (Arc<TrackerService>, Arc<EventEmitter>, TrackerRunner) {
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));

@@ -23,8 +23,8 @@ use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::{NewsItem, NewsVerdict};
 use crate::ibkr::types::tracker::{AlertKind, Setup, TrackerStatus};
 use crate::services::alerts::record_alert;
-use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
+use crate::services::news_provider::NewsProvider;
 use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
 use crate::services::tracker_state_machine::TrackerStateMachine;
@@ -73,27 +73,13 @@ impl BarsFetcher for HistoricalDataService {
     }
 }
 
-/// News fetcher seam. The trait collapses the result to `Vec<NewsItem>`
-/// (best-effort) — a transport / API failure should never propagate
-/// out of a runner pass; the EP detector simply sees an empty news
-/// list.
-#[async_trait]
-pub trait NewsFetcher: Send + Sync {
-    async fn fetch(&self, symbol: &str, lookback_hours: u32) -> Vec<NewsItem>;
-}
-
-#[async_trait]
-impl NewsFetcher for FinancialDataService {
-    async fn fetch(&self, symbol: &str, lookback_hours: u32) -> Vec<NewsItem> {
-        match self.fetch_news_sentiment(symbol, lookback_hours).await {
-            Ok(items) => items,
-            Err(e) => {
-                warn!("news fetch failed for {symbol} (best-effort): {e}");
-                Vec::new()
-            }
-        }
-    }
-}
+// News fetching goes through `Arc<dyn NewsProvider>` directly. Phase 7
+// (AV strip-out) removed the dedicated `NewsFetcher` shim — the runner
+// applies the best-effort policy at the call site
+// ([`TrackerRunner::context_for`]), logging + collapsing every
+// [`crate::services::news_provider::NewsError`] variant to
+// `Vec::new()` so a transport failure never short-circuits a runner
+// pass.
 
 // ---------------- types ----------------
 
@@ -151,7 +137,7 @@ pub struct TrackerRunner {
     state_machine: Arc<TrackerStateMachine>,
     emitter: Arc<EventEmitter>,
     bars: Arc<dyn BarsFetcher>,
-    news: Arc<dyn NewsFetcher>,
+    news: Arc<dyn NewsProvider>,
     registry: Arc<DetectorRegistry>,
     /// Phase 17 — optional. When wired, runs after each persisted setup
     /// to attach an LLM-generated thesis. When `None`, the runner emits
@@ -170,7 +156,7 @@ impl TrackerRunner {
         state_machine: Arc<TrackerStateMachine>,
         emitter: Arc<EventEmitter>,
         bars: Arc<dyn BarsFetcher>,
-        news: Arc<dyn NewsFetcher>,
+        news: Arc<dyn NewsProvider>,
         registry: Arc<DetectorRegistry>,
     ) -> Self {
         Self {
@@ -241,7 +227,13 @@ impl TrackerRunner {
             }
         };
 
-        let recent_news = self.news.fetch(&symbol_norm, NEWS_LOOKBACK_HOURS).await;
+        let recent_news = match self.news.fetch(&symbol_norm, NEWS_LOOKBACK_HOURS).await {
+            Ok(items) => items,
+            Err(e) => {
+                warn!("news fetch failed for {symbol_norm} (best-effort): {e}");
+                Vec::new()
+            }
+        };
 
         Ok(OwnedMarketContext {
             symbol: symbol_norm,

@@ -11,11 +11,11 @@ use crate::ibkr::types::tracker::{
 use crate::services::alerts::{list_alerts, mark_alerts_seen, ListAlertsQuery};
 use crate::services::daily_ranker::{DailyRanker, MorningPack};
 use crate::services::eod_scheduler::EodScheduler;
-use crate::services::financial_data_service::FinancialDataService;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::intraday_scheduler::IntradayScheduler;
 #[cfg(debug_assertions)]
 use crate::services::llm_service::{LlmKind, LlmRequest, LlmService, Message, Role};
+use crate::services::news_provider::NewsProvider;
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
 
 #[tauri::command]
@@ -33,12 +33,11 @@ pub async fn tracker_fetch_bars(
 
 #[tauri::command]
 pub async fn tracker_get_news(
-    financial: State<'_, Arc<FinancialDataService>>,
+    news: State<'_, Arc<dyn NewsProvider>>,
     symbol: String,
     lookback_hours: u32,
 ) -> Result<Vec<NewsItem>, String> {
-    financial
-        .fetch_news_sentiment(&symbol, lookback_hours)
+    news.fetch(&symbol, lookback_hours)
         .await
         .map_err(|e| e.to_string())
 }

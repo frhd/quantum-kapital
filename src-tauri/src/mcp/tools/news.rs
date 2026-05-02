@@ -1,13 +1,14 @@
-//! `get_news` — cached news + LLM verdict, with a best-effort AV refresh
-//! when the cache is stale.
+//! `get_news` — cached news + LLM verdict, with a best-effort upstream
+//! refresh when the cache is stale.
 //!
-//! Wraps `news::read_cache_with_verdict`, optionally followed by a single
-//! `FinancialDataService::fetch_news_sentiment` attempt when the cache is
-//! missing or older than `max_age_secs`. Crucially, AV failure (rate
-//! limit, missing key, transport) does NOT propagate — the tool returns
-//! whatever cache it has (possibly empty) with `source: "av_failed"`. This
-//! mirrors the existing `tracker_get_news` Tauri command and keeps agent
-//! loops resilient to transient AV issues.
+//! Wraps `news::read_cache_with_verdict`, optionally followed by a
+//! single `NewsProvider::fetch` attempt when the cache is missing or
+//! older than `max_age_secs`. Crucially, upstream failure (rate limit,
+//! missing AV key, IBKR pacing, transport) does NOT propagate — the
+//! tool returns whatever cache it has (possibly empty) with
+//! `source: "upstream_failed"`. This mirrors the existing
+//! `tracker_get_news` Tauri command and keeps agent loops resilient
+//! to transient upstream issues.
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -24,10 +25,9 @@ use crate::services::financial_data_service::news::read_cache_with_verdict;
 /// callers use. Public so test code can reference it explicitly.
 pub const DEFAULT_MAX_AGE_SECS: u32 = 3600;
 
-/// Lookback passed to `fetch_news_sentiment` when an AV refresh is
-/// triggered. AV's NEWS_SENTIMENT endpoint takes the lookback in hours;
-/// 24h matches the rest of the codebase.
-const AV_LOOKBACK_HOURS: u32 = 24;
+/// Lookback passed to `NewsProvider::fetch` when an upstream refresh
+/// is triggered. 24h matches the rest of the codebase.
+const NEWS_LOOKBACK_HOURS: u32 = 24;
 
 #[derive(Debug, Deserialize, JsonSchema, Default)]
 pub struct GetNewsArgs {
@@ -44,7 +44,7 @@ pub struct GetNewsArgs {
 impl McpHandler {
     #[tool(
         name = "get_news",
-        description = "Return cached news items and the latest LLM news-verdict for `symbol`. When the cache is missing or older than `max_age_secs` (default 3600s), the tool attempts a single Alpha Vantage refresh and re-reads cache. On AV failure (no API key, rate limit, transport) the tool still returns whatever cache exists, with `source: \"av_failed\"` — never errors on AV issues. Use this to ground LLM commentary on the most recent verified news the app has ingested."
+        description = "Return cached news items and the latest LLM news-verdict for `symbol`. When the cache is missing or older than `max_age_secs` (default 3600s), the tool attempts a single upstream refresh through the configured `NewsProvider` and re-reads cache. On upstream failure (no API key, rate limit, no IBKR subscription, transport) the tool still returns whatever cache exists, with `source: \"upstream_failed\"` — never errors on upstream issues. Use this to ground LLM commentary on the most recent verified news the app has ingested."
     )]
     pub async fn get_news(
         &self,
@@ -61,22 +61,19 @@ impl McpHandler {
             .await
             .map_err(|e| McpError::internal_error(format!("read_cache_with_verdict: {e}"), None))?;
 
-        let (cache, source, av_note): (
+        let (cache, source, upstream_note): (
             Option<crate::services::financial_data_service::news::CachedNews>,
             &'static str,
             Option<String>,
         ) = match initial {
             Some(c) if now.saturating_sub(c.fetched_at) <= max_age => (Some(c), "cache", None),
             other => {
-                // Either no row at all, or stale — try to refresh via AV.
-                match self
-                    .financial_service
-                    .fetch_news_sentiment(&symbol, AV_LOOKBACK_HOURS)
-                    .await
-                {
+                // Either no row at all, or stale — try to refresh
+                // through the configured `NewsProvider`.
+                match self.news_provider.fetch(&symbol, NEWS_LOOKBACK_HOURS).await {
                     Ok(_items) => {
                         // Re-read so we pick up the verdict-bearing row
-                        // the fetcher just wrote (or refreshed).
+                        // the provider just wrote (or refreshed).
                         let refreshed =
                             read_cache_with_verdict(&self.db, &symbol)
                                 .await
@@ -87,17 +84,22 @@ impl McpHandler {
                                     )
                                 })?;
                         match refreshed {
-                            Some(c) => (Some(c), "av_fresh", None),
+                            Some(c) => (Some(c), "upstream_fresh", None),
                             None => (
                                 other,
-                                "av_fresh",
+                                "upstream_fresh",
                                 Some(
-                                    "AV refresh succeeded but cache row is still empty".to_string(),
+                                    "upstream refresh succeeded but cache row is still empty"
+                                        .to_string(),
                                 ),
                             ),
                         }
                     }
-                    Err(e) => (other, "av_failed", Some(format!("AV refresh failed: {e}"))),
+                    Err(e) => (
+                        other,
+                        "upstream_failed",
+                        Some(format!("upstream refresh failed: {e}")),
+                    ),
                 }
             }
         };
@@ -119,7 +121,7 @@ impl McpHandler {
             "fetched_at_unix": fetched_at,
             "staleness_seconds": staleness,
             "source": source,
-            "note": av_note,
+            "note": upstream_note,
         })))
     }
 }

@@ -25,6 +25,7 @@ use crate::services::fundamentals_provider::FundamentalsProvider;
 use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
 use crate::services::manual_fundamentals_store::ManualFundamentalsStore;
+use crate::services::news_provider::NewsProvider;
 use crate::services::quote_service::QuoteService;
 use crate::services::social_sentiment::SocialSentimentService;
 use crate::services::tracker_service::TrackerService;
@@ -45,10 +46,18 @@ pub struct McpHandler {
     /// Used by `tools::alerts` (`list_alerts(&Arc<Db>, ...)`) and
     /// `tools::news` (`read_cache_with_verdict(&Db, ...)`).
     pub(crate) db: Arc<Db>,
-    /// Used by `tools::news` for the best-effort AV refresh path. The
-    /// fundamentals path moved to `fundamentals_provider` in Phase 3 of
-    /// the AV strip-out — see [`Self::fundamentals_provider`].
+    /// Phase 7 (AV strip-out): retained for the residual fundamentals
+    /// AV-cache invalidation hook used by `tools::set_fundamentals`.
+    /// The news refresh path moved off this handle to
+    /// [`Self::news_provider`] — `tools::news` no longer reaches into
+    /// `FinancialDataService` directly.
     pub(crate) financial_service: Arc<FinancialDataService>,
+    /// Used by `tools::news` for the best-effort refresh path on a
+    /// stale cache. Phase 7 part A points this at
+    /// [`crate::services::news_provider::alpha_vantage::AlphaVantageNewsProvider`];
+    /// Phase 7 part B + Phase 8 swap in the IBKR backend behind the
+    /// `news_source` settings flag without touching this field's type.
+    pub(crate) news_provider: Arc<dyn NewsProvider>,
     /// Used by `tools::fundamentals` for `fetch(symbol)`. Phase 3 wires
     /// the AV adapter directly; Phase 4 swaps in the composite (manual
     /// store → AV cache → AV API) without touching this field's type.
@@ -124,6 +133,7 @@ impl McpHandler {
         financial_service: Arc<FinancialDataService>,
         fundamentals_provider: Arc<dyn FundamentalsProvider>,
         manual_fundamentals: Arc<ManualFundamentalsStore>,
+        news_provider: Arc<dyn NewsProvider>,
         historical_service: Arc<HistoricalDataService>,
         quote_service: Arc<QuoteService>,
         ibkr_client: Arc<dyn AccountReader>,
@@ -172,6 +182,7 @@ impl McpHandler {
             financial_service,
             fundamentals_provider,
             manual_fundamentals,
+            news_provider,
             historical_service,
             quote_service,
             ibkr_client,

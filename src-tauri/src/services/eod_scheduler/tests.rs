@@ -12,7 +12,8 @@ use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{TrackerSource, TrackerStatus};
 use crate::services::historical_data_service::Lookback;
-use crate::services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
+use crate::services::news_provider::{NewsError, NewsProvider};
+use crate::services::tracker_runner::{BarsFetcher, TrackerRunner};
 use crate::services::tracker_service::TrackerService;
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
@@ -66,9 +67,9 @@ impl BarsFetcher for EmptyBars {
 struct EmptyNews;
 
 #[async_trait]
-impl NewsFetcher for EmptyNews {
-    async fn fetch(&self, _symbol: &str, _lookback_hours: u32) -> Vec<NewsItem> {
-        Vec::new()
+impl NewsProvider for EmptyNews {
+    async fn fetch(&self, _symbol: &str, _lookback_hours: u32) -> Result<Vec<NewsItem>, NewsError> {
+        Ok(Vec::new())
     }
 }
 
@@ -91,7 +92,7 @@ fn make_scheduler(
         Arc::clone(&emitter),
     ));
     let bars: Arc<dyn BarsFetcher> = Arc::new(EmptyBars);
-    let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
+    let news: Arc<dyn NewsProvider> = Arc::new(EmptyNews);
     let runner = Arc::new(TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&tracker),
@@ -224,7 +225,7 @@ async fn start_replaces_existing_handle() {
     let state = IbkrState::new(cfg, Arc::clone(&db));
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(EmptyBars);
-    let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
+    let news: Arc<dyn NewsProvider> = Arc::new(EmptyNews);
     let runner = Arc::new(TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&state.tracker),
@@ -270,7 +271,7 @@ async fn stop_drops_handle() {
     let state = IbkrState::new(cfg, Arc::clone(&db));
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(EmptyBars);
-    let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
+    let news: Arc<dyn NewsProvider> = Arc::new(EmptyNews);
     let runner = Arc::new(TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&state.tracker),

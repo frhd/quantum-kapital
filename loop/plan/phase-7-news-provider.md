@@ -2,7 +2,7 @@
 
 > Part of [Alpha Vantage → IBKR: Full Vendor Strip-out](master.md). See index for invariants.
 
-**Status:** todo
+**Status:** in-progress (part A landed 2026-05-02 — trait + AV adapter + consumer rewire + `news_source` flag; part B awaits Phase 6 fixtures)
 
 **Depends on:** 3 (mirrors the `FundamentalsProvider` trait pattern), 6 (need fixtures + crate-path decision + sentiment-loss audit)
 

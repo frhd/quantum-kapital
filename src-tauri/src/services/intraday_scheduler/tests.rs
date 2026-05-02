@@ -16,7 +16,8 @@ use crate::ibkr::types::news::NewsItem;
 use crate::ibkr::types::tracker::{Setup, StrategyTag, TrackerSource, TrackerStatus};
 use crate::services::decay_watcher::{DecayDecision, DecayWatcher, DecayWatcherStub};
 use crate::services::historical_data_service::Lookback;
-use crate::services::tracker_runner::{BarsFetcher, NewsFetcher, TrackerRunner};
+use crate::services::news_provider::{NewsError, NewsProvider};
+use crate::services::tracker_runner::{BarsFetcher, TrackerRunner};
 use crate::services::tracker_service::TrackerService;
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
@@ -117,9 +118,9 @@ impl BarsFetcher for RecordingBars {
 struct EmptyNews;
 
 #[async_trait]
-impl NewsFetcher for EmptyNews {
-    async fn fetch(&self, _symbol: &str, _lookback_hours: u32) -> Vec<NewsItem> {
-        Vec::new()
+impl NewsProvider for EmptyNews {
+    async fn fetch(&self, _symbol: &str, _lookback_hours: u32) -> Result<Vec<NewsItem>, NewsError> {
+        Ok(Vec::new())
     }
 }
 
@@ -232,7 +233,7 @@ fn build_harness(
         Arc::clone(&emitter),
         crate::services::tracker_state_machine::Clock::Fixed(now),
     ));
-    let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
+    let news: Arc<dyn NewsProvider> = Arc::new(EmptyNews);
     let bars_dyn: Arc<dyn BarsFetcher> = Arc::clone(&bars) as Arc<dyn BarsFetcher>;
     let runner = Arc::new(TrackerRunner::new(
         Arc::clone(&db),
@@ -560,7 +561,7 @@ async fn start_replaces_existing_handle() {
     let state = IbkrState::new(cfg, Arc::clone(&db));
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(RecordingBars::new());
-    let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
+    let news: Arc<dyn NewsProvider> = Arc::new(EmptyNews);
     let runner = Arc::new(TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&state.tracker),
@@ -608,7 +609,7 @@ async fn stop_drops_handle() {
     let state = IbkrState::new(cfg, Arc::clone(&db));
 
     let bars: Arc<dyn BarsFetcher> = Arc::new(RecordingBars::new());
-    let news: Arc<dyn NewsFetcher> = Arc::new(EmptyNews);
+    let news: Arc<dyn NewsProvider> = Arc::new(EmptyNews);
     let runner = Arc::new(TrackerRunner::new(
         Arc::clone(&db),
         Arc::clone(&state.tracker),

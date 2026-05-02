@@ -691,6 +691,8 @@ mod tests {
         ));
         let emitter = Arc::new(EventEmitter::for_capture());
         let social = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
+        let news_provider: Arc<dyn crate::services::news_provider::NewsProvider> =
+            Arc::new(crate::services::news_provider::test_support::FakeNewsProvider::new());
 
         let handler = McpHandler::new(
             llm,
@@ -699,6 +701,7 @@ mod tests {
             financial,
             composite,
             Arc::clone(&store),
+            news_provider,
             hist,
             quote,
             ibkr_client,

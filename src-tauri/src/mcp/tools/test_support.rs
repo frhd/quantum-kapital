@@ -41,6 +41,8 @@ use crate::services::fundamentals_provider::FundamentalsProvider;
 use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
 use crate::services::manual_fundamentals_store::ManualFundamentalsStore;
+use crate::services::news_provider::test_support::FakeNewsProvider;
+use crate::services::news_provider::NewsProvider;
 use crate::services::quote_service::{QuoteFetcher, QuoteService};
 use crate::services::social_sentiment::SocialSentimentService;
 use crate::services::tracker_service::TrackerService;
@@ -230,6 +232,10 @@ fn build_handler_with_llm(
     let fundamentals_provider: Arc<dyn FundamentalsProvider> =
         Arc::new(FakeFundamentalsProvider::new());
     let manual_fundamentals = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
+    // Empty news provider — `get_news` tests inheriting this builder
+    // exercise the cache-fast path. Tests that need a hit pre-load via
+    // `FakeNewsProvider::insert` and pass an explicit handler.
+    let news_provider: Arc<dyn NewsProvider> = Arc::new(FakeNewsProvider::new());
     McpHandler::new(
         llm,
         tracker,
@@ -237,6 +243,7 @@ fn build_handler_with_llm(
         financial,
         fundamentals_provider,
         manual_fundamentals,
+        news_provider,
         hist,
         quote,
         ibkr_client,
@@ -329,6 +336,7 @@ pub async fn test_handler_with_seeded_spend(
     let fundamentals_provider: Arc<dyn FundamentalsProvider> =
         Arc::new(FakeFundamentalsProvider::new());
     let manual_fundamentals = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
+    let news_provider: Arc<dyn NewsProvider> = Arc::new(FakeNewsProvider::new());
     Ok(McpHandler::new(
         llm,
         tracker,
@@ -336,6 +344,7 @@ pub async fn test_handler_with_seeded_spend(
         financial,
         fundamentals_provider,
         manual_fundamentals,
+        news_provider,
         hist,
         quote,
         ibkr_client,

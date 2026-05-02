@@ -18,7 +18,30 @@ pub struct AppConfig {
     pub auto_scanner: AutoScannerConfig,
     #[serde(default)]
     pub social_sentiment: SocialSentimentConfig,
+    /// Phase 7 (AV migration): selects the active news backend. Valid
+    /// values are `"alpha_vantage"` (default) and `"ibkr"` (Phase 7B
+    /// onward). Unknown values fall back to the default with a warn-log
+    /// at startup; see [`AppConfig::resolved_news_source`]. Phase 8
+    /// deletes both the flag and the AV news adapter — only IBKR
+    /// remains.
+    #[serde(default = "default_news_source")]
+    pub news_source: String,
 }
+
+/// Default news backend during the Phase 7 / 8 migration. AV stays the
+/// default until Phase 7 part B lands the IBKR provider; Phase 8 flips
+/// this to `"ibkr"` and the unit immediately preceding the deletion
+/// commit removes the field altogether.
+pub fn default_news_source() -> String {
+    "alpha_vantage".to_string()
+}
+
+/// Recognised news-backend identifiers. Kept narrow on purpose — adding
+/// a new variant means adding a new `NewsProvider` impl, not a new
+/// settings string. See [`AppConfig::resolved_news_source`] for the
+/// validation entry point.
+pub const NEWS_SOURCE_ALPHA_VANTAGE: &str = "alpha_vantage";
+pub const NEWS_SOURCE_IBKR: &str = "ibkr";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IbkrConfig {
@@ -333,6 +356,25 @@ impl Default for TrackerConfig {
 
 #[allow(dead_code)]
 impl AppConfig {
+    /// Validate [`Self::news_source`] against the recognised constants
+    /// ([`NEWS_SOURCE_ALPHA_VANTAGE`], [`NEWS_SOURCE_IBKR`]) and return
+    /// the value `lib.rs` should wire through to the `NewsProvider`
+    /// fan-out. Unknown values warn-log and fall back to
+    /// [`default_news_source`]. Centralising this here means callers
+    /// don't re-implement the validation per consumer.
+    pub fn resolved_news_source(&self) -> String {
+        match self.news_source.as_str() {
+            NEWS_SOURCE_ALPHA_VANTAGE | NEWS_SOURCE_IBKR => self.news_source.clone(),
+            other => {
+                tracing::warn!(
+                    "Unknown news_source = {other:?}; falling back to {:?}",
+                    NEWS_SOURCE_ALPHA_VANTAGE
+                );
+                default_news_source()
+            }
+        }
+    }
+
     /// Get the path to the settings file
     pub fn settings_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
         let config_dir = dirs::config_dir().ok_or("Could not find config directory")?;
