@@ -5,6 +5,7 @@ use ibapi::client::blocking::Client;
 use ibapi::contracts::tick_types::TickType;
 use ibapi::contracts::Contract;
 use ibapi::market_data::realtime::TickTypes;
+use tracing::{debug, info};
 
 use crate::ibkr::error::{IbkrError, Result};
 use crate::ibkr::types::{DataTier, MarketDataSnapshot};
@@ -90,6 +91,7 @@ impl IbkrClient {
     ///   `SNAPSHOT_TIMEOUT`.
     /// - `IbkrError::ApiError` for any other ibapi error.
     pub async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {
+        debug!("get_market_data_snapshot: enter symbol={}", symbol);
         let client_clone = self.ibapi_client().await?;
         let symbol_owned = symbol.to_string();
 
@@ -102,7 +104,13 @@ impl IbkrClient {
                 .generic_ticks(&generic_ticks)
                 .snapshot()
                 .subscribe()
-                .map_err(IbkrError::from)?;
+                .map_err(|e| {
+                    info!(
+                        "get_market_data_snapshot({}): subscribe failed: {}",
+                        symbol_owned, e
+                    );
+                    IbkrError::from(e)
+                })?;
 
             let mut snapshot = MarketDataSnapshot {
                 symbol: symbol_owned.clone(),
@@ -125,6 +133,11 @@ impl IbkrClient {
             loop {
                 let remaining = deadline.saturating_duration_since(std::time::Instant::now());
                 if remaining.is_zero() {
+                    info!(
+                        "get_market_data_snapshot({}): -> Timeout ({}ms, deadline reached)",
+                        symbol_owned,
+                        SNAPSHOT_TIMEOUT.as_millis()
+                    );
                     return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
                 }
 
@@ -140,12 +153,24 @@ impl IbkrClient {
                     }
                     Some(TickTypes::SnapshotEnd) => {
                         snapshot.timestamp = chrono::Utc::now().timestamp();
+                        debug!(
+                            "get_market_data_snapshot({}): SnapshotEnd last_price={:?} close={:?}",
+                            symbol_owned, snapshot.last_price, snapshot.close
+                        );
                         return Ok(snapshot);
                     }
                     Some(TickTypes::Notice(notice)) => {
+                        debug!(
+                            "get_market_data_snapshot({}): notice code={} message={:?}",
+                            symbol_owned, notice.code, notice.message
+                        );
                         // ibapi delivers TWS error codes through Notice.
                         // 354 = "Requested market data is not subscribed".
                         if notice.code == 354 {
+                            info!(
+                                "get_market_data_snapshot({}): -> MarketDataPermissionDenied (code 354)",
+                                symbol_owned
+                            );
                             return Err(IbkrError::MarketDataPermissionDenied);
                         }
                         // Other notices (e.g. farm connection messages)
@@ -158,8 +183,17 @@ impl IbkrClient {
                     }
                     None => {
                         if let Some(err) = subscription.error() {
+                            info!(
+                                "get_market_data_snapshot({}): subscription closed with error: {}",
+                                symbol_owned, err
+                            );
                             return Err(IbkrError::from(err));
                         }
+                        info!(
+                            "get_market_data_snapshot({}): -> Timeout ({}ms, channel closed without error)",
+                            symbol_owned,
+                            SNAPSHOT_TIMEOUT.as_millis()
+                        );
                         return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
                     }
                 }

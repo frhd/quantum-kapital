@@ -9,7 +9,7 @@ use crate::services::quote_service::QuoteService;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::State;
-use tracing::info;
+use tracing::{debug, info};
 
 /// Stable error-string discriminants returned by the fundamentals
 /// commands. Frontend hooks switch on these to render dedicated empty
@@ -142,12 +142,31 @@ pub async fn ibkr_get_quote(
 ) -> Result<Quote, String> {
     use crate::ibkr::error::IbkrError;
 
+    debug!("ibkr_get_quote: enter symbol={}", symbol);
     match quote_service.fetch_quote(&symbol).await {
-        Ok(quote) => Ok(quote),
-        Err(IbkrError::NotConnected) => Err("disconnected".to_string()),
-        Err(IbkrError::MarketDataPermissionDenied) => Err("no_permission".to_string()),
-        Err(IbkrError::Timeout(_)) => Err("timeout".to_string()),
-        Err(other) => Err(other.to_string()),
+        Ok(quote) => {
+            debug!(
+                "ibkr_get_quote: {} ok last_price={:?} prev_close={:?}",
+                symbol, quote.last_price, quote.prev_close
+            );
+            Ok(quote)
+        }
+        Err(IbkrError::NotConnected) => {
+            info!("ibkr_get_quote: {} -> disconnected", symbol);
+            Err("disconnected".to_string())
+        }
+        Err(IbkrError::MarketDataPermissionDenied) => {
+            info!("ibkr_get_quote: {} -> no_permission", symbol);
+            Err("no_permission".to_string())
+        }
+        Err(IbkrError::Timeout(ms)) => {
+            info!("ibkr_get_quote: {} -> timeout ({}ms)", symbol, ms);
+            Err("timeout".to_string())
+        }
+        Err(other) => {
+            info!("ibkr_get_quote: {} -> fetch_failed ({:?})", symbol, other);
+            Err(other.to_string())
+        }
     }
 }
 
