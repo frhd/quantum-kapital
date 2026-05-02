@@ -132,6 +132,7 @@ fn simple_request(model: &'static str) -> LlmRequest {
         tools: None,
         tool_choice: None,
         setup_id: None,
+        loop_name: None,
     }
 }
 
@@ -182,6 +183,7 @@ async fn serializes_messages_correctly() {
         }]),
         tool_choice: Some(ToolChoice::ForceTool("emit_thesis".to_string())),
         setup_id: None,
+        loop_name: None,
     };
 
     let svc = build_service(db, Arc::clone(&http), clock, 10.0);
@@ -267,6 +269,7 @@ async fn forced_tool_use_returns_typed_args() {
         }]),
         tool_choice: Some(ToolChoice::ForceTool("emit_thesis".to_string())),
         setup_id: None,
+        loop_name: None,
     };
 
     let svc = build_service(db, Arc::clone(&http), clock, 10.0);
@@ -304,16 +307,17 @@ async fn records_call_in_db_with_cost() {
         tools: None,
         tool_choice: None,
         setup_id: Some(42),
+        loop_name: Some("agent_morning_sweep".to_string()),
     };
 
     let svc = build_service(Arc::clone(&db), Arc::clone(&http), clock, 10.0);
     svc.message(req).await.unwrap();
 
-    let (kind, setup_id, model, input_tokens, output_tokens, cache_read_tokens, cost_usd) = db
+    let (kind, setup_id, model, input_tokens, output_tokens, cache_read_tokens, cost_usd, loop_name) = db
         .with_conn(|conn| {
             conn.query_row(
                 "SELECT kind, setup_id, model, input_tokens, output_tokens, \
-                 cache_read_tokens, cost_usd FROM llm_calls",
+                 cache_read_tokens, cost_usd, loop_name FROM llm_calls",
                 [],
                 |r| {
                     Ok((
@@ -324,6 +328,7 @@ async fn records_call_in_db_with_cost() {
                         r.get::<_, i64>(4)?,
                         r.get::<_, i64>(5)?,
                         r.get::<_, f64>(6)?,
+                        r.get::<_, Option<String>>(7)?,
                     ))
                 },
             )
@@ -340,6 +345,7 @@ async fn records_call_in_db_with_cost() {
     assert_eq!(cache_read_tokens, 0);
     // sonnet: 1000*3/M + 500*15/M = 0.003 + 0.0075 = 0.0105
     assert!((cost_usd - 0.0105).abs() < 1e-9, "cost_usd={cost_usd}");
+    assert_eq!(loop_name.as_deref(), Some("agent_morning_sweep"));
 }
 
 // ---------------- 7: cost calculator handles each supported model ----------------
@@ -376,6 +382,7 @@ async fn prompt_cache_block_serializes_with_cache_control() {
         tools: None,
         tool_choice: None,
         setup_id: None,
+        loop_name: None,
     };
 
     let body = build_request_body(&req);

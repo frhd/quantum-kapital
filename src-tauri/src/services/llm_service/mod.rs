@@ -245,13 +245,14 @@ impl LlmService {
         let output_tokens = parsed.usage.output_tokens as i64;
         let cache_read_tokens = parsed.usage.cache_read_input_tokens as i64;
         let setup_id = req.setup_id;
+        let loop_name = req.loop_name.clone();
         let called_at = self.clock.now_unix();
         self.db
             .with_conn(move |conn| {
                 conn.execute(
                     "INSERT INTO llm_calls (kind, setup_id, model, input_tokens, output_tokens, \
-                     cache_read_tokens, cost_usd, called_at) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                     cache_read_tokens, cost_usd, called_at, loop_name) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     rusqlite::params![
                         kind,
                         setup_id,
@@ -260,7 +261,8 @@ impl LlmService {
                         output_tokens,
                         cache_read_tokens,
                         cost,
-                        called_at
+                        called_at,
+                        loop_name,
                     ],
                 )?;
                 Ok(())

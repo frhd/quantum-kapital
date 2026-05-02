@@ -184,6 +184,7 @@ impl LlmDecayWatcher {
             tools: Some(vec![tool_schema()]),
             tool_choice: Some(ToolChoice::ForceTool(TOOL_NAME.to_string())),
             setup_id: Some(setup.id),
+            loop_name: None,
         }
     }
 

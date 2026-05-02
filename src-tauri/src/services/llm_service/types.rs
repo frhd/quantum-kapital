@@ -69,6 +69,12 @@ pub struct LlmRequest {
     pub tools: Option<Vec<ToolSchema>>,
     pub tool_choice: Option<ToolChoice>,
     pub setup_id: Option<i64>,
+    /// Optional agent-loop attribution (Phase 8) — stored in
+    /// `llm_calls.loop_name` so the eval harness can bucket spend
+    /// per loop (e.g. `"agent_morning_sweep"`, `"agent_alert_dive"`).
+    /// Existing Rust callers (intraday detector enrichment) leave
+    /// this `None`; agent loops set it.
+    pub loop_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

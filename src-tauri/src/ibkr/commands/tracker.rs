@@ -296,6 +296,7 @@ pub async fn tracker_llm_smoke_test(llm: State<'_, Arc<LlmService>>) -> Result<S
         tools: None,
         tool_choice: None,
         setup_id: None,
+        loop_name: None,
     };
     let resp = llm.message(req).await.map_err(|e| e.to_string())?;
     Ok(resp.text.unwrap_or_default())
