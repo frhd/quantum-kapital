@@ -320,6 +320,14 @@ impl FinancialDataService {
         self
     }
 
+    /// Test-only accessor for the inner cache. Used by Phase 4 tests
+    /// that need to assert cache rows are present/cleared without
+    /// re-implementing the file-on-disk inspection.
+    #[cfg(test)]
+    pub(crate) fn cache_for_test(&self) -> &CacheService {
+        self.cache.as_ref().expect("cache wired in test")
+    }
+
     /// Drop every cached AV fundamentals row for `symbol`. Phase 4: the
     /// MCP `set_fundamentals` tool calls this after a manual write so the
     /// AV file cache cannot resurface a pre-manual payload if the manual

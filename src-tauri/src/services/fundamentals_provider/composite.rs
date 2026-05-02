@@ -45,9 +45,7 @@ impl FundamentalsProvider for CompositeFundamentalsProvider {
     async fn fetch(&self, symbol: &str) -> Result<FundamentalData, FundamentalsError> {
         match self.manual.fetch(symbol).await {
             Ok(data) => {
-                info!(
-                    "fundamentals(manual): served {symbol} from operator-curated manual store"
-                );
+                info!("fundamentals(manual): served {symbol} from operator-curated manual store");
                 Ok(data)
             }
             Err(FundamentalsError::NotFound(_)) => {
@@ -124,7 +122,14 @@ mod tests {
     async fn manual_row_wins_over_av() {
         let (_tmp, store) = fresh_store();
         store
-            .upsert("AAPL", fd("AAPL", 99.0), "2026-05-02", "src", "interactive", 0)
+            .upsert(
+                "AAPL",
+                fd("AAPL", 99.0),
+                "2026-05-02",
+                "src",
+                "interactive",
+                0,
+            )
             .await
             .unwrap();
         let manual = Arc::new(ManualFundamentalsProvider::new(store));
@@ -166,22 +171,46 @@ mod tests {
     async fn manual_overwrite_changes_returned_value() {
         let (_tmp, store) = fresh_store();
         store
-            .upsert("MSFT", fd("MSFT", 25.0), "2026-04-01", "v1", "interactive", 0)
+            .upsert(
+                "MSFT",
+                fd("MSFT", 25.0),
+                "2026-04-01",
+                "v1",
+                "interactive",
+                0,
+            )
             .await
             .unwrap();
         let manual = Arc::new(ManualFundamentalsProvider::new(Arc::clone(&store)));
         let av: Arc<dyn FundamentalsProvider> = Arc::new(FakeFundamentalsProvider::new());
         let composite = CompositeFundamentalsProvider::new(manual, av);
         assert_eq!(
-            composite.fetch("MSFT").await.unwrap().current_metrics.pe_ratio,
+            composite
+                .fetch("MSFT")
+                .await
+                .unwrap()
+                .current_metrics
+                .pe_ratio,
             25.0
         );
         store
-            .upsert("MSFT", fd("MSFT", 35.0), "2026-05-02", "v2", "interactive", 1)
+            .upsert(
+                "MSFT",
+                fd("MSFT", 35.0),
+                "2026-05-02",
+                "v2",
+                "interactive",
+                1,
+            )
             .await
             .unwrap();
         assert_eq!(
-            composite.fetch("MSFT").await.unwrap().current_metrics.pe_ratio,
+            composite
+                .fetch("MSFT")
+                .await
+                .unwrap()
+                .current_metrics
+                .pe_ratio,
             35.0,
         );
     }

@@ -337,9 +337,11 @@ fn build_warnings(
         if let Some(msg) = surprising_change("peRatio", p.pe_ratio, c.pe_ratio) {
             warnings.push(msg);
         }
-        if let Some(msg) =
-            surprising_change("sharesOutstanding", p.shares_outstanding, c.shares_outstanding)
-        {
+        if let Some(msg) = surprising_change(
+            "sharesOutstanding",
+            p.shares_outstanding,
+            c.shares_outstanding,
+        ) {
             warnings.push(msg);
         }
         if let (Some(pp), Some(cp)) = (p.price, c.price) {
@@ -381,12 +383,32 @@ fn surprising_change(name: &str, from: f64, to: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use async_trait::async_trait;
+
     use super::*;
 
+    use crate::events::EventEmitter;
     use crate::ibkr::types::{
-        AnalystEstimate, AnalystEstimates, CurrentMetrics, HistoricalFinancial,
+        AnalystEstimate, AnalystEstimates, CurrentMetrics, FundamentalData as Fd,
+        HistoricalFinancial,
     };
-    use crate::mcp::tools::test_support::{handler_for_db, make_db};
+    use crate::mcp::tools::fundamentals::GetFundamentalsArgs;
+    use crate::mcp::tools::test_support::{handler_for_db, make_db, NotConnectedStub};
+    use crate::services::auto_scanner::AutoScannerService;
+    use crate::services::candidate_promoter::CandidatePromoter;
+    use crate::services::candidate_universe::CandidateUniverseService;
+    use crate::services::financial_data_service::FinancialDataService;
+    use crate::services::fundamentals_provider::composite::CompositeFundamentalsProvider;
+    use crate::services::fundamentals_provider::manual::ManualFundamentalsProvider;
+    use crate::services::fundamentals_provider::{FundamentalsError, FundamentalsProvider};
+    use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
+    use crate::services::llm_service::LlmService;
+    use crate::services::manual_fundamentals_store::ManualFundamentalsStore;
+    use crate::services::quote_service::QuoteService;
+    use crate::services::social_sentiment::SocialSentimentService;
+    use crate::services::tracker_service::TrackerService;
 
     fn metrics(pe: f64, shares: f64) -> CurrentMetrics {
         CurrentMetrics {
@@ -437,7 +459,7 @@ mod tests {
         assert_eq!(result.is_error, Some(false));
         let body = result.structured_content.expect("structured");
         assert_eq!(body["symbol"].as_str().unwrap(), "AAPL");
-        assert_eq!(body["isNew"].as_bool().unwrap(), true);
+        assert!(body["isNew"].as_bool().unwrap());
         assert_eq!(body["diff"]["kind"].as_str().unwrap(), "new");
         assert!(body["warnings"].as_array().unwrap().is_empty());
     }
@@ -456,12 +478,10 @@ mod tests {
             .expect("second ok");
         assert_eq!(r.is_error, Some(false));
         let body = r.structured_content.expect("structured");
-        assert_eq!(body["isNew"].as_bool().unwrap(), false);
+        assert!(!body["isNew"].as_bool().unwrap());
         assert_eq!(body["diff"]["kind"].as_str().unwrap(), "update");
         assert_eq!(
-            body["diff"]["changed"]["peRatio"]["from"]
-                .as_f64()
-                .unwrap(),
+            body["diff"]["changed"]["peRatio"]["from"].as_f64().unwrap(),
             30.0
         );
         assert_eq!(
@@ -569,7 +589,10 @@ mod tests {
         let audits = crate::services::mcp_audit::list(&handler.db, 10, 0)
             .await
             .unwrap();
-        let set_count = audits.iter().filter(|a| a.tool == "set_fundamentals").count();
+        let set_count = audits
+            .iter()
+            .filter(|a| a.tool == "set_fundamentals")
+            .count();
         assert_eq!(set_count, 2);
     }
 
@@ -580,5 +603,221 @@ mod tests {
         assert!(validate_symbol("").is_err());
         assert!(validate_symbol("1tech").is_err());
         assert!(validate_symbol("toolongsymbol").is_err());
+    }
+
+    /// Counts every `fetch` call on the AV layer of the composite. The
+    /// tracer-bullet test asserts this counter stays at zero so a manual
+    /// write definitively short-circuits the AV path.
+    struct CountingAvProvider {
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl CountingAvProvider {
+        fn new(calls: Arc<AtomicUsize>) -> Self {
+            Self { calls }
+        }
+    }
+
+    #[async_trait]
+    impl FundamentalsProvider for CountingAvProvider {
+        async fn fetch(&self, symbol: &str) -> Result<Fd, FundamentalsError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Err(FundamentalsError::NotFound(symbol.to_string()))
+        }
+    }
+
+    /// Build an `McpHandler` whose `fundamentals_provider` is the
+    /// production-shape composite (manual → AV) but whose AV layer is a
+    /// counting fake. Mirrors `test_support::build_handler` — copied
+    /// inline because that helper hard-codes a `FakeFundamentalsProvider`
+    /// which makes the tracer-bullet assertion (zero AV calls) trivial.
+    fn handler_with_composite(
+        db: Arc<crate::storage::Db>,
+    ) -> (McpHandler, Arc<ManualFundamentalsStore>, Arc<AtomicUsize>) {
+        use crate::mcp::ibkr_seam::AccountReader;
+        use crate::middleware::HistoricalRateLimiter;
+        use crate::services::auto_scanner::MarketScanner;
+
+        let store = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
+        let manual = Arc::new(ManualFundamentalsProvider::new(Arc::clone(&store)));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::new(CountingAvProvider::new(Arc::clone(&calls)));
+        let composite: Arc<dyn FundamentalsProvider> =
+            Arc::new(CompositeFundamentalsProvider::new(Arc::clone(&manual), av));
+
+        let llm = Arc::new(LlmService::new(
+            "test-key".to_string(),
+            Arc::clone(&db),
+            100.0,
+        ));
+        let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+        let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
+        let stub = Arc::new(NotConnectedStub);
+        struct Panicker;
+        #[async_trait]
+        impl HistoricalDataFetcher for Panicker {
+            async fn fetch_historical(
+                &self,
+                _r: crate::ibkr::types::historical::HistoricalDataRequest,
+            ) -> crate::ibkr::error::Result<Vec<crate::ibkr::types::historical::HistoricalBar>>
+            {
+                panic!("historical fetch attempted in tracer-bullet test")
+            }
+        }
+        let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(Panicker);
+        let hist = Arc::new(HistoricalDataService::new(
+            Arc::clone(&db),
+            fetcher,
+            Arc::new(HistoricalRateLimiter::new(60)),
+        ));
+        let quote_fetcher: Arc<dyn crate::services::quote_service::QuoteFetcher> =
+            Arc::clone(&stub) as _;
+        let quote = Arc::new(QuoteService::new(quote_fetcher));
+        let ibkr_client: Arc<dyn AccountReader> = Arc::clone(&stub) as _;
+        let market_scanner: Arc<dyn MarketScanner> = Arc::clone(&stub) as _;
+        let candidates = Arc::new(CandidateUniverseService::new(Arc::clone(&db)));
+        let promoter = Arc::new(CandidatePromoter::new(
+            Arc::clone(&candidates),
+            Arc::clone(&tracker),
+            0.0,
+        ));
+        let auto_scanner = Arc::new(AutoScannerService::new(
+            Arc::clone(&market_scanner),
+            Arc::clone(&tracker),
+            Arc::clone(&promoter),
+            Arc::clone(&db),
+            crate::config::settings::AutoScannerConfig::default(),
+        ));
+        let emitter = Arc::new(EventEmitter::for_capture());
+        let social = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
+
+        let handler = McpHandler::new(
+            llm,
+            tracker,
+            db,
+            financial,
+            composite,
+            Arc::clone(&store),
+            hist,
+            quote,
+            ibkr_client,
+            auto_scanner,
+            market_scanner,
+            emitter,
+            social,
+            candidates,
+            promoter,
+            "interactive".to_string(),
+        );
+        (handler, store, calls)
+    }
+
+    /// Tracer-bullet — the master plan's cross-phase verification §1:
+    /// `set_fundamentals` then `get_fundamentals` round-trips through the
+    /// composite without ever touching the AV layer. Assertion is
+    /// "AV calls counter == 0" after both tool invocations.
+    #[tokio::test]
+    async fn tracer_bullet_set_then_get_round_trips_without_hitting_av() {
+        let (_tmp, db) = make_db();
+        let (handler, _store, av_calls) = handler_with_composite(db);
+
+        let payload = SetFundamentalsArgs {
+            symbol: "AAPL".to_string(),
+            as_of_date: "2026-05-02".to_string(),
+            source: "tracer paste".to_string(),
+            notes: Some("tracer test".to_string()),
+            historical: vec![HistoricalFinancial {
+                year: 2024,
+                revenue: 391.0,
+                net_income: 99.8,
+                eps: 6.5,
+            }],
+            analyst_estimates: Some(AnalystEstimates {
+                revenue: vec![AnalystEstimate {
+                    year: 2025,
+                    estimate: 420.0,
+                }],
+                eps: vec![AnalystEstimate {
+                    year: 2025,
+                    estimate: 7.1,
+                }],
+            }),
+            current_metrics: CurrentMetrics {
+                price: Some(192.5),
+                pe_ratio: 30.0,
+                shares_outstanding: 15_500.0,
+                name: Some("Apple Inc.".into()),
+                exchange: Some("NASDAQ".into()),
+                market_cap: Some("3000000000000".into()),
+                dividend_yield: Some(0.005),
+            },
+        };
+        let r = handler
+            .set_fundamentals(Parameters(payload))
+            .await
+            .expect("rmcp Ok");
+        assert_eq!(r.is_error, Some(false), "set_fundamentals must succeed");
+
+        // Now read it back through the composite via get_fundamentals.
+        let g = handler
+            .get_fundamentals(Parameters(GetFundamentalsArgs {
+                symbol: "aapl".to_string(),
+            }))
+            .await
+            .expect("rmcp Ok");
+        assert_eq!(g.is_error, Some(false), "get_fundamentals must succeed");
+        let body = g.structured_content.expect("structured");
+        assert_eq!(body["symbol"].as_str().unwrap(), "AAPL");
+        assert_eq!(body["currentMetrics"]["peRatio"].as_f64().unwrap(), 30.0);
+        assert_eq!(
+            body["currentMetrics"]["sharesOutstanding"]
+                .as_f64()
+                .unwrap(),
+            15_500.0
+        );
+        assert_eq!(body["historical"].as_array().unwrap().len(), 1);
+
+        // Hard Invariant #7 / #8: zero AV calls fired across the whole flow.
+        assert_eq!(
+            av_calls.load(Ordering::SeqCst),
+            0,
+            "manual store must short-circuit the AV layer"
+        );
+    }
+
+    /// Manual-write-invalidates-AV-cache — the master plan's exit
+    /// criterion. Pre-populate the AV file cache for AAPL, write a manual
+    /// row, assert the AV cache rows for AAPL are gone.
+    #[tokio::test]
+    async fn manual_write_clears_av_file_cache_for_symbol() {
+        use crate::services::cache_service::CacheService;
+        use serde_json::json;
+        use tempfile::TempDir;
+
+        let cache_dir = TempDir::new().unwrap();
+        let cache = CacheService::new(cache_dir.path()).unwrap();
+        // Seed all three AV cache keys for AAPL with arbitrary payloads.
+        cache
+            .write("AAPL_overview", &json!({"sentinel": "ov"}))
+            .unwrap();
+        cache
+            .write("AAPL_income", &json!({"sentinel": "in"}))
+            .unwrap();
+        cache
+            .write("AAPL_earnings", &json!({"sentinel": "ea"}))
+            .unwrap();
+
+        let financial = FinancialDataService::with_cache_dir(String::new(), cache_dir.path());
+        // Sanity: rows are present.
+        assert!(financial.cache_for_test().is_valid("AAPL_overview"));
+        assert!(financial.cache_for_test().is_valid("AAPL_income"));
+        assert!(financial.cache_for_test().is_valid("AAPL_earnings"));
+
+        // Drive the same invalidation the MCP tool uses.
+        financial.clear_fundamentals_cache("aapl");
+        assert!(!financial.cache_for_test().is_valid("AAPL_overview"));
+        assert!(!financial.cache_for_test().is_valid("AAPL_income"));
+        assert!(!financial.cache_for_test().is_valid("AAPL_earnings"));
     }
 }

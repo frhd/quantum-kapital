@@ -150,8 +150,7 @@ pub fn run() {
             // Invariant #8: the composite checks the manual store
             // first; manual writes invalidate the AV file cache for
             // the same symbol via `set_fundamentals`.
-            let manual_fundamentals_store =
-                Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
+            let manual_fundamentals_store = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
             let av_fundamentals_provider: Arc<dyn FundamentalsProvider> =
                 Arc::new(AlphaVantageFundamentalsProvider::new(
                     Arc::clone(&financial_service),

@@ -90,18 +90,20 @@ impl ManualFundamentalsStore {
                 Ok(row)
             })
             .await?
-            .map(|(symbol, as_of_date, source, payload_json, written_at, written_by)| {
-                let data: FundamentalData =
-                    serde_json::from_str(&payload_json).map_err(StorageError::from)?;
-                Ok(ManualFundamentalsRow {
-                    symbol,
-                    as_of_date,
-                    source,
-                    data,
-                    written_at,
-                    written_by,
-                })
-            })
+            .map(
+                |(symbol, as_of_date, source, payload_json, written_at, written_by)| {
+                    let data: FundamentalData =
+                        serde_json::from_str(&payload_json).map_err(StorageError::from)?;
+                    Ok(ManualFundamentalsRow {
+                        symbol,
+                        as_of_date,
+                        source,
+                        data,
+                        written_at,
+                        written_by,
+                    })
+                },
+            )
             .transpose()
     }
 

@@ -85,7 +85,14 @@ mod tests {
     async fn returns_inserted_payload() {
         let (_tmp, store) = open_store();
         store
-            .upsert("AAPL", sample("AAPL"), "2026-05-02", "src", "interactive", 0)
+            .upsert(
+                "AAPL",
+                sample("AAPL"),
+                "2026-05-02",
+                "src",
+                "interactive",
+                0,
+            )
             .await
             .unwrap();
         let provider = ManualFundamentalsProvider::new(store);
