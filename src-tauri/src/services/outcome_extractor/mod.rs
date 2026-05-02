@@ -368,6 +368,10 @@ pub struct OutcomeRow {
     pub realized_close: f64,
     pub eval_window_days: i64,
     pub evaluated_at: DateTime<Utc>,
+    /// Phase 8 backlink to `predictions.id`. Nullable because an
+    /// outcome may be scored before the predictions table is
+    /// populated (legacy packs) or for sources we don't track yet.
+    pub prediction_id: Option<i64>,
 }
 
 /// Inputs for [`record_outcome`]. Built once per (pack, symbol) by
@@ -385,6 +389,7 @@ pub struct NewOutcome {
     pub realized_low: f64,
     pub realized_close: f64,
     pub eval_window_days: i64,
+    pub prediction_id: Option<i64>,
 }
 
 #[derive(Debug, Error)]
@@ -412,6 +417,7 @@ pub async fn record_outcome(db: &Arc<Db>, new: NewOutcome) -> Result<OutcomeRow,
     let low = new.realized_low;
     let close = new.realized_close;
     let window = new.eval_window_days;
+    let prediction_id = new.prediction_id;
 
     let id = db
         .with_conn(move |conn| {
@@ -420,8 +426,8 @@ pub async fn record_outcome(db: &Arc<Db>, new: NewOutcome) -> Result<OutcomeRow,
                  (pack_date, symbol, outcome_class, conviction, \
                   entry_zone_low, entry_zone_high, invalidation_lvl, \
                   realized_high, realized_low, realized_close, \
-                  eval_window_days, evaluated_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) \
+                  eval_window_days, evaluated_at, prediction_id) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) \
                  ON CONFLICT(pack_date, symbol) DO UPDATE SET \
                      outcome_class    = excluded.outcome_class, \
                      conviction       = excluded.conviction, \
@@ -432,7 +438,8 @@ pub async fn record_outcome(db: &Arc<Db>, new: NewOutcome) -> Result<OutcomeRow,
                      realized_low     = excluded.realized_low, \
                      realized_close   = excluded.realized_close, \
                      eval_window_days = excluded.eval_window_days, \
-                     evaluated_at     = excluded.evaluated_at",
+                     evaluated_at     = excluded.evaluated_at, \
+                     prediction_id    = excluded.prediction_id",
                 rusqlite::params![
                     pack_date_for_db,
                     symbol_for_db,
@@ -446,6 +453,7 @@ pub async fn record_outcome(db: &Arc<Db>, new: NewOutcome) -> Result<OutcomeRow,
                     close,
                     window,
                     now_unix,
+                    prediction_id,
                 ],
             )?;
             let id: i64 = conn.query_row(
@@ -471,6 +479,7 @@ pub async fn record_outcome(db: &Arc<Db>, new: NewOutcome) -> Result<OutcomeRow,
         realized_close: new.realized_close,
         eval_window_days: new.eval_window_days,
         evaluated_at: unix_to_utc(now_unix),
+        prediction_id: new.prediction_id,
     })
 }
 
@@ -487,7 +496,7 @@ pub async fn list_outcomes_since(
                 "SELECT id, pack_date, symbol, outcome_class, conviction, \
                         entry_zone_low, entry_zone_high, invalidation_lvl, \
                         realized_high, realized_low, realized_close, \
-                        eval_window_days, evaluated_at \
+                        eval_window_days, evaluated_at, prediction_id \
                  FROM outcomes WHERE pack_date >= ?1 \
                  ORDER BY pack_date DESC, id ASC",
             )?;
@@ -517,7 +526,7 @@ pub async fn get_outcome(
                 "SELECT id, pack_date, symbol, outcome_class, conviction, \
                         entry_zone_low, entry_zone_high, invalidation_lvl, \
                         realized_high, realized_low, realized_close, \
-                        eval_window_days, evaluated_at \
+                        eval_window_days, evaluated_at, prediction_id \
                  FROM outcomes WHERE pack_date = ?1 AND symbol = ?2",
                 rusqlite::params![pack_date_str, symbol_norm],
                 row_to_raw,
@@ -543,6 +552,7 @@ type RawRow = (
     f64,
     i64,
     i64,
+    Option<i64>,
 );
 
 fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -560,6 +570,7 @@ fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         row.get(10)?,
         row.get(11)?,
         row.get(12)?,
+        row.get(13)?,
     ))
 }
 
@@ -578,6 +589,7 @@ fn decode_raw(r: RawRow) -> Result<OutcomeRow, OutcomeError> {
         close,
         window,
         evaluated_at,
+        prediction_id,
     ) = r;
     let pack_date = NaiveDate::parse_from_str(&pack_date_s, "%Y-%m-%d").map_err(|e| {
         OutcomeError::Storage(StorageError::Migration(format!(
@@ -604,5 +616,6 @@ fn decode_raw(r: RawRow) -> Result<OutcomeRow, OutcomeError> {
         realized_close: close,
         eval_window_days: window,
         evaluated_at: unix_to_utc(evaluated_at),
+        prediction_id,
     })
 }

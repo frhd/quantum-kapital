@@ -33,6 +33,7 @@ use crate::services::historical_data_service::Lookback;
 use crate::services::outcome_extractor::{
     self, classify, parse_idea, NewOutcome, OutcomeClass, OutcomeExtractorConfig, RealizedAction,
 };
+use crate::services::predictions;
 
 /// Default eval window in calendar days. 1 covers same-day
 /// hit_entry / hit_invalidation per Phase 7 plan; agents can pass
@@ -195,6 +196,24 @@ impl McpHandler {
                 let skipped = idea_marked_skipped(idea);
                 let outcome_class = classify(&levels, &realized, &cfg, skipped);
 
+                // Phase 8: backlink outcome → predictions row.
+                let prediction_id = match predictions::find_for_pack(
+                    &self.db,
+                    &pack.date.to_string(),
+                    &symbol_norm,
+                )
+                .await
+                {
+                    Ok(p) => p.map(|row| row.id),
+                    Err(e) => {
+                        warn!(
+                            "get_outcomes: prediction lookup failed for {} {}: {}",
+                            pack.date, symbol_norm, e
+                        );
+                        None
+                    }
+                };
+
                 if let Err(e) = outcome_extractor::record_outcome(
                     &self.db,
                     NewOutcome {
@@ -209,6 +228,7 @@ impl McpHandler {
                         realized_low: realized.low,
                         realized_close: realized.close,
                         eval_window_days: window,
+                        prediction_id,
                     },
                 )
                 .await

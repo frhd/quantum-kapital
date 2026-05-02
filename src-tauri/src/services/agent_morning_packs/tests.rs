@@ -137,6 +137,49 @@ async fn write_pack_rejects_blank_inputs() {
 }
 
 #[tokio::test]
+async fn write_pack_snapshots_predictions() {
+    // Phase 8: each ranked idea must produce a `predictions` row,
+    // and a re-write of the same date replaces the prior set.
+    let (_tmp, db) = open_db();
+    agent_morning_packs::write_pack(
+        &db,
+        NewAgentMorningPack {
+            date: date("2026-05-07"),
+            ranked_ideas: vec![idea("TSLA", "first"), idea("AAPL", "second")],
+            written_by: "agent_morning_sweep".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let preds = crate::services::predictions::list_predictions(&db, 0, None)
+        .await
+        .unwrap();
+    assert_eq!(preds.len(), 2);
+    let mut symbols: Vec<&str> = preds.iter().map(|p| p.symbol.as_str()).collect();
+    symbols.sort();
+    assert_eq!(symbols, vec!["AAPL", "TSLA"]);
+    assert!(preds.iter().all(|p| p.morning_pack_id.as_deref() == Some("2026-05-07")));
+
+    // Re-write replaces the snapshot set.
+    agent_morning_packs::write_pack(
+        &db,
+        NewAgentMorningPack {
+            date: date("2026-05-07"),
+            ranked_ideas: vec![idea("MSFT", "rerun")],
+            written_by: "agent_morning_sweep".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let preds = crate::services::predictions::list_predictions(&db, 0, None)
+        .await
+        .unwrap();
+    assert_eq!(preds.len(), 1);
+    assert_eq!(preds[0].symbol, "MSFT");
+}
+
+#[tokio::test]
 async fn list_packs_orders_newest_first() {
     let (_tmp, db) = open_db();
     for d in ["2026-05-01", "2026-05-03", "2026-05-02"] {

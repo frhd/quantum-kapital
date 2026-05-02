@@ -17,6 +17,7 @@ use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::services::predictions::{self, PredictionError};
 use crate::services::research_notes::{Conviction, EvidenceRef};
 use crate::storage::error::StorageError;
 use crate::storage::Db;
@@ -59,6 +60,8 @@ pub enum AgentMorningPackError {
     Storage(#[from] StorageError),
     #[error("serde: {0}")]
     Serde(#[from] serde_json::Error),
+    #[error("predictions: {0}")]
+    Predictions(#[from] PredictionError),
 }
 
 /// Inputs for [`write_pack`]. `date` is the trading-day the pack
@@ -110,12 +113,17 @@ pub async fn write_pack(
     })
     .await?;
 
-    Ok(AgentMorningPack {
+    let saved = AgentMorningPack {
         date: new.date,
         ranked_ideas: ideas,
         written_by: new.written_by,
         written_at: now,
-    })
+    };
+    // Phase 8: snapshot every idea into `predictions` so the eval
+    // harness can correlate ideas with eventual outcomes even after
+    // the pack row is overwritten.
+    predictions::record_predictions_from_pack(db, &saved).await?;
+    Ok(saved)
 }
 
 /// Fetch the pack for `date`. Returns `Ok(None)` when no pack exists.

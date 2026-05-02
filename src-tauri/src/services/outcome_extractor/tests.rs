@@ -289,6 +289,7 @@ async fn record_outcome_inserts_then_upserts_on_pack_date_symbol() {
         realized_low: 99.0,
         realized_close: 103.0,
         eval_window_days: 1,
+        prediction_id: None,
     };
     let row = record_outcome(&db, first.clone()).await.unwrap();
     assert!(row.id > 0);
@@ -330,6 +331,7 @@ async fn list_outcomes_since_filters_by_date() {
                 realized_low: 0.5,
                 realized_close: 0.75,
                 eval_window_days: 1,
+                prediction_id: None,
             },
         )
         .await
