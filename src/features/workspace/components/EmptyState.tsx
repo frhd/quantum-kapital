@@ -19,9 +19,7 @@ export function EmptyState({ title, description, cta }: EmptyStateProps) {
     <Card className="border-border bg-card/50">
       <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
         <p className="text-foreground text-sm font-medium">{title}</p>
-        {description && (
-          <p className="text-muted-foreground max-w-md text-xs">{description}</p>
-        )}
+        {description && <p className="text-muted-foreground max-w-md text-xs">{description}</p>}
         {cta && <div className="mt-2">{cta}</div>}
       </CardContent>
     </Card>

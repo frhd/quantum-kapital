@@ -25,12 +25,7 @@ export function ResearchPanel() {
   }
 
   if (error) {
-    return (
-      <EmptyState
-        title="Failed to load research notes"
-        description={error}
-      />
-    )
+    return <EmptyState title="Failed to load research notes" description={error} />
   }
 
   if (!loading && notes.length === 0) {

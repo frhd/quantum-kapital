@@ -96,93 +96,93 @@ export default function App() {
     <WorkspaceProvider onNavigatePage={handleNavigateToWorkspace}>
       <AddToTrackerProvider open={handleRequestAddToTracker}>
         <AppLayout
-        currentPage={currentPage}
-        onNavigate={setCurrentPage}
-        connectionStatus={connectionStatus}
-        loading={loading}
-        disconnecting={disconnecting}
-        onConnect={handleConnect}
-        onDisconnect={handleDisconnect}
-        badges={{ tracker: trackerCount }}
-      >
-        <div className="space-y-6">
-          {error && (
-            <Card className="border-destructive/50 bg-destructive/10">
-              <CardContent className="flex items-center gap-2 p-4">
-                <AlertCircle className="text-destructive h-5 w-5" />
-                <p className="text-destructive">{error}</p>
-              </CardContent>
-            </Card>
-          )}
+          currentPage={currentPage}
+          onNavigate={setCurrentPage}
+          connectionStatus={connectionStatus}
+          loading={loading}
+          disconnecting={disconnecting}
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          badges={{ tracker: trackerCount }}
+        >
+          <div className="space-y-6">
+            {error && (
+              <Card className="border-destructive/50 bg-destructive/10">
+                <CardContent className="flex items-center gap-2 p-4">
+                  <AlertCircle className="text-destructive h-5 w-5" />
+                  <p className="text-destructive">{error}</p>
+                </CardContent>
+              </Card>
+            )}
 
-          {!connectionStatus.connected && (
-            <ConnectionSettings
-              connectionSettings={connectionSettings}
-              setConnectionSettings={setConnectionSettings}
-            />
-          )}
-
-          {connectionStatus.connected && (
-            <>
-              <DataTierBanner />
-
-              <AccountSummary
-                accounts={accounts}
-                accountSummary={accountSummary}
-                positions={positions}
+            {!connectionStatus.connected && (
+              <ConnectionSettings
+                connectionSettings={connectionSettings}
+                setConnectionSettings={setConnectionSettings}
               />
+            )}
 
-              {currentPage === "ticker" && <WorkspaceTab />}
+            {connectionStatus.connected && (
+              <>
+                <DataTierBanner />
 
-              {currentPage === "scanner" && (
-                <ScannerPage onAddToTracker={handleRequestAddToTracker} />
-              )}
-
-              {currentPage === "candidates" && <CandidateBrowser />}
-
-              {currentPage === "tracker" && (
-                <TrackerPage
-                  refreshKey={trackerVersion}
-                  onAddClick={handleAddTrackerManual}
-                  onCountChange={setTrackerCount}
-                />
-              )}
-
-              {currentPage === "research" && <ResearchTab />}
-
-              {currentPage === "eval" && <EvalTab />}
-
-              {currentPage === "positions" && (
-                <>
-                  <StockPositions positions={positions} />
-                  <OptionPositions positions={positions} />
-                  {positions.length === 0 && (
-                    <Card>
-                      <CardContent className="py-8 text-center">
-                        <p className="text-muted-foreground">No positions found</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </>
-              )}
-
-              {currentPage === "account" && (
-                <AccountDetails
+                <AccountSummary
                   accounts={accounts}
                   accountSummary={accountSummary}
-                  connectionStatus={connectionStatus}
+                  positions={positions}
                 />
-              )}
-            </>
-          )}
-        </div>
 
-        <AddToTrackerDialog
-          open={addDialogOpen}
-          prefill={addDialogPrefill}
-          onClose={handleDialogClose}
-          onAdded={handleDialogAdded}
-        />
+                {currentPage === "ticker" && <WorkspaceTab />}
+
+                {currentPage === "scanner" && (
+                  <ScannerPage onAddToTracker={handleRequestAddToTracker} />
+                )}
+
+                {currentPage === "candidates" && <CandidateBrowser />}
+
+                {currentPage === "tracker" && (
+                  <TrackerPage
+                    refreshKey={trackerVersion}
+                    onAddClick={handleAddTrackerManual}
+                    onCountChange={setTrackerCount}
+                  />
+                )}
+
+                {currentPage === "research" && <ResearchTab />}
+
+                {currentPage === "eval" && <EvalTab />}
+
+                {currentPage === "positions" && (
+                  <>
+                    <StockPositions positions={positions} />
+                    <OptionPositions positions={positions} />
+                    {positions.length === 0 && (
+                      <Card>
+                        <CardContent className="py-8 text-center">
+                          <p className="text-muted-foreground">No positions found</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                )}
+
+                {currentPage === "account" && (
+                  <AccountDetails
+                    accounts={accounts}
+                    accountSummary={accountSummary}
+                    connectionStatus={connectionStatus}
+                  />
+                )}
+              </>
+            )}
+          </div>
+
+          <AddToTrackerDialog
+            open={addDialogOpen}
+            prefill={addDialogPrefill}
+            onClose={handleDialogClose}
+            onAdded={handleDialogAdded}
+          />
         </AppLayout>
       </AddToTrackerProvider>
     </WorkspaceProvider>

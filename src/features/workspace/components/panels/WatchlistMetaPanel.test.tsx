@@ -33,10 +33,7 @@ function SetSymbol({ symbol }: { symbol: string | null }) {
 
 type AddOpener = (prefill: AddToTrackerPrefill) => void
 
-function renderPanel(
-  symbol: string | null,
-  options: { addOpen?: AddOpener | null } = {},
-) {
+function renderPanel(symbol: string | null, options: { addOpen?: AddOpener | null } = {}) {
   const open = options.addOpen ?? null
   const tree = (
     <WorkspaceProvider>

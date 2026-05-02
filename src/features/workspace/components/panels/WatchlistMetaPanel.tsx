@@ -13,11 +13,7 @@ import { TagEditor } from "../../../tracker/components/TagEditor"
 import { SetupBadge } from "../../../tracker/components/SetupBadge"
 import { useWatchlist } from "../../../tracker/hooks/useWatchlist"
 import { useTrackerEvents } from "../../../tracker/hooks/useTrackerEvents"
-import {
-  BUILT_IN_TAGS,
-  STATUS_LABELS,
-  type StrategyTag,
-} from "../../../tracker/types"
+import { BUILT_IN_TAGS, STATUS_LABELS, type StrategyTag } from "../../../tracker/types"
 import { useWorkspace } from "../../context/WorkspaceContext"
 import { useAddToTrackerOpen } from "../../context/AddToTrackerContext"
 import { EmptyState } from "../EmptyState"
@@ -43,7 +39,7 @@ export function WatchlistMetaPanel() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const ticker = useMemo(
-    () => (symbol ? tickers.find((t) => t.symbol === symbol) ?? null : null),
+    () => (symbol ? (tickers.find((t) => t.symbol === symbol) ?? null) : null),
     [symbol, tickers],
   )
   const activeSetup = symbol ? activeSetupBySymbol[symbol] : undefined
@@ -68,12 +64,7 @@ export function WatchlistMetaPanel() {
   }
 
   if (error) {
-    return (
-      <EmptyState
-        title="Failed to load watchlist"
-        description={error}
-      />
-    )
+    return <EmptyState title="Failed to load watchlist" description={error} />
   }
 
   if (!ticker) {
@@ -83,10 +74,7 @@ export function WatchlistMetaPanel() {
         description="Add it to start scoring detectors and capture alerts on this ticker."
         cta={
           openAddToTracker ? (
-            <Button
-              size="sm"
-              onClick={() => openAddToTracker({ symbol, source: "manual" })}
-            >
+            <Button size="sm" onClick={() => openAddToTracker({ symbol, source: "manual" })}>
               Add to tracker
             </Button>
           ) : null
@@ -128,17 +116,12 @@ export function WatchlistMetaPanel() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Status" value={STATUS_LABELS[ticker.status]} />
           <Field label="Source" value={ticker.source} />
-          <Field
-            label="Added"
-            value={new Date(ticker.added_at).toLocaleDateString()}
-          />
+          <Field label="Added" value={new Date(ticker.added_at).toLocaleDateString()} />
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-xs uppercase tracking-wide">
-              Tags
-            </span>
+            <span className="text-muted-foreground text-xs tracking-wide uppercase">Tags</span>
             {!editing && (
               <Button
                 variant="ghost"
@@ -166,11 +149,7 @@ export function WatchlistMetaPanel() {
                 <span className="text-muted-foreground text-xs">No tags</span>
               ) : (
                 ticker.tags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant="outline"
-                    className="border-input text-foreground"
-                  >
+                  <Badge key={tag} variant="outline" className="border-input text-foreground">
                     {tagLabel(tag)}
                   </Badge>
                 ))
@@ -181,10 +160,8 @@ export function WatchlistMetaPanel() {
 
         {ticker.notes && (
           <div className="space-y-1">
-            <span className="text-muted-foreground text-xs uppercase tracking-wide">
-              Notes
-            </span>
-            <p className="text-foreground/90 whitespace-pre-wrap text-xs leading-relaxed">
+            <span className="text-muted-foreground text-xs tracking-wide uppercase">Notes</span>
+            <p className="text-foreground/90 text-xs leading-relaxed whitespace-pre-wrap">
               {ticker.notes}
             </p>
           </div>
@@ -197,9 +174,7 @@ export function WatchlistMetaPanel() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-0.5">
-      <span className="text-muted-foreground text-xs uppercase tracking-wide">
-        {label}
-      </span>
+      <span className="text-muted-foreground text-xs tracking-wide uppercase">{label}</span>
       <p className="text-foreground text-sm">{value}</p>
     </div>
   )

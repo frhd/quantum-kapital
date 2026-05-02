@@ -108,18 +108,14 @@ export function AlertsPanel() {
             description="Detector hits, invalidations, target hits, and thesis updates will land here."
           />
         ) : alerts.length === 0 && loading ? (
-          <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-xs">
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading alerts…
           </div>
         ) : (
           <div className="flex max-h-[28rem] flex-col gap-1.5 overflow-y-auto">
             {alerts.map((a) => (
-              <AlertRow
-                key={a.id}
-                alert={a}
-                onClick={() => void markOneSeen(a.id)}
-              />
+              <AlertRow key={a.id} alert={a} onClick={() => void markOneSeen(a.id)} />
             ))}
             {hasMore && (
               <Button
