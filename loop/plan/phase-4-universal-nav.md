@@ -2,7 +2,7 @@
 
 > Part of [Unified Ticker Workspace](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-03)
+**Status:** done (commit 2686146, 2026-05-03)
 
 **Depends on:** 2, 3
 
