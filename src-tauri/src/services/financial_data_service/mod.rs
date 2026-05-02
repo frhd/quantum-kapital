@@ -320,6 +320,30 @@ impl FinancialDataService {
         self
     }
 
+    /// Drop every cached AV fundamentals row for `symbol`. Phase 4: the
+    /// MCP `set_fundamentals` tool calls this after a manual write so the
+    /// AV file cache cannot resurface a pre-manual payload if the manual
+    /// row is later cleared. Each AV fundamentals fetch hits three
+    /// endpoints (`OVERVIEW` / `INCOME_STATEMENT` / `EARNINGS`), keyed
+    /// `<SYMBOL>_overview` / `_income` / `_earnings` — purge all three.
+    /// Errors are logged and swallowed individually so a partial purge
+    /// (one of the three keys absent) does not fail the surrounding write.
+    pub fn clear_fundamentals_cache(&self, symbol: &str) {
+        let Some(cache) = self.cache.as_ref() else {
+            return;
+        };
+        let upper = symbol.trim().to_uppercase();
+        if upper.is_empty() {
+            return;
+        }
+        for suffix in ["overview", "income", "earnings"] {
+            let key = format!("{upper}_{suffix}");
+            if let Err(e) = cache.clear(&key) {
+                warn!("AV cache clear failed for {key}: {e}");
+            }
+        }
+    }
+
     /// Fetch ticker-tagged news + sentiment from Alpha Vantage NEWS_SENTIMENT,
     /// using the SQLite news cache (1-hour default TTL). Falls back to cached
     /// or empty data on rate-limit / no-key / transport failures so the

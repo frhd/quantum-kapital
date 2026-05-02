@@ -131,8 +131,9 @@ impl CacheService {
         Ok(())
     }
 
-    /// Clears a specific cache entry
-    #[allow(dead_code)]
+    /// Clears a specific cache entry. Phase 4: also called from the MCP
+    /// `set_fundamentals` tool (via `FinancialDataService::clear_fundamentals_cache`)
+    /// to purge AV file-cache rows once a manual row replaces them.
     pub fn clear(&self, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         let cache_path = self.get_cache_path(key);
 

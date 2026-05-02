@@ -21,6 +21,8 @@ use thiserror::Error;
 use crate::ibkr::types::FundamentalData;
 
 pub mod alpha_vantage;
+pub mod composite;
+pub mod manual;
 pub mod test_support;
 
 #[cfg(test)]
