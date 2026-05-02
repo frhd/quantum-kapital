@@ -78,6 +78,50 @@ impl Conviction {
     }
 }
 
+/// How the thesis is broken. Stored as a string in `research_notes.invalidation_kind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InvalidationKind {
+    /// Long bias: a daily close at or below `invalidation_price` kills the thesis.
+    CloseBelow,
+    /// Short bias: a daily close at or above `invalidation_price` kills the thesis.
+    CloseAbove,
+    /// Any intraday print past `invalidation_price` (in the breach direction)
+    /// counts. v1 evaluates this exactly like `close_below`; refining to
+    /// use the day's low/high is a follow-up.
+    IntradayBreach,
+}
+
+impl InvalidationKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            InvalidationKind::CloseBelow => "close_below",
+            InvalidationKind::CloseAbove => "close_above",
+            InvalidationKind::IntradayBreach => "intraday_breach",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "close_below" => Some(InvalidationKind::CloseBelow),
+            "close_above" => Some(InvalidationKind::CloseAbove),
+            "intraday_breach" => Some(InvalidationKind::IntradayBreach),
+            _ => None,
+        }
+    }
+}
+
+/// Author-asserted target level. Order across a `Vec<NoteTarget>` is the
+/// rank: first entry is T1, second is T2, etc.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NoteTarget {
+    /// Display label, typically `"T1"` / `"T2"` / `"T3"`. Free-form so
+    /// the author can write `"gap fill"` if they prefer.
+    pub label: String,
+    /// Absolute price the target is hit at.
+    pub price: f64,
+}
+
 /// One row of `research_notes`. `written_by` carries the caller
 /// identifier (`"user"`, `"agent_morning_sweep"`, `"agent_alert_dive"`,
 /// `"interactive"`, …); the agent loops set this to their loop name.
@@ -92,6 +136,28 @@ pub struct ResearchNote {
     pub written_at: DateTime<Utc>,
     pub setup_id: Option<i64>,
     pub alert_id: Option<i64>,
+    /// Last price observed when the note was written. Anchors the
+    /// "price drift since write" readout in the UI; populated either
+    /// by the author or by an auto-snapshot from `QuoteService` at
+    /// write time.
+    #[serde(default)]
+    pub price_at_write: Option<f64>,
+    /// Level the thesis dies at. Compared against the live quote to
+    /// decide breach. Optional — old notes (and freeform interactive
+    /// ones) leave it null.
+    #[serde(default)]
+    pub invalidation_price: Option<f64>,
+    /// Direction / kind of invalidation. Required when
+    /// `invalidation_price` is set; `None` otherwise.
+    #[serde(default)]
+    pub invalidation_kind: Option<InvalidationKind>,
+    /// Ordered author-asserted price targets. May be empty.
+    #[serde(default)]
+    pub targets: Vec<NoteTarget>,
+    /// ISO date for a known upcoming catalyst (earnings, FDA, etc.).
+    /// Optional — the UI shows nothing when absent.
+    #[serde(default)]
+    pub catalyst_date: Option<String>,
 }
 
 /// Inputs for [`write_note`]. Symbol is normalized to upper-case before
@@ -105,6 +171,11 @@ pub struct NewResearchNote {
     pub written_by: String,
     pub setup_id: Option<i64>,
     pub alert_id: Option<i64>,
+    pub price_at_write: Option<f64>,
+    pub invalidation_price: Option<f64>,
+    pub invalidation_kind: Option<InvalidationKind>,
+    pub targets: Vec<NoteTarget>,
+    pub catalyst_date: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -138,9 +209,23 @@ pub async fn write_note(
         return Err(ResearchNotesError::EmptyWrittenBy);
     }
 
+    // `invalidation_kind` is meaningful only when paired with a
+    // price; coerce a stray `kind` without `price` to `None` so the
+    // UI never sees half-set state.
+    let (invalidation_price, invalidation_kind) = match new.invalidation_price {
+        Some(p) => (Some(p), new.invalidation_kind),
+        None => (None, None),
+    };
+
     let symbol_norm = symbol.to_uppercase();
     let conviction_str = new.conviction.map(|c| c.as_str().to_string());
     let evidence_json = serde_json::to_string(&new.evidence_refs)?;
+    let targets_json = if new.targets.is_empty() {
+        None
+    } else {
+        Some(serde_json::to_string(&new.targets)?)
+    };
+    let kind_str = invalidation_kind.map(|k| k.as_str().to_string());
     // Truncate to whole seconds so the in-memory timestamp matches what
     // `get_note` will round-trip after reading the unix-second column.
     let now_unix = Utc::now().timestamp();
@@ -150,13 +235,16 @@ pub async fn write_note(
     let written_by_for_db = new.written_by.clone();
     let setup_id = new.setup_id;
     let alert_id = new.alert_id;
+    let price_at_write = new.price_at_write;
+    let catalyst_date = new.catalyst_date.clone();
 
     let id = db
         .with_conn(move |conn| {
             conn.execute(
                 "INSERT INTO research_notes \
-                 (symbol, body_md, conviction, evidence_refs, written_by, written_at, setup_id, alert_id) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (symbol, body_md, conviction, evidence_refs, written_by, written_at, setup_id, alert_id, \
+                  price_at_write, invalidation_price, invalidation_kind, targets_json, catalyst_date) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 rusqlite::params![
                     symbol_for_db,
                     body_for_db,
@@ -166,6 +254,11 @@ pub async fn write_note(
                     now_unix,
                     setup_id,
                     alert_id,
+                    price_at_write,
+                    invalidation_price,
+                    kind_str,
+                    targets_json,
+                    catalyst_date,
                 ],
             )?;
             Ok(conn.last_insert_rowid())
@@ -182,6 +275,11 @@ pub async fn write_note(
         written_at: now,
         setup_id,
         alert_id,
+        price_at_write,
+        invalidation_price,
+        invalidation_kind,
+        targets: new.targets,
+        catalyst_date: new.catalyst_date,
     })
 }
 
@@ -210,7 +308,9 @@ pub async fn list_notes(
         .with_conn(move |conn| {
             let mut sql = String::from(
                 "SELECT id, symbol, body_md, conviction, evidence_refs, \
-                        written_by, written_at, setup_id, alert_id \
+                        written_by, written_at, setup_id, alert_id, \
+                        price_at_write, invalidation_price, invalidation_kind, \
+                        targets_json, catalyst_date \
                  FROM research_notes",
             );
             let mut clauses: Vec<String> = Vec::new();
@@ -259,7 +359,9 @@ pub async fn get_note(db: &Arc<Db>, id: i64) -> Result<Option<ResearchNote>, Res
             use rusqlite::OptionalExtension;
             conn.query_row(
                 "SELECT id, symbol, body_md, conviction, evidence_refs, \
-                        written_by, written_at, setup_id, alert_id \
+                        written_by, written_at, setup_id, alert_id, \
+                        price_at_write, invalidation_price, invalidation_kind, \
+                        targets_json, catalyst_date \
                  FROM research_notes WHERE id = ?1",
                 rusqlite::params![id],
                 row_to_raw,
@@ -283,6 +385,11 @@ type RawRow = (
     i64,            // written_at unix
     Option<i64>,    // setup_id
     Option<i64>,    // alert_id
+    Option<f64>,    // price_at_write
+    Option<f64>,    // invalidation_price
+    Option<String>, // invalidation_kind
+    Option<String>, // targets_json
+    Option<String>, // catalyst_date
 );
 
 fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -296,14 +403,40 @@ fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         row.get(6)?,
         row.get(7)?,
         row.get(8)?,
+        row.get(9)?,
+        row.get(10)?,
+        row.get(11)?,
+        row.get(12)?,
+        row.get(13)?,
     ))
 }
 
 fn decode_raw(r: RawRow) -> Result<ResearchNote, ResearchNotesError> {
-    let (id, symbol, body_md, conviction_s, evidence_s, written_by, written_at, setup_id, alert_id) =
-        r;
+    let (
+        id,
+        symbol,
+        body_md,
+        conviction_s,
+        evidence_s,
+        written_by,
+        written_at,
+        setup_id,
+        alert_id,
+        price_at_write,
+        invalidation_price,
+        invalidation_kind_s,
+        targets_s,
+        catalyst_date,
+    ) = r;
     let conviction = conviction_s.as_deref().and_then(Conviction::parse);
     let evidence_refs = match evidence_s {
+        Some(s) if !s.is_empty() => serde_json::from_str(&s)?,
+        _ => Vec::new(),
+    };
+    let invalidation_kind = invalidation_kind_s
+        .as_deref()
+        .and_then(InvalidationKind::parse);
+    let targets = match targets_s {
         Some(s) if !s.is_empty() => serde_json::from_str(&s)?,
         _ => Vec::new(),
     };
@@ -317,5 +450,10 @@ fn decode_raw(r: RawRow) -> Result<ResearchNote, ResearchNotesError> {
         written_at: unix_to_utc(written_at),
         setup_id,
         alert_id,
+        price_at_write,
+        invalidation_price,
+        invalidation_kind,
+        targets,
+        catalyst_date,
     })
 }

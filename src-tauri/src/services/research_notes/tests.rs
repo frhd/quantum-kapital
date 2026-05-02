@@ -4,7 +4,8 @@ use chrono::Utc;
 use tempfile::NamedTempFile;
 
 use crate::services::research_notes::{
-    self, Conviction, EvidenceRef, ListNotesQuery, NewResearchNote, ResearchNotesError,
+    self, Conviction, EvidenceRef, InvalidationKind, ListNotesQuery, NewResearchNote, NoteTarget,
+    ResearchNotesError,
 };
 use crate::storage::Db;
 
@@ -23,6 +24,11 @@ fn sample(symbol: &str, written_by: &str) -> NewResearchNote {
         written_by: written_by.to_string(),
         setup_id: None,
         alert_id: None,
+        price_at_write: None,
+        invalidation_price: None,
+        invalidation_kind: None,
+        targets: vec![],
+        catalyst_date: None,
     }
 }
 
@@ -107,6 +113,74 @@ async fn evidence_refs_round_trip_through_storage() {
     assert_eq!(fetched.evidence_refs.len(), 4);
     // Each variant round-trips by exact value (serde tag = "type").
     assert_eq!(fetched.evidence_refs, refs);
+}
+
+#[tokio::test]
+async fn structured_levels_round_trip_through_storage() {
+    let (_tmp, db) = open_db();
+    let saved = research_notes::write_note(
+        &db,
+        NewResearchNote {
+            price_at_write: Some(166.48),
+            invalidation_price: Some(156.0),
+            invalidation_kind: Some(InvalidationKind::CloseBelow),
+            targets: vec![
+                NoteTarget {
+                    label: "T1".to_string(),
+                    price: 185.0,
+                },
+                NoteTarget {
+                    label: "T2".to_string(),
+                    price: 215.0,
+                },
+            ],
+            catalyst_date: Some("2026-05-15".to_string()),
+            ..sample("RDDT", "interactive")
+        },
+    )
+    .await
+    .expect("write");
+
+    let fetched = research_notes::get_note(&db, saved.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched.price_at_write, Some(166.48));
+    assert_eq!(fetched.invalidation_price, Some(156.0));
+    assert_eq!(
+        fetched.invalidation_kind,
+        Some(InvalidationKind::CloseBelow)
+    );
+    assert_eq!(fetched.targets.len(), 2);
+    assert_eq!(fetched.targets[0].label, "T1");
+    assert!((fetched.targets[0].price - 185.0).abs() < 1e-9);
+    assert_eq!(fetched.catalyst_date.as_deref(), Some("2026-05-15"));
+}
+
+#[tokio::test]
+async fn invalidation_kind_without_price_is_dropped() {
+    // Half-set state would confuse the UI: the validity card relies on
+    // `invalidation_price` to compute breach. If a caller hands us a
+    // kind without a price, drop the kind so reads see a clean
+    // "Unknown" status rather than "kind set, price null".
+    let (_tmp, db) = open_db();
+    let saved = research_notes::write_note(
+        &db,
+        NewResearchNote {
+            invalidation_price: None,
+            invalidation_kind: Some(InvalidationKind::CloseBelow),
+            ..sample("AAPL", "interactive")
+        },
+    )
+    .await
+    .expect("write");
+    assert_eq!(saved.invalidation_price, None);
+    assert_eq!(saved.invalidation_kind, None);
+    let fetched = research_notes::get_note(&db, saved.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched.invalidation_kind, None);
 }
 
 #[tokio::test]

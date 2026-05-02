@@ -14,6 +14,13 @@ export type EvidenceRef =
   | { type: "setup"; id: number }
   | { type: "bar_range"; symbol: string; from: string; to: string }
 
+export type InvalidationKind = "close_below" | "close_above" | "intraday_breach"
+
+export interface NoteTarget {
+  label: string
+  price: number
+}
+
 export interface ResearchNote {
   id: number
   symbol: string
@@ -24,6 +31,20 @@ export interface ResearchNote {
   written_at: string
   setup_id: number | null
   alert_id: number | null
+  /** Last price observed when the note was written. Powers the
+   *  "drift since write" readout in the validity card. */
+  price_at_write?: number | null
+  /** Level the thesis dies at. Compared against the live quote to
+   *  decide breach. */
+  invalidation_price?: number | null
+  /** How `invalidation_price` is breached. Required when
+   *  `invalidation_price` is set; null otherwise. */
+  invalidation_kind?: InvalidationKind | null
+  /** Ordered author-asserted price targets (T1 first). Always present
+   *  but may be empty. */
+  targets?: NoteTarget[]
+  /** Optional ISO date for a known upcoming catalyst. */
+  catalyst_date?: string | null
 }
 
 export interface RankedIdea {

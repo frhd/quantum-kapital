@@ -188,6 +188,11 @@ mod tests {
                 written_by: "agent_alert_dive".to_string(),
                 setup_id: Some(setup.id),
                 alert_id: Some(alert.id),
+                price_at_write: None,
+                invalidation_price: None,
+                invalidation_kind: None,
+                targets: vec![],
+                catalyst_date: None,
             },
         )
         .await

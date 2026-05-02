@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/compon
 import { Input } from "../../../shared/components/ui/input"
 import { useResearchNotes } from "../hooks/useResearchNotes"
 import type { EvidenceRef, ResearchNote } from "../types"
+import { MarkdownBody } from "./MarkdownBody"
+import { NoteValidityCard } from "./NoteValidityCard"
 
 /**
  * Phase 02 — research notes list view.
@@ -78,9 +80,9 @@ function NoteCard({ note }: { note: ResearchNote }) {
         </span>
       </div>
 
-      <pre className="text-foreground/90 mt-2 font-sans text-sm whitespace-pre-wrap">
-        {note.body_md}
-      </pre>
+      <NoteValidityCard note={note} />
+
+      <MarkdownBody markdown={note.body_md} />
 
       {note.evidence_refs.length > 0 && (
         <div className="text-muted-foreground mt-2 flex flex-wrap gap-1 text-xs">

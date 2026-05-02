@@ -114,6 +114,11 @@ pub async fn ack_alert(
                     written_by: caller.to_string(),
                     setup_id: Some(setup_id),
                     alert_id: Some(alert_id),
+                    price_at_write: None,
+                    invalidation_price: None,
+                    invalidation_kind: None,
+                    targets: vec![],
+                    catalyst_date: None,
                 },
             )
             .await?;

@@ -1,3 +1,4 @@
+import { relativeTime } from "../../../shared/lib/relativeTime"
 import type { Alert } from "../types"
 import { ALERT_KIND_LABELS } from "../types"
 
@@ -29,20 +30,6 @@ const ENRICHMENT_BADGE: Record<EnrichmentState, { label: string; cls: string; ti
     cls: "border-amber-400/40 bg-amber-500/10 text-amber-200",
     title: "Deep dive was skipped (e.g. budget guardrail)",
   },
-}
-
-function relativeTime(iso: string): string {
-  const t = new Date(iso).getTime()
-  if (Number.isNaN(t)) return ""
-  const diffMs = Date.now() - t
-  const sec = Math.round(diffMs / 1000)
-  if (sec < 60) return `${sec}s ago`
-  const min = Math.round(sec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.round(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  const day = Math.round(hr / 24)
-  return `${day}d ago`
 }
 
 function kindAccent(kind: Alert["kind"]): string {
