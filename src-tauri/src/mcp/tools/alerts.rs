@@ -94,6 +94,7 @@ impl McpHandler {
             kind,
             only_unseen,
             unenriched_only,
+            symbol: None,
         };
         let result = list_alerts(&self.db, query)
             .await

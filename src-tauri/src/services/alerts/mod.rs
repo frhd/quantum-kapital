@@ -49,6 +49,11 @@ pub struct ListAlertsQuery {
     /// still NULL (i.e. the per-alert deep-dive agent hasn't reached
     /// them yet). The agent polls with this flag set.
     pub unenriched_only: bool,
+    /// Workspace Phase 2 — when `Some`, restrict to alerts whose parent
+    /// `setups.symbol` matches (case-insensitive exact). Joins to
+    /// `setups` so pagination remains correct (a client-side payload
+    /// filter would only see the current page).
+    pub symbol: Option<String>,
 }
 
 impl Default for ListAlertsQuery {
@@ -60,6 +65,7 @@ impl Default for ListAlertsQuery {
             kind: None,
             only_unseen: false,
             unenriched_only: false,
+            symbol: None,
         }
     }
 }
@@ -131,33 +137,45 @@ pub async fn list_alerts(db: &Arc<Db>, query: ListAlertsQuery) -> Result<Vec<Ale
     let kind_str = query.kind.map(|k| k.as_str().to_string());
     let only_unseen = query.only_unseen;
     let unenriched_only = query.unenriched_only;
+    let symbol_filter = query.symbol.map(|s| s.to_uppercase());
 
     let raws = db
         .with_conn(move |conn| {
+            // When a symbol filter is requested we join `setups`, since
+            // the alerts table itself has no `symbol` column. Existing
+            // index `idx_setups_symbol` covers the predicate.
+            let needs_setup_join = symbol_filter.is_some();
             let mut sql = String::from(
-                "SELECT id, setup_id, kind, fired_at, payload, seen, enriched_at, research_note_id FROM alerts",
+                "SELECT a.id, a.setup_id, a.kind, a.fired_at, a.payload, a.seen, a.enriched_at, a.research_note_id FROM alerts a",
             );
+            if needs_setup_join {
+                sql.push_str(" JOIN setups s ON s.id = a.setup_id");
+            }
             let mut clauses: Vec<String> = Vec::new();
             let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
             if let Some(ts) = since_unix {
-                clauses.push(format!("fired_at >= ?{}", params.len() + 1));
+                clauses.push(format!("a.fired_at >= ?{}", params.len() + 1));
                 params.push(Box::new(ts));
             }
             if let Some(k) = kind_str {
-                clauses.push(format!("kind = ?{}", params.len() + 1));
+                clauses.push(format!("a.kind = ?{}", params.len() + 1));
                 params.push(Box::new(k));
             }
             if only_unseen {
-                clauses.push("seen = 0".to_string());
+                clauses.push("a.seen = 0".to_string());
             }
             if unenriched_only {
-                clauses.push("enriched_at IS NULL".to_string());
+                clauses.push("a.enriched_at IS NULL".to_string());
+            }
+            if let Some(sym) = symbol_filter {
+                clauses.push(format!("s.symbol = ?{}", params.len() + 1));
+                params.push(Box::new(sym));
             }
             if !clauses.is_empty() {
                 sql.push_str(" WHERE ");
                 sql.push_str(&clauses.join(" AND "));
             }
-            sql.push_str(" ORDER BY fired_at DESC, id DESC");
+            sql.push_str(" ORDER BY a.fired_at DESC, a.id DESC");
             sql.push_str(&format!(
                 " LIMIT ?{} OFFSET ?{}",
                 params.len() + 1,

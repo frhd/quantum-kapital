@@ -276,6 +276,91 @@ async fn mark_alerts_seen_empty_input_is_noop() {
 }
 
 #[tokio::test]
+async fn list_alerts_filters_by_symbol_via_setups_join() {
+    let (_tmp, db) = make_db();
+    let setup_a = seed_setup(&db, "AAPL").await;
+    let setup_b = seed_setup(&db, "MSFT").await;
+
+    record_alert(
+        &db,
+        setup_a,
+        AlertKind::Detected,
+        json!({"symbol": "AAPL", "n": 1}),
+    )
+    .await
+    .unwrap()
+    .expect("aapl detected");
+    record_alert(
+        &db,
+        setup_a,
+        AlertKind::Invalidated,
+        json!({"symbol": "AAPL", "n": 2}),
+    )
+    .await
+    .unwrap()
+    .expect("aapl invalidated");
+    record_alert(
+        &db,
+        setup_b,
+        AlertKind::Detected,
+        json!({"symbol": "MSFT", "n": 3}),
+    )
+    .await
+    .unwrap()
+    .expect("msft detected");
+
+    let aapl_only = list_alerts(
+        &db,
+        ListAlertsQuery {
+            symbol: Some("AAPL".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("symbol filter");
+    assert_eq!(aapl_only.len(), 2);
+    assert!(aapl_only.iter().all(|a| a.setup_id == setup_a));
+
+    // Lower-case input still matches (uppercased before query).
+    let aapl_lower = list_alerts(
+        &db,
+        ListAlertsQuery {
+            symbol: Some("aapl".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("case insensitive symbol");
+    assert_eq!(aapl_lower.len(), 2);
+
+    // Symbol filter composes with kind filter.
+    let aapl_detected = list_alerts(
+        &db,
+        ListAlertsQuery {
+            symbol: Some("AAPL".to_string()),
+            kind: Some(AlertKind::Detected),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("symbol+kind");
+    assert_eq!(aapl_detected.len(), 1);
+    assert_eq!(aapl_detected[0].kind, AlertKind::Detected);
+
+    // Unknown symbol → empty.
+    let none = list_alerts(
+        &db,
+        ListAlertsQuery {
+            symbol: Some("NVDA".to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("unknown symbol");
+    assert!(none.is_empty());
+}
+
+#[tokio::test]
 async fn list_alerts_unenriched_only_filters_marked_rows() {
     use super::mark_alert_enriched;
 

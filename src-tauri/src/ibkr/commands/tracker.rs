@@ -251,6 +251,7 @@ pub async fn tracker_list_alerts(
     since: Option<DateTime<Utc>>,
     kind: Option<AlertKind>,
     only_unseen: Option<bool>,
+    symbol: Option<String>,
 ) -> Result<Vec<Alert>, String> {
     let q = ListAlertsQuery {
         limit: limit.unwrap_or(50),
@@ -259,6 +260,7 @@ pub async fn tracker_list_alerts(
         kind,
         only_unseen: only_unseen.unwrap_or(false),
         unenriched_only: false,
+        symbol,
     };
     list_alerts(&db, q).await.map_err(|e| e.to_string())
 }
