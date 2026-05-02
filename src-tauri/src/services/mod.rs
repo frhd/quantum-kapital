@@ -16,6 +16,7 @@ pub mod llm_service;
 pub mod mcp_audit;
 pub mod news_interpreter;
 pub mod outcome_extractor;
+pub mod predictions;
 pub mod projection_service;
 pub mod quote_service;
 pub mod research_notes;
