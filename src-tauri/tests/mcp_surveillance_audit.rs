@@ -102,11 +102,12 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // read: get_sentiment) + Phase 4 (1 read: get_candidates, 1 write:
     // promote_candidate) + Phase 6 (1 write: mark_alert_enriched) +
     // Phase 7 (2 reads: get_morning_pack, get_outcomes; 1 write:
-    // append_journal_entry) = 23.
+    // append_journal_entry) + Phase 8 (3 reads: get_calibration_stats,
+    // get_prediction_history, get_cost_attribution) = 26.
     assert_eq!(
         names.len(),
-        23,
-        "expected 23 registered MCP tools, got {}: {:?}",
+        26,
+        "expected 26 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );

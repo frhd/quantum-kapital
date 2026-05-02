@@ -148,6 +148,9 @@ impl McpHandler {
             + Self::promote_candidate_router()
             + Self::get_morning_pack_router()
             + Self::get_outcomes_router()
+            + Self::get_calibration_stats_router()
+            + Self::get_prediction_history_router()
+            + Self::get_cost_attribution_router()
             + Self::append_journal_entry_router();
         Self {
             llm,
