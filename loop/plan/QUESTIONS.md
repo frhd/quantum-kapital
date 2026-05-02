@@ -24,18 +24,74 @@ continue. Resolve and prune as phases progress.
 
 ---
 
-## P2: Phase 2 spike capture is human-in-the-loop — TWS + Reuters subscription required
+## P2: Phase 2 abandoned — IBKR fundamentals migration arc replaced with manual MCP path
 
 - **Found:** Phase 2, 2026-05-02
-- **Subscription resolved 2026-05-02:** `IBIS Research Platform`
-  (Fee Waived) is active on the account and covers `req_fundamental_data`.
-  Verified by the user opening AAPL → Financials in TWS and seeing
-  populated fundamentals data. **No explicit "Reuters Worldwide
-  Fundamentals" line item on the IBKR GFIS Subscriptions page** —
-  IBKR appears to bundle the Refinitiv data under IBIS now. Worth
-  recording for future sessions; the original plan language assumed
-  a discrete "Reuters" line that no longer exists for this account
-  tier.
+- **Status:** RESOLVED BY PIVOT (2026-05-02). Phase 2 is `abandoned`.
+  See `phase-2-ibkr-spike.md` for the full rationale.
+- **Investigation that triggered the pivot:**
+  - `IBIS Research Platform` (Fee Waived) is active on the account
+    and feeds the TWS UI Financials tab.
+  - `reqFundamentalData("AAPL", reportType)` returns
+    **error 10358 "Fundamentals data is not allowed"** for every
+    reportType. Verified 2026-05-02 via the Python `ibapi` capture
+    script (`/tmp/capture_av.py`) against TWS on port 4004.
+  - **IBIS feeds the UI but NOT the API path** — different
+    entitlements, confirmed by IBKR support patterns observed in
+    `twsapi@groups.io` and `quantbelt/ib_fundamental` Issue #12 +
+    Discussion #11 (2024-2025).
+  - **The `reqFundamentalData` API itself is officially DEPRECATED**
+    in IBKR's TWS API docs. `EClient.reqFundamentalData` is marked
+    Legacy/DEPRECATED. Multiple users report `ReportsFinStatements`
+    and `RESC` failing intermittently for entitled accounts since
+    March 2025; maintainer of `ib_fundamental` (Mar 2025): *"IBKR
+    API is been down for a few weeks now. There is nothing that i
+    can do."*
+  - The historical "Reuters Worldwide Fundamentals" GFIS line item
+    does not appear for this account tier; IBKR has been winding
+    down API entitlements for retail since the Refinitiv → LSEG
+    transition. The IBKR Web API explicitly removed the equivalent
+    fundamentals tags. The only forward-looking IBKR path
+    (`reqWshMetaData` / Wall Street Horizon Enchilada Pro) is
+    events-only at ~$250/mo — not financial statements.
+- **Pivot decided 2026-05-02:** drop the IBKR fundamentals
+  migration entirely. Replace with a new manual-paste path: MCP
+  `set_fundamentals` write tool (LLM-mediated extraction from
+  user-pasted text) + AV fundamentals adapter retained as
+  opportunistic fallback with hard guardrails (daily ledger
+  20 soft / 25 hard, per-symbol per-day cap, manual-write
+  invalidates AV cache).
+- **Relevant evidence (research dated 2026-05-02):**
+  - Tracker pipeline + every strategy verified via grep to NOT
+    read fundamentals at runtime. The 100-ticker morning sweep is
+    news-driven; fundamentals are user-explicit only (analysis UI
+    + MCP `get_fundamentals`). AV's 25/day cap is therefore not
+    under sweep pressure. This is what makes the manual-paste
+    workflow viable for a single-user app.
+  - `quantbelt/ib_fundamental` Python wrapper uses the same
+    deprecated API; it would not bypass the entitlement gap.
+  - Alternative providers considered: Financial Modeling Prep
+    ($22/mo Starter, best 1:1 fit for `FundamentalData` shape),
+    Polygon.io (weak on fundamentals), EDGAR/SEC XBRL (free but
+    no analyst estimates), AV Premium ($50/mo). None chosen — the
+    user accepted the manual-paste tradeoff to avoid yet another
+    vendor relationship.
+- **What replaces Phases 2/3/4/5 (was IBKR fundamentals arc):**
+  - Phase 3 (kept, retargeted): `FundamentalsProvider` trait + AV
+    adapter. No IBKR provider. No `fundamentals_source` flag.
+  - Phase 4 (renamed `phase-4-mcp-fundamentals.md`):
+    MCP `set_fundamentals` write tool + `ManualFundamentalsStore`
+    (SQLite) + `CompositeFundamentalsProvider`
+    (manual → AV cache → AV API).
+  - Phase 5 (kept, retargeted): cutover + AV daily-call ledger +
+    per-symbol cap + tracker-doesn't-read-fundamentals invariant
+    test.
+  - Phase 8 (scope reduced): deletes only AV news code; AV
+    fundamentals adapter, rate limiter, cache directory, and
+    `ALPHA_VANTAGE_API_KEY` env var all retained as fallback infra.
+- **No further user action required for P2.** The TWS setup (port
+  4004, API enabled) the user established here is reusable by
+  Phase 6 news capture (P3 below).
 - **What's still blocked:** Two of Phase 2's exit criteria still
   need a live TWS / IB Gateway running locally:
   1. The four `AAPL_*.xml` fixtures under
