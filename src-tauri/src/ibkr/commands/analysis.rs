@@ -25,8 +25,8 @@ fn map_fundamentals_error(err: &FundamentalsError) -> String {
         FundamentalsError::RateLimited { .. } => "rate_limited".to_string(),
         FundamentalsError::NotConnected => "disconnected".to_string(),
         FundamentalsError::NotFound(_) => "no_data".to_string(),
-        FundamentalsError::DailyBudgetExhausted
-        | FundamentalsError::PerSymbolBudgetExhausted(_) => "budget_exhausted".to_string(),
+        FundamentalsError::DailyBudgetExhausted { .. }
+        | FundamentalsError::PerSymbolBudgetExhausted { .. } => "budget_exhausted".to_string(),
         FundamentalsError::ParseError(_) => "parse_error".to_string(),
         // Surface the message verbatim so the UI can show the
         // operator-curated "Alpha Vantage API key not configured" text
@@ -177,11 +177,13 @@ mod tests {
             "no_data"
         );
         assert_eq!(
-            map_fundamentals_error(&FundamentalsError::DailyBudgetExhausted),
+            map_fundamentals_error(&FundamentalsError::DailyBudgetExhausted { hit_count: 25 }),
             "budget_exhausted"
         );
         assert_eq!(
-            map_fundamentals_error(&FundamentalsError::PerSymbolBudgetExhausted("AAPL".into())),
+            map_fundamentals_error(&FundamentalsError::PerSymbolBudgetExhausted {
+                symbol: "AAPL".into(),
+            }),
             "budget_exhausted"
         );
         assert_eq!(

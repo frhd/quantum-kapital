@@ -21,6 +21,7 @@ use thiserror::Error;
 use crate::ibkr::types::FundamentalData;
 
 pub mod alpha_vantage;
+pub mod av_call_ledger;
 pub mod composite;
 pub mod manual;
 pub mod test_support;
@@ -28,10 +29,15 @@ pub mod test_support;
 #[cfg(test)]
 mod tests;
 
-/// Typed errors surfaced by [`FundamentalsProvider::fetch`]. The variant
-/// list is forward-compatible with Phase 4 (`DailyBudgetExhausted`,
-/// `PerSymbolBudgetExhausted` are wired by the composite provider's
-/// AV-side guards); the AV adapter in Phase 3 only emits the first five.
+#[cfg(test)]
+#[path = "av_call_ledger_tests.rs"]
+mod av_call_ledger_tests;
+
+/// Typed errors surfaced by [`FundamentalsProvider::fetch`]. The
+/// `DailyBudgetExhausted` / `PerSymbolBudgetExhausted` variants are
+/// emitted by Phase 5's [`composite::CompositeFundamentalsProvider`]
+/// when its AV-side guards trip; the Phase 3 AV adapter only emits the
+/// first five.
 ///
 /// Stringly-typed `ParseError` / `Other` carry the upstream message so
 /// the UI can render a meaningful banner without the backend leaking
@@ -62,17 +68,20 @@ pub enum FundamentalsError {
     #[error("no fundamentals available for {0}")]
     NotFound(String),
 
-    /// Phase 4 forward-compat. The composite provider's AV branch emits
-    /// this when the daily call ledger is at the hard cap (default
-    /// `25/25`). The Phase 3 AV adapter does not emit this variant.
-    #[error("daily fundamentals budget exhausted")]
-    DailyBudgetExhausted,
+    /// Phase 5: emitted by the composite provider's AV branch when the
+    /// daily call ledger is at the hard cap (default `25/25`).
+    /// `hit_count` is the count at the time the cap tripped so the UI
+    /// can render "you've used 25/25 AV calls today" without a second
+    /// query. The Phase 3 AV adapter never emits this variant directly.
+    #[error("daily fundamentals budget exhausted ({hit_count} calls today)")]
+    DailyBudgetExhausted { hit_count: u32 },
 
-    /// Phase 4 forward-compat. The composite provider's AV branch emits
-    /// this when the per-symbol-per-day cap (default `1`) is hit. The
-    /// Phase 3 AV adapter does not emit this variant.
-    #[error("per-symbol fundamentals budget exhausted for {0}")]
-    PerSymbolBudgetExhausted(String),
+    /// Phase 5: emitted by the composite provider's AV branch when the
+    /// per-symbol-per-day cap (default `1`) is hit and no cached
+    /// payload is available to serve in its place. The Phase 3 AV
+    /// adapter never emits this variant directly.
+    #[error("per-symbol fundamentals budget exhausted for {symbol}")]
+    PerSymbolBudgetExhausted { symbol: String },
 
     /// Catch-all for anything else (transport, unrecognised AV response,
     /// internal coalescing failures). The message is the upstream
