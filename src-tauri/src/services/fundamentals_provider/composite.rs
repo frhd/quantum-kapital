@@ -136,7 +136,9 @@ impl FundamentalsProvider for CompositeFundamentalsProvider {
             Err(AvLedgerError::PerSymbolCapReached { symbol, count }) => {
                 warn!(symbol = %symbol, count = count, "AV ledger per-symbol cap reached");
                 if let Some(stale) = read_stale_fundamentals(&guard.cache, &key) {
-                    warn!("fundamentals(av): per-symbol cap reached for {key}; serving stale cache");
+                    warn!(
+                        "fundamentals(av): per-symbol cap reached for {key}; serving stale cache"
+                    );
                     return Ok(stale);
                 }
                 return Err(FundamentalsError::PerSymbolBudgetExhausted { symbol });
@@ -400,8 +402,7 @@ mod tests {
     #[async_trait]
     impl FundamentalsProvider for CountingFake {
         async fn fetch(&self, symbol: &str) -> Result<FundamentalData, FundamentalsError> {
-            self.calls
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let key = symbol.trim().to_uppercase();
             self.rows
                 .lock()
@@ -427,7 +428,8 @@ mod tests {
         let (_tmp_cache, cache) = cache_with_dir();
         let av_fake = Arc::new(CountingFake::new());
         av_fake.insert("AAPL", fd("AAPL", 30.0));
-        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
         let guard = Arc::new(AvGuard::new(Arc::clone(&ledger), cache));
         let composite =
             CompositeFundamentalsProvider::new(manual, av).with_av_guard(Arc::clone(&guard));
@@ -460,7 +462,8 @@ mod tests {
         let (_tmp_cache, cache) = cache_with_dir();
         let av_fake = Arc::new(CountingFake::new());
         av_fake.insert("AAPL", fd("AAPL", 30.0));
-        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
         let guard = Arc::new(AvGuard::new(Arc::clone(&ledger), cache));
         let composite =
             CompositeFundamentalsProvider::new(manual, av).with_av_guard(Arc::clone(&guard));
@@ -495,7 +498,8 @@ mod tests {
         let (_tmp_cache, cache) = cache_with_dir();
         let av_fake = Arc::new(CountingFake::new());
         av_fake.insert("AAPL", fd("AAPL", 30.0));
-        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
         let guard = Arc::new(AvGuard::new(Arc::clone(&ledger), cache));
         let composite =
             CompositeFundamentalsProvider::new(manual, av).with_av_guard(Arc::clone(&guard));
@@ -530,7 +534,8 @@ mod tests {
         let manual = Arc::new(ManualFundamentalsProvider::new(Arc::clone(&store)));
         let av_fake = Arc::new(CountingFake::new());
         av_fake.insert("AAPL", fd("AAPL", 30.0));
-        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
         let composite = CompositeFundamentalsProvider::new(manual, av);
 
         // Manual wins.
@@ -644,7 +649,8 @@ mod tests {
         ledger.commit("PRE2").await.unwrap();
 
         let av_fake = Arc::new(CountingFake::new());
-        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
         let guard = Arc::new(AvGuard::new(Arc::clone(&ledger), Arc::clone(&cache)));
         let composite = CompositeFundamentalsProvider::new(manual, av).with_av_guard(guard);
 
@@ -672,7 +678,8 @@ mod tests {
         let (_tmp_cache, cache) = cache_with_dir();
         // No insert => AV returns NotFound.
         let av_fake = Arc::new(CountingFake::new());
-        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let av: Arc<dyn FundamentalsProvider> =
+            Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
         let guard = Arc::new(AvGuard::new(Arc::clone(&ledger), cache));
         let composite =
             CompositeFundamentalsProvider::new(manual, av).with_av_guard(Arc::clone(&guard));

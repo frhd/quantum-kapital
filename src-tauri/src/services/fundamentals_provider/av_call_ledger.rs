@@ -359,12 +359,14 @@ impl AvCallLedger {
                         rusqlite::Error::QueryReturnedNoRows => Ok(0u32),
                         other => Err(other),
                     })?;
-                let mut stmt = conn.prepare(
-                    "SELECT symbol, count FROM av_per_symbol_ledger WHERE date = ?1",
-                )?;
+                let mut stmt =
+                    conn.prepare("SELECT symbol, count FROM av_per_symbol_ledger WHERE date = ?1")?;
                 let rows = stmt
                     .query_map(rusqlite::params![date_for_query], |row| {
-                        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?.max(0) as u32))
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, i64>(1)?.max(0) as u32,
+                        ))
                     })?
                     .collect::<rusqlite::Result<Vec<_>>>()?;
                 Ok((daily, rows))
@@ -389,4 +391,3 @@ impl AvCallLedger {
         Ok(())
     }
 }
-
