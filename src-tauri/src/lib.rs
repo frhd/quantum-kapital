@@ -21,7 +21,8 @@ use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
 use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
-use services::fundamentals_provider::composite::CompositeFundamentalsProvider;
+use services::fundamentals_provider::av_call_ledger::AvCallLedger;
+use services::fundamentals_provider::composite::{AvGuard, CompositeFundamentalsProvider};
 use services::fundamentals_provider::manual::ManualFundamentalsProvider;
 use services::fundamentals_provider::FundamentalsProvider;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
@@ -159,11 +160,31 @@ pub fn run() {
             let manual_fundamentals_provider = Arc::new(ManualFundamentalsProvider::new(
                 Arc::clone(&manual_fundamentals_store),
             ));
-            let fundamentals_provider: Arc<dyn FundamentalsProvider> =
-                Arc::new(CompositeFundamentalsProvider::new(
+
+            // Phase 5: AV-side guardrails. The ledger gates the AV
+            // branch of the composite (per-symbol cap + daily soft/hard
+            // cap, persisted to SQLite so a process restart cannot
+            // silently double-up against the AV free-tier quota). The
+            // separate CacheService handle is the AvGuard's cache-fresh
+            // probe + stale fallback reader; it points at the same
+            // "cache/alphavantage" directory the FinancialDataService
+            // writes to, so the two views never diverge.
+            let av_call_ledger = Arc::new(AvCallLedger::new(Arc::clone(&db)));
+            let av_cache_for_guard = Arc::new(
+                services::cache_service::CacheService::new("cache/alphavantage")
+                    .expect("AV cache directory init"),
+            );
+            let av_guard = Arc::new(AvGuard::new(
+                Arc::clone(&av_call_ledger),
+                Arc::clone(&av_cache_for_guard),
+            ));
+            let fundamentals_provider: Arc<dyn FundamentalsProvider> = Arc::new(
+                CompositeFundamentalsProvider::new(
                     Arc::clone(&manual_fundamentals_provider),
                     Arc::clone(&av_fundamentals_provider),
-                ));
+                )
+                .with_av_guard(Arc::clone(&av_guard)),
+            );
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
             let decay_bars: Arc<dyn BarsFetcher> =
@@ -396,6 +417,7 @@ pub fn run() {
             app.manage(financial_service);
             app.manage(fundamentals_provider);
             app.manage(manual_fundamentals_store);
+            app.manage(av_call_ledger);
             app.manage(tracker_runner);
             app.manage(eod_scheduler);
             app.manage(intraday_scheduler);

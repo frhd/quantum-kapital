@@ -284,6 +284,7 @@ impl AvCallLedger {
 
     /// Read the current daily count for inspection (UI banner / tests).
     /// Hydrates from SQLite if the in-memory map is empty for `today`.
+    #[allow(dead_code)] // exposed for the planned UI banner; only tests consume it today
     pub async fn daily_count_today(&self) -> Result<u32, AvLedgerError> {
         let today = self.date_source.today();
         self.hydrate_if_empty(today).await?;
@@ -298,6 +299,7 @@ impl AvCallLedger {
     }
 
     /// Read the current per-symbol count for inspection / tests.
+    #[allow(dead_code)] // exposed for the planned UI banner; only tests consume it today
     pub async fn per_symbol_count_today(&self, symbol: &str) -> Result<u32, AvLedgerError> {
         let symbol = symbol.trim().to_uppercase();
         let today = self.date_source.today();
@@ -320,6 +322,7 @@ impl AvCallLedger {
         self.hard_cap
     }
 
+    #[allow(dead_code)] // exposed for symmetry with soft/hard cap accessors
     pub fn per_symbol_cap(&self) -> u32 {
         self.per_symbol_cap
     }

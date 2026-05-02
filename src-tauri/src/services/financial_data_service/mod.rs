@@ -97,6 +97,15 @@ enum FetchSlot {
 /// when AV is rate-limited; year-stale is a smell.
 const STALE_FUNDAMENTALS_WARN_AGE_SECS: u64 = 30 * 24 * 60 * 60;
 
+/// Cache-key suffixes for the three AV fundamentals endpoints. Shared
+/// between the writers (`overview::fetch_overview`, etc.) and the
+/// invalidators (`clear_fundamentals_cache`, the composite provider's
+/// stale-read helper). Centralising this list is the only thing that
+/// keeps Hard Invariant #8 ("manual write invalidates AV cache")
+/// honest — a divergence between the writer suffix and the clearer
+/// suffix silently leaks pre-manual data through the cache.
+pub const AV_FUNDAMENTALS_CACHE_SUFFIXES: [&str; 3] = ["overview", "income_statement", "earnings"];
+
 /// Service for fetching fundamental data from Alpha Vantage API
 pub struct FinancialDataService {
     av_http: Arc<dyn AvHttp>,
@@ -344,12 +353,51 @@ impl FinancialDataService {
         if upper.is_empty() {
             return;
         }
-        for suffix in ["overview", "income", "earnings"] {
+        for suffix in AV_FUNDAMENTALS_CACHE_SUFFIXES {
             let key = format!("{upper}_{suffix}");
             if let Err(e) = cache.clear(&key) {
                 warn!("AV cache clear failed for {key}: {e}");
             }
         }
+    }
+
+    /// Reconstruct a [`FundamentalData`] from the AV file cache for
+    /// `symbol`, allowing TTL-expired entries. Returns `None` if any
+    /// of the three endpoint rows is missing or unparseable. Phase 5
+    /// uses this to serve stale data on AV-cap exhaustion without
+    /// hitting the wire (the AV adapter's per-endpoint stale fallback
+    /// only fires on transport / rate-limit errors, not on a
+    /// composite-side budget refusal).
+    pub fn read_cached_fundamentals_ignoring_ttl(
+        cache: &CacheService,
+        symbol: &str,
+    ) -> Option<crate::ibkr::types::fundamentals::FundamentalData> {
+        let upper = symbol.trim().to_uppercase();
+        if upper.is_empty() {
+            return None;
+        }
+        let overview: overview::AlphaVantageOverview = cache
+            .read_ignoring_ttl(&format!("{upper}_overview"))
+            .ok()
+            .map(|(v, _age)| v)?;
+        let income: income::AlphaVantageIncomeStatement = cache
+            .read_ignoring_ttl(&format!("{upper}_income_statement"))
+            .ok()
+            .map(|(v, _age)| v)?;
+        let earnings: earnings::AlphaVantageEarnings = cache
+            .read_ignoring_ttl(&format!("{upper}_earnings"))
+            .ok()
+            .map(|(v, _age)| v)?;
+        let historical = income::process_historical_data(&income, &earnings);
+        if historical.is_empty() {
+            return None;
+        }
+        Some(crate::ibkr::types::fundamentals::FundamentalData {
+            symbol: upper,
+            historical,
+            analyst_estimates: earnings::process_analyst_estimates(&earnings),
+            current_metrics: overview::process_current_metrics(&overview),
+        })
     }
 
     /// Fetch ticker-tagged news + sentiment from Alpha Vantage NEWS_SENTIMENT,

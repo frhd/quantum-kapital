@@ -787,8 +787,11 @@ mod tests {
     }
 
     /// Manual-write-invalidates-AV-cache — the master plan's exit
-    /// criterion. Pre-populate the AV file cache for AAPL, write a manual
-    /// row, assert the AV cache rows for AAPL are gone.
+    /// criterion. Pre-populate the AV file cache for AAPL with the
+    /// production cache-key suffixes (`overview` / `income_statement`
+    /// / `earnings` — the divergence with the older `_income` suffix
+    /// was a Phase-5 fix), write a manual row, assert the AV cache
+    /// rows for AAPL are gone.
     #[tokio::test]
     async fn manual_write_clears_av_file_cache_for_symbol() {
         use crate::services::cache_service::CacheService;
@@ -802,7 +805,7 @@ mod tests {
             .write("AAPL_overview", &json!({"sentinel": "ov"}))
             .unwrap();
         cache
-            .write("AAPL_income", &json!({"sentinel": "in"}))
+            .write("AAPL_income_statement", &json!({"sentinel": "in"}))
             .unwrap();
         cache
             .write("AAPL_earnings", &json!({"sentinel": "ea"}))
@@ -811,13 +814,13 @@ mod tests {
         let financial = FinancialDataService::with_cache_dir(String::new(), cache_dir.path());
         // Sanity: rows are present.
         assert!(financial.cache_for_test().is_valid("AAPL_overview"));
-        assert!(financial.cache_for_test().is_valid("AAPL_income"));
+        assert!(financial.cache_for_test().is_valid("AAPL_income_statement"));
         assert!(financial.cache_for_test().is_valid("AAPL_earnings"));
 
         // Drive the same invalidation the MCP tool uses.
         financial.clear_fundamentals_cache("aapl");
         assert!(!financial.cache_for_test().is_valid("AAPL_overview"));
-        assert!(!financial.cache_for_test().is_valid("AAPL_income"));
+        assert!(!financial.cache_for_test().is_valid("AAPL_income_statement"));
         assert!(!financial.cache_for_test().is_valid("AAPL_earnings"));
     }
 }
