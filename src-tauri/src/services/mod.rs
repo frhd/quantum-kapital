@@ -10,6 +10,7 @@ pub mod decay_watcher;
 pub mod eod_scheduler;
 pub mod eval_harness;
 pub mod financial_data_service;
+pub mod fundamentals_provider;
 pub mod historical_data_service;
 pub mod intraday_scheduler;
 pub mod journal_writer;

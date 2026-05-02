@@ -133,9 +133,12 @@ impl ProjectionService {
         }
     }
 
-    /// Generate mock fundamental data for testing (will be replaced with real IBKR data)
-    /// Updated with current NVDA data as of November 2025
-    pub fn generate_mock_fundamental_data(symbol: &str) -> FundamentalData {
+    /// Mock NVDA-shaped fundamentals fixture used by the projection
+    /// unit tests. Phase 3 of the AV strip-out removed the only
+    /// production caller (`analysis.rs`'s silent-fallback path —
+    /// Hard Invariant #5), so this is now a test-only helper.
+    #[cfg(test)]
+    pub(crate) fn generate_mock_fundamental_data(symbol: &str) -> FundamentalData {
         use crate::ibkr::types::{
             AnalystEstimate, AnalystEstimates, CurrentMetrics, HistoricalFinancial,
         };

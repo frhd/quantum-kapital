@@ -36,6 +36,8 @@ use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
 use crate::services::candidate_promoter::CandidatePromoter;
 use crate::services::candidate_universe::CandidateUniverseService;
 use crate::services::financial_data_service::FinancialDataService;
+use crate::services::fundamentals_provider::test_support::FakeFundamentalsProvider;
+use crate::services::fundamentals_provider::FundamentalsProvider;
 use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
 use crate::services::quote_service::{QuoteFetcher, QuoteService};
@@ -219,11 +221,19 @@ fn build_handler_with_llm(
     // No providers wired — `get_sentiment` only reads `social_sentiment`,
     // and any provider-needing test seeds rows directly via `repo`.
     let social_sentiment = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
+    // Empty fundamentals provider — every `fetch` returns `NotFound`, so
+    // `get_fundamentals` tests inheriting this builder land on the
+    // existing "domain error" assertion path. Tests that need a hit
+    // pre-load via `FakeFundamentalsProvider::insert` and pass an
+    // explicit handler.
+    let fundamentals_provider: Arc<dyn FundamentalsProvider> =
+        Arc::new(FakeFundamentalsProvider::new());
     McpHandler::new(
         llm,
         tracker,
         db,
         financial,
+        fundamentals_provider,
         hist,
         quote,
         ibkr_client,
@@ -313,11 +323,14 @@ pub async fn test_handler_with_seeded_spend(
     ));
     let emitter = Arc::new(EventEmitter::for_capture());
     let social_sentiment = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
+    let fundamentals_provider: Arc<dyn FundamentalsProvider> =
+        Arc::new(FakeFundamentalsProvider::new());
     Ok(McpHandler::new(
         llm,
         tracker,
         db,
         financial,
+        fundamentals_provider,
         hist,
         quote,
         ibkr_client,

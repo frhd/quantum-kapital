@@ -1,8 +1,9 @@
-//! `get_fundamentals` — Alpha Vantage company fundamentals.
+//! `get_fundamentals` — company fundamentals via the
+//! [`FundamentalsProvider`] trait.
 //!
-//! Wraps `FinancialDataService::fetch_fundamental_data`, which already
-//! applies a ~7-day on-disk cache via `cache_service.rs` and stitches
-//! together AV's OVERVIEW + INCOME_STATEMENT + EARNINGS endpoints. Unlike
+//! Phase 3 wires the AV-backed adapter directly; Phase 4 layers a
+//! manual store on top via the composite provider, but this file does
+//! not change because the trait surface is the contract. Unlike
 //! `get_news`, fundamentals failures (no API key, insufficient history,
 //! transport, AV rate-limit) are surfaced to the caller as a domain
 //! error: there's no shallow cache layer at the tool level, and a
@@ -27,7 +28,7 @@ pub struct GetFundamentalsArgs {
 impl McpHandler {
     #[tool(
         name = "get_fundamentals",
-        description = "Return Alpha Vantage company fundamentals for `symbol`: historical financials, current metrics, and analyst estimates. Locally cached for ~7 days; refreshes automatically when stale. Returns an error when the AV API key is missing or the symbol has insufficient history. Use this when reasoning about valuation, growth trajectory, or earnings-driven setups."
+        description = "Return company fundamentals for `symbol`: historical financials, current metrics, and analyst estimates. Returns an error when the upstream provider has no data (missing API key, insufficient history, rate-limit). Use this when reasoning about valuation, growth trajectory, or earnings-driven setups."
     )]
     pub async fn get_fundamentals(
         &self,
@@ -38,8 +39,8 @@ impl McpHandler {
             return map_tool_result::<(), &str>(Err("symbol must not be empty"));
         }
         let result = self
-            .financial_service
-            .fetch_fundamental_data(&symbol)
+            .fundamentals_provider
+            .fetch(&symbol)
             .await
             .map_err(|e| e.to_string());
         map_tool_result(result)
@@ -51,19 +52,20 @@ mod tests {
     use super::*;
     use crate::mcp::tools::test_support::{handler_for_db, make_db};
 
-    // TODO: integration test for the happy path once we mock AV at the
-    // FinancialDataService layer. AV's three-endpoint try_join makes a
-    // proper mock substantial; the existing unit coverage for the
-    // service lives under `services::financial_data_service::*`.
+    // The Phase 3 trait swap means the happy path is exercised in the
+    // provider-level tests at `services::fundamentals_provider::tests`
+    // (`av_adapter_round_trips_canned_payloads_into_fundamental_data`).
+    // The MCP tool itself is now thin enough that all it needs to prove
+    // is "errors flow through as domain errors, not protocol faults".
 
-    /// `handler_for_db` builds a `FinancialDataService` with an empty AV
-    /// API key; the OVERVIEW endpoint returns no usable data so
-    /// `fetch_fundamental_data` errors out with the
-    /// `"No historical financial data available"` message. The tool
-    /// must surface this as `is_error: true` rather than swallowing it
-    /// — fundamentals are heavyweight and a missing one matters.
+    /// `handler_for_db` wires a [`FakeFundamentalsProvider`] with no
+    /// rows; every `fetch` returns [`FundamentalsError::NotFound`],
+    /// which the tool surfaces via `map_tool_result` as
+    /// `is_error: true` with a non-empty message. This guards against
+    /// regressions that swallow upstream errors back into a successful
+    /// MCP reply (the pre-Phase-3 silent mock-data fallback).
     #[tokio::test]
-    async fn get_fundamentals_surfaces_av_failure_as_domain_error() {
+    async fn get_fundamentals_surfaces_provider_failure_as_domain_error() {
         let (_tmp, db) = make_db();
         let handler = handler_for_db(db);
 

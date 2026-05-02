@@ -21,6 +21,7 @@ use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
 use crate::services::candidate_promoter::CandidatePromoter;
 use crate::services::candidate_universe::CandidateUniverseService;
 use crate::services::financial_data_service::FinancialDataService;
+use crate::services::fundamentals_provider::FundamentalsProvider;
 use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
 use crate::services::quote_service::QuoteService;
@@ -43,9 +44,14 @@ pub struct McpHandler {
     /// Used by `tools::alerts` (`list_alerts(&Arc<Db>, ...)`) and
     /// `tools::news` (`read_cache_with_verdict(&Db, ...)`).
     pub(crate) db: Arc<Db>,
-    /// Used by `tools::news` for the best-effort AV refresh path and by
-    /// `tools::fundamentals` for `fetch_fundamental_data`.
+    /// Used by `tools::news` for the best-effort AV refresh path. The
+    /// fundamentals path moved to `fundamentals_provider` in Phase 3 of
+    /// the AV strip-out — see [`Self::fundamentals_provider`].
     pub(crate) financial_service: Arc<FinancialDataService>,
+    /// Used by `tools::fundamentals` for `fetch(symbol)`. Phase 3 wires
+    /// the AV adapter directly; Phase 4 swaps in the composite (manual
+    /// store → AV cache → AV API) without touching this field's type.
+    pub(crate) fundamentals_provider: Arc<dyn FundamentalsProvider>,
     /// Used by `tools::bars` (`fetch_bars` — cache-first, IBKR fallback).
     pub(crate) historical_service: Arc<HistoricalDataService>,
     /// Used by `tools::quote` (live IBKR snapshot, never cached).
@@ -104,7 +110,7 @@ impl McpHandler {
             .collect()
     }
 
-    #[allow(clippy::too_many_arguments)] // 13 Arcs — see module docs; one
+    #[allow(clippy::too_many_arguments)] // 14 Arcs — see module docs; one
                                          // Arc per service the tools touch.
                                          // Grouping them buys nothing.
     pub fn new(
@@ -112,6 +118,7 @@ impl McpHandler {
         tracker: Arc<TrackerService>,
         db: Arc<Db>,
         financial_service: Arc<FinancialDataService>,
+        fundamentals_provider: Arc<dyn FundamentalsProvider>,
         historical_service: Arc<HistoricalDataService>,
         quote_service: Arc<QuoteService>,
         ibkr_client: Arc<dyn AccountReader>,
@@ -157,6 +164,7 @@ impl McpHandler {
             tracker,
             db,
             financial_service,
+            fundamentals_provider,
             historical_service,
             quote_service,
             ibkr_client,

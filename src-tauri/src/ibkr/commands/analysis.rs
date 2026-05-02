@@ -3,62 +3,74 @@ use crate::ibkr::types::{
     ScenarioProjectionsWithFundamentals,
 };
 use crate::services::cache_service::CacheService;
-use crate::services::financial_data_service::FinancialDataService;
+use crate::services::fundamentals_provider::{FundamentalsError, FundamentalsProvider};
 use crate::services::projection_service::ProjectionService;
 use crate::services::quote_service::QuoteService;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::State;
-use tracing::{info, warn};
+use tracing::info;
 
-/// Fetch fundamentals via the shared `FinancialDataService` (which
-/// owns the AV rate limiter + in-flight coalescing). Falls back to
-/// mock data on AV failure so the analysis UI keeps rendering when
-/// the daily quota is exhausted. The mock-fallback escape hatch is
-/// removed in Phase 3 of the IBKR migration; Phase 1 preserves it.
-async fn get_fundamental_data_with_mock_fallback(
-    financial: &FinancialDataService,
-    symbol: &str,
-) -> FundamentalData {
-    info!(
-        "Fetching real fundamental data for {} from Alpha Vantage API",
-        symbol
-    );
-    match financial.fetch_fundamental_data(symbol).await {
-        Ok(data) => {
-            info!("Successfully fetched real fundamental data for {}", symbol);
-            data
-        }
-        Err(e) => {
-            warn!(
-                "Failed to fetch real data for {}: {}. Falling back to mock data.",
-                symbol, e
-            );
-            ProjectionService::generate_mock_fundamental_data(symbol)
-        }
+/// Stable error-string discriminants returned by the fundamentals
+/// commands. Frontend hooks switch on these to render dedicated empty
+/// states instead of a generic "fetch failed" banner.
+///
+/// Phase 3 removes the silent mock-data fallback that historically hid
+/// upstream failures behind plausible-looking fake numbers (Hard
+/// Invariant #5 — no silent fallback to mock data); a missing key,
+/// rate-limit, or empty upstream now propagates as a typed signal the
+/// UI can react to. The strings are part of the command contract.
+fn map_fundamentals_error(err: &FundamentalsError) -> String {
+    match err {
+        FundamentalsError::RateLimited { .. } => "rate_limited".to_string(),
+        FundamentalsError::NotConnected => "disconnected".to_string(),
+        FundamentalsError::NotFound(_) => "no_data".to_string(),
+        FundamentalsError::DailyBudgetExhausted
+        | FundamentalsError::PerSymbolBudgetExhausted(_) => "budget_exhausted".to_string(),
+        FundamentalsError::ParseError(_) => "parse_error".to_string(),
+        // Surface the message verbatim so the UI can show the
+        // operator-curated "Alpha Vantage API key not configured" text
+        // (and any other future Other variants) without losing detail.
+        FundamentalsError::Other(msg) => msg.clone(),
     }
 }
 
-/// Get fundamental data for a symbol
-/// Fetches real data from Alpha Vantage API if available,
-/// otherwise falls back to mock data for testing.
+/// Fetch fundamentals via the trait-shaped provider. Phase 3 wires the
+/// AV adapter directly; Phase 4 swaps in the composite (manual store →
+/// AV cache → AV API) without changing this call site.
+async fn fetch_fundamentals(
+    provider: &Arc<dyn FundamentalsProvider>,
+    symbol: &str,
+) -> Result<FundamentalData, String> {
+    info!("Fetching fundamentals for {symbol} via FundamentalsProvider");
+    provider
+        .fetch(symbol)
+        .await
+        .map_err(|e| map_fundamentals_error(&e))
+}
+
+/// Get fundamental data for a symbol via the configured provider.
+/// Phase 3 removes the silent mock-data fallback; upstream failures
+/// surface as typed error strings the frontend can switch on
+/// (`rate_limited`, `no_data`, `disconnected`, `parse_error`,
+/// `budget_exhausted`, or the `Other` payload verbatim).
 #[tauri::command]
 pub async fn ibkr_get_fundamental_data(
-    financial: State<'_, Arc<FinancialDataService>>,
+    fundamentals: State<'_, Arc<dyn FundamentalsProvider>>,
     symbol: String,
 ) -> Result<FundamentalData, String> {
-    Ok(get_fundamental_data_with_mock_fallback(&financial, &symbol).await)
+    fetch_fundamentals(&fundamentals, &symbol).await
 }
 
 /// Generate financial projections based on fundamental data and assumptions
 /// DEPRECATED: Use ibkr_generate_projection_results for better UI display
 #[tauri::command]
 pub async fn ibkr_generate_projections(
-    financial: State<'_, Arc<FinancialDataService>>,
+    fundamentals: State<'_, Arc<dyn FundamentalsProvider>>,
     symbol: String,
     assumptions: Option<ProjectionAssumptions>,
 ) -> Result<ScenarioProjectionsWithFundamentals, String> {
-    let fundamentals = get_fundamental_data_with_mock_fallback(&financial, &symbol).await;
+    let fundamentals = fetch_fundamentals(&fundamentals, &symbol).await?;
     let assumptions = assumptions.unwrap_or_default();
     let projections = ProjectionService::generate_projections(&fundamentals, &assumptions)
         .map_err(|e| e.to_string())?;
@@ -74,11 +86,11 @@ pub async fn ibkr_generate_projections(
 /// is the dedup half of the AV-quota burn fix.
 #[tauri::command]
 pub async fn ibkr_generate_projection_results(
-    financial: State<'_, Arc<FinancialDataService>>,
+    fundamentals: State<'_, Arc<dyn FundamentalsProvider>>,
     symbol: String,
     assumptions: Option<ProjectionAssumptions>,
 ) -> Result<ProjectionResultsWithFundamentals, String> {
-    let fundamentals = get_fundamental_data_with_mock_fallback(&financial, &symbol).await;
+    let fundamentals = fetch_fundamentals(&fundamentals, &symbol).await?;
     let assumptions = assumptions.unwrap_or_default();
     let results = ProjectionService::generate_projection_results(&fundamentals, &assumptions)
         .map_err(|e| e.to_string())?;
@@ -136,5 +148,70 @@ pub async fn ibkr_get_quote(
         Err(IbkrError::MarketDataPermissionDenied) => Err("no_permission".to_string()),
         Err(IbkrError::Timeout(_)) => Err("timeout".to_string()),
         Err(other) => Err(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::fundamentals_provider::test_support::FakeFundamentalsProvider;
+    use std::time::Duration;
+
+    /// Locks in the stable error-string discriminants the frontend
+    /// switches on. Changing any of these is a contract break — update
+    /// the consumer hooks in lockstep.
+    #[test]
+    fn map_fundamentals_error_emits_stable_discriminants() {
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::RateLimited {
+                retry_after: Some(Duration::from_secs(60))
+            }),
+            "rate_limited"
+        );
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::NotConnected),
+            "disconnected"
+        );
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::NotFound("AAPL".into())),
+            "no_data"
+        );
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::DailyBudgetExhausted),
+            "budget_exhausted"
+        );
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::PerSymbolBudgetExhausted("AAPL".into())),
+            "budget_exhausted"
+        );
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::ParseError("bad json".into())),
+            "parse_error"
+        );
+        // `Other` is passed through verbatim so the missing-API-key
+        // banner can render the operator-curated text directly.
+        assert_eq!(
+            map_fundamentals_error(&FundamentalsError::Other(
+                "Alpha Vantage API key not configured".into()
+            )),
+            "Alpha Vantage API key not configured"
+        );
+    }
+
+    /// Replaces the pre-Phase-3 mock-data fallback test: an upstream
+    /// failure must surface as a typed error string, NOT silently fill
+    /// with `ProjectionService::generate_mock_fundamental_data` (Hard
+    /// Invariant #5).
+    #[tokio::test]
+    async fn fetch_fundamentals_surfaces_provider_error_instead_of_mock_data() {
+        let fake = FakeFundamentalsProvider::new();
+        // No `insert(...)` — `FakeFundamentalsProvider` returns
+        // `NotFound` for any unknown symbol, which `map_fundamentals_error`
+        // collapses to the stable `"no_data"` discriminant.
+        let provider: Arc<dyn FundamentalsProvider> = Arc::new(fake);
+        let err = fetch_fundamentals(&provider, "AAPL")
+            .await
+            .expect_err("must surface upstream failure as typed error");
+        assert_eq!(err, "no_data");
     }
 }

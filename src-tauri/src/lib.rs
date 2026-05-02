@@ -20,6 +20,8 @@ use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
+use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
+use services::fundamentals_provider::FundamentalsProvider;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
@@ -114,6 +116,7 @@ pub fn run() {
             // runner lifts bars + news + the detector registry into a
             // single command-callable surface.
             let api_key = std::env::var("ALPHA_VANTAGE_API_KEY").unwrap_or_default();
+            let api_key_present = !api_key.trim().is_empty();
             // Phase 19: news interpreter runs after each successful AV
             // news fetch and lands a structured NewsVerdict in
             // news_cache.news_verdict_json. Best-effort — interpreter
@@ -135,6 +138,16 @@ pub fn run() {
                     .with_news_interpreter(Arc::clone(&news_interpreter))
                     .with_rate_limiter(Arc::clone(&av_rate_limiter)),
             );
+
+            // Phase 3 (AV migration): the AV adapter is the only
+            // FundamentalsProvider impl wired right now. Phase 4
+            // wraps this in a CompositeFundamentalsProvider (manual
+            // store → AV cache → AV API) without changing call sites.
+            let fundamentals_provider: Arc<dyn FundamentalsProvider> =
+                Arc::new(AlphaVantageFundamentalsProvider::new(
+                    Arc::clone(&financial_service),
+                    api_key_present,
+                ));
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
             let decay_bars: Arc<dyn BarsFetcher> =
@@ -329,6 +342,7 @@ pub fn run() {
                 Arc::clone(&ibkr_state.tracker),
                 Arc::clone(&db),
                 Arc::clone(&financial_service),
+                Arc::clone(&fundamentals_provider),
                 Arc::clone(&hist_service),
                 Arc::clone(&quote_service),
                 mcp_ibkr_client,
@@ -363,6 +377,7 @@ pub fn run() {
             app.manage(db);
             app.manage(hist_service);
             app.manage(financial_service);
+            app.manage(fundamentals_provider);
             app.manage(tracker_runner);
             app.manage(eod_scheduler);
             app.manage(intraday_scheduler);
