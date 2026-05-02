@@ -45,11 +45,16 @@ interprocess = { version = "2", features = ["tokio"] }
 schemars = "1"
 
 [features]
-# Throwaway IBKR Reuters fundamentals spike binary.
-# Off by default; the binary requires a live TWS connection plus a
-# Reuters Worldwide Fundamentals subscription, so it should never run
-# in CI / pre-commit.
-ibkr-spike = []
+# Throwaway IBKR spike binaries (Phase 2 fundamentals + Phase 6 news).
+# Off by default; both binaries require a live TWS connection (and the
+# relevant subscriptions), so they must never build in CI / pre-commit.
+ibkr-spike = ["dep:time"]
+
+[dependencies.time]
+version = "0.3"
+optional = true
+default-features = false
+features = ["formatting", "macros"]
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -63,4 +68,9 @@ path = "src/bin/mcp-server.rs"
 [[bin]]
 name = "ibkr_fundamentals_spike"
 path = "src/bin/ibkr_fundamentals_spike.rs"
+required-features = ["ibkr-spike"]
+
+[[bin]]
+name = "ibkr_news_spike"
+path = "src/bin/ibkr_news_spike.rs"
 required-features = ["ibkr-spike"]

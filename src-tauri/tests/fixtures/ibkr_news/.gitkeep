@@ -1,0 +1,9 @@
+# Phase 6 IBKR news fixtures land here.
+#
+# When the user runs `cargo run --bin ibkr_news_spike --features ibkr-spike`
+# against a TWS / Gateway with news subscriptions enabled, this directory
+# fills with:
+#   - news_providers.json
+#   - AAPL_historical.json
+#   - AAPL_article_<id>.json
+# See loop/plan/phase-6-ibkr-news-spike.md and loop/plan/notes/ibkr-news-shape.md.

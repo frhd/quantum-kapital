@@ -66,3 +66,65 @@ continue. Resolve and prune as phases progress.
      (`xmllint --noout src-tauri/tests/fixtures/ibkr_fundamentals/*.xml`).
   4. Resume the /loop or kick a fresh iteration; Phase 2 can then
      flip to `done` and Phase 3 unblocks.
+
+---
+
+## P3: Phase 6 spike capture is human-in-the-loop — TWS + at least one news subscription required
+
+- **Found:** Phase 6, 2026-05-02
+- **What's blocked:** Three of Phase 6's exit criteria need a live
+  IBKR account with at least one news subscription enabled (Reuters
+  Real-time News at minimum; Briefing.com / Dow Jones nice-to-have)
+  and TWS / IB Gateway running locally on `127.0.0.1:7497`:
+  1. The three fixtures under
+     `src-tauri/tests/fixtures/ibkr_news/`:
+     `news_providers.json`, `AAPL_historical.json`, and
+     `AAPL_article_<id>.json` — all written by the spike binary.
+  2. The Rust spike binary
+     (`src-tauri/src/bin/ibkr_news_spike.rs`) run-to-completion
+     against a paper or live TWS.
+  3. Subscription confirmation (which providers are active, monthly
+     cost, additions needed — recorded here when the user has
+     completed the capture).
+- **Why this is human-in-the-loop:** the /loop session has no TWS
+  instance and cannot subscribe to news feeds on the user's behalf.
+  The spike binary is wired up, compiles cleanly (`cargo check
+  --features ibkr-spike --bin ibkr_news_spike` is green) and is
+  ready to run as soon as the user is at the desk with TWS up.
+- **Crate-path decision recorded autonomously:** See
+  `loop/plan/notes/ibkr-news-shape.md` § "Crate-path decision".
+  Short version: **the published `ibapi = "2.11.x"` already exposes
+  `news_providers`, `historical_news`, `news_article`, and
+  `news_bulletins` as public methods on `Client` (sync feature).
+  No fork is needed for news.** The Phase 2 fork for fundamentals
+  is orthogonal and unchanged. This is a meaningful win — Phase 7
+  can build on the released crate directly.
+- **Sentiment-loss audit completed autonomously:** See
+  `loop/plan/notes/sentiment-loss-audit.md`. Every consumer of
+  AV's per-article sentiment fields enumerated, every one of them
+  resolves to "tolerate" — no consumer is structurally dependent
+  on per-article scoring. Verdict path (`NewsInterpreter`) carries
+  the load. Phase 7 will encode this as a regression test.
+- **Safer interpretation taken:** Phase 6 stays `in-progress` (not
+  flipped to `done`) until the three fixtures land and a
+  subscription line lands here. Phases 7 / 8 depend on Phase 6
+  being `done`, so they are correctly blocked on the user.
+- **Action items for the user (when TWS is up):**
+  1. Confirm at least one news subscription is active under
+     TWS → Account → Market Data Subscriptions. Reuters Real-time
+     News is the recommended minimum; Briefing.com (BRFG) and
+     Dow Jones (DJ-N / DJNL) round out the verify-mix.
+  2. Run the spike binary from the repo root:
+     `cargo run --bin ibkr_news_spike --features ibkr-spike -- --port 7497`
+     (use `7496` for live, `7497` for paper). It writes the three
+     fixtures and prints the captured headline count.
+  3. Verify fixtures are non-empty:
+     `ls -la src-tauri/tests/fixtures/ibkr_news/` — expect at least
+     `news_providers.json` and `AAPL_historical.json`. The article
+     body file is named after the first article id and may be
+     missing if the historical list comes back empty.
+  4. Spot-check that ≥10 headlines came back over the 24h window
+     (Phase 6 exit gate). If <5, expand the provider mix and
+     re-run before declaring the phase done.
+  5. Resume the /loop or kick a fresh iteration; Phase 6 can then
+     flip to `done` and Phase 7 unblocks.
