@@ -131,6 +131,39 @@ continue. Resolve and prune as phases progress.
 
 ---
 
+## P4: Phase 5 manual end-to-end verification — deferred until user is at the UI
+
+- **Found:** Phase 5, 2026-05-02
+- **What's deferred:** Step 5 of Phase 5's exit criteria asks for a
+  4-step manual check inside the running app:
+  1. Open analysis screen for a symbol not in the manual store →
+     confirm AV is hit (one increment in `av_call_ledger`).
+  2. From Claude Code: `set_fundamentals(symbol="<that symbol>", ...)`
+     → confirm the AV cache row is gone after the call.
+  3. Re-open the analysis screen for the same symbol → confirm zero
+     new AV increments and the manual data renders.
+  4. Pre-populate the ledger to 25 (manual SQL) → open analysis for a
+     fresh symbol → confirm UI shows the budget-exhausted error string.
+- **Why this is human-in-the-loop:** every step requires the running
+  Tauri app + a live `ALPHA_VANTAGE_API_KEY` + the React UI. The
+  /loop session has neither.
+- **Safer interpretation taken:** all automated checks (lib + integ
+  tests, tracker invariant, composite e2e — daily/per-symbol cap
+  exhaustion paths, stale-cache fallback, manual-write invalidates
+  AV cache) are green. The behaviour is exercised by tests; the
+  manual check is end-to-end smoke. Phase 5 flips to `done` on the
+  basis of the automated coverage. The user can run the manual check
+  next time the app is up; surface any divergence by amending this
+  entry.
+- **Pre-existing oddity surfaced and fixed in Phase 5:**
+  `clear_fundamentals_cache` was using suffix `"income"` while the
+  AV writer uses `"income_statement"`. Manual writes were silently
+  skipping the income-statement cache row (Hard Invariant #8 hole).
+  Centralised on `AV_FUNDAMENTALS_CACHE_SUFFIXES` and updated the
+  Phase 4 unit test to match production cache keys.
+
+---
+
 ## P3: Phase 6 spike capture is human-in-the-loop — TWS + at least one news subscription required
 
 - **Found:** Phase 6, 2026-05-02
