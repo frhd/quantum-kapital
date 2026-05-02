@@ -25,6 +25,7 @@ import type {
   BarSize,
   MorningPack,
 } from "../../features/tracker/types"
+import type { CachedTickerNews } from "../../features/workspace/types"
 import type { AgentMorningPack, McpAuditEntry, ResearchNote } from "../../features/research/types"
 import type {
   CalibrationStats,
@@ -185,6 +186,14 @@ export const ibkrApi = {
 
     getNews: async (symbol: string, lookbackHours: number) => {
       return invoke<NewsItem[]>("tracker_get_news", { symbol, lookbackHours })
+    },
+
+    /** Workspace Phase 3 — read the `news_cache` row for `symbol`
+     *  without triggering an upstream refresh. Returns an empty
+     *  payload (`fetched_at_unix === 0`) when no row exists, so the
+     *  panel can distinguish "no row" from "cached but empty". */
+    getCachedNews: async (symbol: string) => {
+      return invoke<CachedTickerNews>("news_get_cached", { symbol })
     },
 
     /** Phase 20 — fetch the persisted morning pack. Pass a date (ISO `YYYY-MM-DD`)

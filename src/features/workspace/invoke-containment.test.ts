@@ -51,4 +51,24 @@ describe("workspace containment", () => {
     }
     expect(offenders, offenders.join("\n")).toEqual([])
   })
+
+  it("does not import any Alpha Vantage adapter or hard-code an AV URL", () => {
+    // Workspace Phase 3 (master plan §Open risks): the News panel reads
+    // `news_cache` only — never an AV adapter. The producer is upstream
+    // of this surface and the AV→IBKR migration in `loop/plan/` should
+    // be invisible to the workspace.
+    const offenders: string[] = []
+    for (const path of SOURCE_FILES) {
+      const body = readFileSync(path, "utf8")
+      if (
+        /alpha[\s_-]?vantage/i.test(body) ||
+        /alphavantage\.co/i.test(body) ||
+        /\bAlphaVantage\w*/.test(body) ||
+        /\bAvAdapter\b/.test(body)
+      ) {
+        offenders.push(path)
+      }
+    }
+    expect(offenders, offenders.join("\n")).toEqual([])
+  })
 })

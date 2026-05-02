@@ -477,6 +477,7 @@ pub fn run() {
             ibkr::commands::ibkr_stop_scanner,
             ibkr::commands::tracker_fetch_bars,
             ibkr::commands::tracker_get_news,
+            ibkr::commands::news_get_cached,
             ibkr::commands::tracker_add,
             ibkr::commands::tracker_remove,
             ibkr::commands::tracker_archive,
