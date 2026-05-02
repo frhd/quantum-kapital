@@ -9,6 +9,10 @@ import "@fontsource/jetbrains-mono/500.css"
 import App from "./app/App"
 import "./styles/index.css"
 
+if (import.meta.env.VITE_BROWSER_DEV) {
+  await import("./test/browser-mocks")
+}
+
 const storedTheme = localStorage.getItem("qk-theme")
 const initialTheme = storedTheme === "light" ? "light" : "dark"
 document.documentElement.classList.toggle("dark", initialTheme === "dark")

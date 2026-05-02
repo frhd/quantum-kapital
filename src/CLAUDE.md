@@ -29,3 +29,7 @@ Path alias: `@/* → src/*`.
 
 - All backend access goes through `shared/api/*.ts` — never call `invoke()` directly from a component.
 - Adding a Tauri command means a backend handler **and** a wrapper in `shared/api/`. The wrapper is the only place that names the command string, so feature code never hard-codes it.
+
+## Headless browser inspection
+
+`pnpm dev:browser` boots Vite with `window.__TAURI_INTERNALS__` shimmed via `@tauri-apps/api/mocks#mockIPC` against fixtures in `src/test/browser-mocks/`. Used by Claude (over the project-scoped Playwright MCP server in `.mcp.json`) to inspect the UI for design and debugging without the Tauri shell. Add a fixture only when a screen you are working on renders blank against the shim — fixture set is intentionally small. Not a substitute for real-Tauri-window testing; for that, run `pnpm tauri dev`. First-time browser setup: `pnpm exec playwright install chromium`.

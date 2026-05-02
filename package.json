@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:browser": "VITE_BROWSER_DEV=1 vite",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "bash scripts/tauri.sh",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/mcp": "^0.0.73",
     "@tailwindcss/postcss": "^4.2.4",
     "@tauri-apps/cli": "^2.11.0",
     "@testing-library/dom": "^10.4.1",
@@ -53,6 +55,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.59.1",
     "postcss": "^8.5.13",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
