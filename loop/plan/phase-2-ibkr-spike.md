@@ -24,8 +24,21 @@
 
 ## Decisions to make in this phase
 
-- **Crate path:** if `ibapi = "2"` exposes `req_fundamental_data`, use it. If not, choose between (a) forking the crate, (b) writing a raw TWS-message wrapper, (c) switching to a different IBKR Rust crate. Document the decision in the phase exit notes.
-- **Subscription confirmed?** Snapshot of TWS Account → Market Data Subscriptions showing Reuters Worldwide Fundamentals as active. If not subscribed, this phase blocks until the user subscribes.
+- **Crate path:** **DECIDED 2026-05-02 — fork `ibapi` and add
+  `Client::fundamental_data` for the Phase 4 production provider; use
+  the official Python `ibapi` package for Phase 2 fixture capture.**
+  Rationale and full investigation in
+  `loop/plan/notes/ibkr-fundamentals-xml.md` § "Crate-path decision".
+  Short version: `ibapi = "2.11.x"` does not expose
+  `req_fundamental_data` (verified against both the locally-resolved
+  source and the upstream `main` branch) and its `MessageBus` is
+  `pub(crate)`, so a raw-message wrapper is not viable from a
+  downstream crate. Forking is the smallest patch surface; vendor via
+  `[patch.crates-io]` and submit the patch upstream in parallel.
+- **Subscription confirmed?** **Pending user confirmation** — see
+  `QUESTIONS.md § P2`. Cannot be resolved autonomously. Capture and
+  subscription confirmation are the only remaining work for this
+  phase.
 - **Which symbols for fixtures.** AAPL is the default; consider adding one ADR (e.g., `BABA`), one small-cap, and one symbol with sparse fundamentals (e.g., `RDDT`) so Phase 4 parsers handle the common edge cases. Decide which extras are worth capturing now vs. later.
 
 ## Exit criteria
