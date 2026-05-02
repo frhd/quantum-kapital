@@ -2,7 +2,7 @@
 
 > Part of [Alpha Vantage → IBKR Reuters](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-02)
+**Status:** done (commit c239bf4, 2026-05-02)
 
 **Depends on:** none (foundation phase, independent of Phase 2)
 

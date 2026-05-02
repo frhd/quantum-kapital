@@ -42,7 +42,7 @@ Violating the letter of these rules is violating the spirit.
 
 | Phase | File | Depends on | Status |
 |---|---|---|---|
-| 1. AV burn fixes (stop the bleed) | [phase-1-av-burn-fixes.md](phase-1-av-burn-fixes.md) | — | in-progress (started 2026-05-02) |
+| 1. AV burn fixes (stop the bleed) | [phase-1-av-burn-fixes.md](phase-1-av-burn-fixes.md) | — | done (commit c239bf4, 2026-05-02) |
 | 2. IBKR Reuters spike (de-risk) | [phase-2-ibkr-spike.md](phase-2-ibkr-spike.md) | — | todo |
 | 3. Provider trait + AV adapter | [phase-3-provider-trait.md](phase-3-provider-trait.md) | 1, 2 | todo |
 | 4. IBKR provider implementation | [phase-4-ibkr-provider.md](phase-4-ibkr-provider.md) | 2, 3 | todo |
