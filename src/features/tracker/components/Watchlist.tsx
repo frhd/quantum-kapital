@@ -21,12 +21,12 @@ import {
 } from "../types"
 import { SetupBadge } from "./SetupBadge"
 import { TagEditor } from "./TagEditor"
+import { useTickerNavigate } from "../../workspace/hooks/useTickerNavigate"
 
 interface WatchlistProps {
   tickers: TrackedTicker[]
   loading: boolean
   error: string | null
-  onSelectSymbol: (symbol: string) => void
   onRemove: (symbol: string) => Promise<void> | void
   onSaveTags: (symbol: string, tags: StrategyTag[]) => Promise<unknown> | void
   activeSetupBySymbol?: Record<string, Setup>
@@ -61,11 +61,11 @@ export function Watchlist({
   tickers,
   loading,
   error,
-  onSelectSymbol,
   onRemove,
   onSaveTags,
   activeSetupBySymbol,
 }: WatchlistProps) {
+  const navigate = useTickerNavigate()
   const [editingSymbol, setEditingSymbol] = useState<string | null>(null)
   const [removingSymbol, setRemovingSymbol] = useState<string | null>(null)
   const [rowError, setRowError] = useState<string | null>(null)
@@ -209,8 +209,8 @@ export function Watchlist({
                           variant="ghost"
                           size="sm"
                           className="text-foreground hover:text-foreground h-8 px-2"
-                          onClick={() => onSelectSymbol(t.symbol)}
-                          title="Open in analysis"
+                          onClick={() => navigate(t.symbol, "overview")}
+                          title="Open in workspace"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>

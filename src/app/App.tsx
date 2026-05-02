@@ -11,7 +11,6 @@ import { OptionPositions } from "../features/portfolio/components/OptionPosition
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
 import { WorkspaceProvider } from "../features/workspace/context/WorkspaceContext"
 import { AddToTrackerProvider } from "../features/workspace/context/AddToTrackerContext"
-import { useTickerNavigate } from "../features/workspace/hooks/useTickerNavigate"
 import { WorkspaceTab } from "../features/workspace/components/WorkspaceTab"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
 import { CandidateBrowser } from "../features/candidates/components/CandidateBrowser"
@@ -135,13 +134,13 @@ export default function App() {
                 {currentPage === "ticker" && <WorkspaceTab />}
 
                 {currentPage === "scanner" && (
-                  <ScannerPage onAddToTracker={handleRequestAddToTracker} />
+                  <MarketScanner onAddToTracker={handleRequestAddToTracker} />
                 )}
 
                 {currentPage === "candidates" && <CandidateBrowser />}
 
                 {currentPage === "tracker" && (
-                  <TrackerPage
+                  <TrackerTab
                     refreshKey={trackerVersion}
                     onAddClick={handleAddTrackerManual}
                     onCountChange={setTrackerCount}
@@ -186,32 +185,5 @@ export default function App() {
         </AppLayout>
       </AddToTrackerProvider>
     </WorkspaceProvider>
-  )
-}
-
-interface ScannerPageProps {
-  onAddToTracker: (prefill: AddToTrackerPrefill) => void
-}
-
-function ScannerPage({ onAddToTracker }: ScannerPageProps) {
-  const navigate = useTickerNavigate()
-  return <MarketScanner onSelectSymbol={navigate} onAddToTracker={onAddToTracker} />
-}
-
-interface TrackerPageProps {
-  refreshKey: number
-  onAddClick: () => void
-  onCountChange: (count: number) => void
-}
-
-function TrackerPage({ refreshKey, onAddClick, onCountChange }: TrackerPageProps) {
-  const navigate = useTickerNavigate()
-  return (
-    <TrackerTab
-      refreshKey={refreshKey}
-      onSelectSymbol={navigate}
-      onAddClick={onAddClick}
-      onCountChange={onCountChange}
-    />
   )
 }

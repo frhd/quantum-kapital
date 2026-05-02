@@ -18,13 +18,13 @@ import { Alert, AlertDescription } from "../../../shared/components/ui/alert"
 import { Button } from "../../../shared/components/ui/button"
 import { TrendingUp, AlertCircle, LineChart, Plus } from "lucide-react"
 import type { ScannerData } from "../../../shared/types"
+import { useTickerNavigate } from "../../workspace/hooks/useTickerNavigate"
 
 interface ScannerResultsProps {
   results: ScannerData[]
   lastUpdate: Date | null
   isRunning: boolean
   error: string | null
-  onSelectSymbol: (symbol: string) => void
   onAddToTracker: (row: ScannerData) => void
 }
 
@@ -33,9 +33,9 @@ export function ScannerResults({
   lastUpdate,
   isRunning,
   error,
-  onSelectSymbol,
   onAddToTracker,
 }: ScannerResultsProps) {
+  const navigate = useTickerNavigate()
   return (
     <Card className="border-border bg-card/50 backdrop-blur-xs">
       <CardHeader>
@@ -115,7 +115,7 @@ export function ScannerResults({
                           variant="ghost"
                           size="sm"
                           className="text-foreground hover:text-foreground h-7 px-2 text-xs"
-                          onClick={() => onSelectSymbol(row.contract.symbol)}
+                          onClick={() => navigate(row.contract.symbol, "overview")}
                           title="Open in analysis"
                         >
                           <LineChart className="h-4 w-4" />

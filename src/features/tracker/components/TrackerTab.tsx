@@ -20,7 +20,6 @@ type StatusFilter = "all" | TrackerStatus
 
 interface TrackerTabProps {
   refreshKey: number
-  onSelectSymbol: (symbol: string) => void
   onAddClick: () => void
   onCountChange?: (count: number) => void
 }
@@ -48,12 +47,7 @@ function truncate(s: string, max: number): string {
   return s.slice(0, max - 1).trimEnd() + "…"
 }
 
-export function TrackerTab({
-  refreshKey,
-  onSelectSymbol,
-  onAddClick,
-  onCountChange,
-}: TrackerTabProps) {
+export function TrackerTab({ refreshKey, onAddClick, onCountChange }: TrackerTabProps) {
   const { tickers, loading, error, refresh, remove, setTags } = useWatchlist(refreshKey)
   const {
     lastSetupDetected,
@@ -133,7 +127,6 @@ export function TrackerTab({
         <MorningPackPanel
           lastMorningPackReady={lastMorningPackReady}
           activeSetupBySymbol={activeSetupBySymbol}
-          onSelectSymbol={onSelectSymbol}
         />
         <Card className="border-border bg-card/50 backdrop-blur-xs">
           <CardHeader>
@@ -192,7 +185,6 @@ export function TrackerTab({
               tickers={filteredTickers}
               loading={loading}
               error={error}
-              onSelectSymbol={onSelectSymbol}
               onRemove={remove}
               onSaveTags={setTags}
               activeSetupBySymbol={activeSetupBySymbol}
@@ -203,7 +195,6 @@ export function TrackerTab({
           lastSetupDetected={lastSetupDetected}
           lastInvalidated={lastInvalidated}
           lastStatusChanged={lastStatusChanged}
-          onSelectSymbol={onSelectSymbol}
         />
       </div>
       <ToastViewport toasts={toasts} onDismiss={dismiss} />

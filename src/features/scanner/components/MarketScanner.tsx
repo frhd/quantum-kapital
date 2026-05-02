@@ -6,11 +6,10 @@ import type { ScannerData, ScannerSubscription } from "../../../shared/types"
 import type { AddToTrackerPrefill } from "../../tracker/types"
 
 interface MarketScannerProps {
-  onSelectSymbol: (symbol: string) => void
   onAddToTracker: (prefill: AddToTrackerPrefill) => void
 }
 
-export function MarketScanner({ onSelectSymbol, onAddToTracker }: MarketScannerProps) {
+export function MarketScanner({ onAddToTracker }: MarketScannerProps) {
   const [subscription, setSubscription] = useState<ScannerSubscription | null>(null)
   const { results, lastUpdate, error } = useScanner(subscription)
 
@@ -41,7 +40,6 @@ export function MarketScanner({ onSelectSymbol, onAddToTracker }: MarketScannerP
         lastUpdate={lastUpdate}
         isRunning={isRunning}
         error={error}
-        onSelectSymbol={onSelectSymbol}
         onAddToTracker={handleAddToTracker}
       />
     </div>

@@ -6,6 +6,18 @@ Each entry should name the file/test/symbol so the next maintainer pass can find
 
 ---
 
+## Phase 4 (2026-05-03)
+
+- **EvalTab has no per-symbol cells to wire** —
+  `phase-4-universal-nav.md` calls for symbol cells in
+  prediction/outcome rows in `src/features/eval/components/EvalTab.tsx`
+  to navigate `(symbol, "history")`. The current EvalTab renders only
+  conviction-bucket calibration tables and per-bucket cost breakdowns;
+  there are no per-symbol prediction or outcome rows on screen. No
+  change made — punt to a later eval-tab redesign that adds a
+  per-prediction list. Existing surface is unaffected.
+
+
 ## Phase 2 (2026-05-02)
 
 - **Pre-existing flake: `services::decay_watcher::tests::respects_budget_kill_switch`** —

@@ -12,6 +12,7 @@ import { Button } from "../../../shared/components/ui/button"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { ibkrApi } from "../../../shared/api/ibkr"
 import type { MorningPack, MorningPackReadyPayload, Setup } from "../types"
+import { useTickerNavigate } from "../../workspace/hooks/useTickerNavigate"
 
 interface MorningPackPanelProps {
   /** Latest `morning-pack-ready` event from `useTrackerEvents`. The
@@ -21,7 +22,6 @@ interface MorningPackPanelProps {
    *  light up the deep-link button when the ranked setup is still
    *  the active one for its symbol. */
   activeSetupBySymbol?: Record<string, Setup>
-  onSelectSymbol?: (symbol: string) => void
 }
 
 const STRATEGY_LABELS: Record<string, string> = {
@@ -49,8 +49,8 @@ function formatGenerated(iso: string): string {
 export function MorningPackPanel({
   lastMorningPackReady,
   activeSetupBySymbol = {},
-  onSelectSymbol,
 }: MorningPackPanelProps) {
+  const navigate = useTickerNavigate()
   const [pack, setPack] = useState<MorningPack | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -190,16 +190,16 @@ export function MorningPackPanel({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {symbol && onSelectSymbol && (
+                      {symbol && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation()
-                            onSelectSymbol(symbol)
+                            navigate(symbol, "overview")
                           }}
                           className="text-foreground hover:text-foreground h-7 px-2"
-                          title="Open analysis"
+                          title="Open in workspace"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>

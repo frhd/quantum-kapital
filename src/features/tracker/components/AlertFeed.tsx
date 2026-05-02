@@ -16,12 +16,12 @@ import type {
   SetupInvalidatedPayload,
   TickerStatusChangedPayload,
 } from "../types"
+import { useTickerNavigate } from "../../workspace/hooks/useTickerNavigate"
 
 interface AlertFeedProps {
   lastSetupDetected: SetupDetectedPayload | null
   lastInvalidated: SetupInvalidatedPayload | null
   lastStatusChanged: TickerStatusChangedPayload | null
-  onSelectSymbol: (symbol: string) => void
 }
 
 type KindFilter = "all" | AlertKind
@@ -38,8 +38,8 @@ export function AlertFeed({
   lastSetupDetected,
   lastInvalidated,
   lastStatusChanged,
-  onSelectSymbol,
 }: AlertFeedProps) {
+  const navigate = useTickerNavigate()
   const [kindFilter, setKindFilter] = useState<KindFilter>("all")
   const [onlyUnseen, setOnlyUnseen] = useState(false)
 
@@ -63,7 +63,7 @@ export function AlertFeed({
 
   const handleClick = (id: number, symbol: string | undefined) => {
     void markOneSeen(id)
-    if (symbol) onSelectSymbol(symbol)
+    if (symbol) navigate(symbol, "alerts")
   }
 
   return (

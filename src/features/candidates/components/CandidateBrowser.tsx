@@ -15,6 +15,7 @@ import { Badge } from "../../../shared/components/ui/badge"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { ibkrApi } from "../../../shared/api/ibkr"
 import { useCandidates } from "../hooks/useCandidates"
+import { useTickerNavigate } from "../../workspace/hooks/useTickerNavigate"
 import type { Candidate } from "../types"
 
 export function CandidateBrowser() {
@@ -122,6 +123,7 @@ export function CandidateBrowser() {
 }
 
 function CandidateRow({ candidate, onPromoted }: { candidate: Candidate; onPromoted: () => void }) {
+  const navigate = useTickerNavigate()
   const [reason, setReason] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -148,7 +150,14 @@ function CandidateRow({ candidate, onPromoted }: { candidate: Candidate; onPromo
     <div className="border-border bg-background/40 rounded-md border p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-base font-semibold">{candidate.symbol}</span>
+          <button
+            type="button"
+            onClick={() => navigate(candidate.symbol, "overview")}
+            className="text-base font-semibold underline-offset-2 hover:underline"
+            title="Open in workspace"
+          >
+            {candidate.symbol}
+          </button>
           <Badge variant="outline" className="text-xs">
             score {candidate.score.toFixed(2)}
           </Badge>
