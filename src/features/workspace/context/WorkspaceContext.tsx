@@ -9,18 +9,23 @@ import {
   type ReactNode,
 } from "react"
 import type { WorkspaceTabId } from "../types"
+import { useRecentSymbols } from "../hooks/useRecentSymbols"
 
 interface WorkspaceState {
   symbol: string | null
   tab: WorkspaceTabId
   /** Bumps every time `navigate` is called, even with the same symbol — drives re-fetch effects. */
   nonce: number
+  /** Phase 5 — most-recent-first list of symbols visited via `navigate`. Persisted in localStorage. */
+  recents: string[]
 }
 
 interface WorkspaceContextValue extends WorkspaceState {
   setSymbol: (symbol: string | null) => void
   setTab: (tab: WorkspaceTabId) => void
   navigate: (symbol: string, tab?: WorkspaceTabId) => void
+  /** Phase 5 — drop the persisted recents list. */
+  clearRecents: () => void
   /** Optional page-router hook so navigate can flip the host page to "ticker". */
   onNavigatePage?: () => void
 }
@@ -43,6 +48,7 @@ export function WorkspaceProvider({
   const [tab, setTabState] = useState<WorkspaceTabId>(initialTab)
   const [nonce, setNonce] = useState(0)
   const nonceRef = useRef(0)
+  const { recents, push: pushRecent, clear: clearRecents } = useRecentSymbols()
 
   const onNavigatePageRef = useRef(onNavigatePage)
   useEffect(() => {
@@ -57,19 +63,34 @@ export function WorkspaceProvider({
     setTabState(next)
   }, [])
 
-  const navigate = useCallback((nextSymbol: string, nextTab?: WorkspaceTabId) => {
-    nonceRef.current += 1
-    setNonce(nonceRef.current)
-    setSymbolState(nextSymbol.toUpperCase())
-    if (nextTab) {
-      setTabState(nextTab)
-    }
-    onNavigatePageRef.current?.()
-  }, [])
+  const navigate = useCallback(
+    (nextSymbol: string, nextTab?: WorkspaceTabId) => {
+      const upper = nextSymbol.toUpperCase()
+      nonceRef.current += 1
+      setNonce(nonceRef.current)
+      setSymbolState(upper)
+      if (nextTab) {
+        setTabState(nextTab)
+      }
+      pushRecent(upper)
+      onNavigatePageRef.current?.()
+    },
+    [pushRecent],
+  )
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ symbol, tab, nonce, setSymbol, setTab, navigate, onNavigatePage }),
-    [symbol, tab, nonce, setSymbol, setTab, navigate, onNavigatePage],
+    () => ({
+      symbol,
+      tab,
+      nonce,
+      recents,
+      setSymbol,
+      setTab,
+      navigate,
+      clearRecents,
+      onNavigatePage,
+    }),
+    [symbol, tab, nonce, recents, setSymbol, setTab, navigate, clearRecents, onNavigatePage],
   )
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>

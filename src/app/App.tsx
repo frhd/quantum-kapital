@@ -12,6 +12,7 @@ import { AccountDetails } from "../features/portfolio/components/AccountDetails"
 import { WorkspaceProvider } from "../features/workspace/context/WorkspaceContext"
 import { AddToTrackerProvider } from "../features/workspace/context/AddToTrackerContext"
 import { WorkspaceTab } from "../features/workspace/components/WorkspaceTab"
+import { QuickSwitcher } from "../features/workspace/components/QuickSwitcher"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
 import { CandidateBrowser } from "../features/candidates/components/CandidateBrowser"
 import { TrackerTab } from "../features/tracker/components/TrackerTab"
@@ -183,6 +184,7 @@ export default function App() {
             onAdded={handleDialogAdded}
           />
         </AppLayout>
+        <QuickSwitcher />
       </AddToTrackerProvider>
     </WorkspaceProvider>
   )
