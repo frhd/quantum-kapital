@@ -16,7 +16,7 @@ import { cn } from "../../lib/utils"
 import { useTheme } from "../../hooks/useTheme"
 
 export type PageId =
-  | "analysis"
+  | "ticker"
   | "scanner"
   | "candidates"
   | "tracker"
@@ -40,7 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Markets",
     items: [
-      { id: "analysis", label: "Analysis", icon: LineChart },
+      { id: "ticker", label: "Ticker", icon: LineChart },
       { id: "scanner", label: "Scanner", icon: Search },
       { id: "candidates", label: "Candidates", icon: Inbox },
       { id: "tracker", label: "Tracker", icon: Eye },

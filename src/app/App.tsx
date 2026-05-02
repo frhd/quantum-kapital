@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent } from "../shared/components/ui/card"
 import { AlertCircle } from "lucide-react"
 
@@ -9,7 +9,9 @@ import { AccountSummary } from "../features/portfolio/components/AccountSummary"
 import { StockPositions } from "../features/portfolio/components/StockPositions"
 import { OptionPositions } from "../features/portfolio/components/OptionPositions"
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
-import { TickerAnalysis } from "../features/analysis/components/TickerAnalysis"
+import { WorkspaceProvider } from "../features/workspace/context/WorkspaceContext"
+import { useTickerNavigate } from "../features/workspace/hooks/useTickerNavigate"
+import { WorkspaceTab } from "../features/workspace/components/WorkspaceTab"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
 import { CandidateBrowser } from "../features/candidates/components/CandidateBrowser"
 import { TrackerTab } from "../features/tracker/components/TrackerTab"
@@ -23,21 +25,14 @@ import { useConnection } from "../features/connection/hooks/useConnection"
 import { useAccountData } from "../features/portfolio/hooks/useAccountData"
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<PageId>("analysis")
-  const nonceRef = useRef(0)
-  const [pendingAnalysisSymbol, setPendingAnalysisSymbol] = useState<{
-    symbol: string
-    nonce: number
-  } | null>(null)
+  const [currentPage, setCurrentPage] = useState<PageId>("ticker")
   const [trackerVersion, setTrackerVersion] = useState(0)
   const [trackerCount, setTrackerCount] = useState(0)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addDialogPrefill, setAddDialogPrefill] = useState<AddToTrackerPrefill | null>(null)
 
-  const handleSelectSymbol = useCallback((symbol: string) => {
-    nonceRef.current += 1
-    setPendingAnalysisSymbol({ symbol, nonce: nonceRef.current })
-    setCurrentPage("analysis")
+  const handleNavigateToWorkspace = useCallback(() => {
+    setCurrentPage("ticker")
   }, [])
 
   const handleRequestAddToTracker = useCallback((prefill: AddToTrackerPrefill) => {
@@ -97,98 +92,123 @@ export default function App() {
   }
 
   return (
-    <AppLayout
-      currentPage={currentPage}
-      onNavigate={setCurrentPage}
-      connectionStatus={connectionStatus}
-      loading={loading}
-      disconnecting={disconnecting}
-      onConnect={handleConnect}
-      onDisconnect={handleDisconnect}
-      badges={{ tracker: trackerCount }}
-    >
-      <div className="space-y-6">
-        {error && (
-          <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="flex items-center gap-2 p-4">
-              <AlertCircle className="text-destructive h-5 w-5" />
-              <p className="text-destructive">{error}</p>
-            </CardContent>
-          </Card>
-        )}
+    <WorkspaceProvider onNavigatePage={handleNavigateToWorkspace}>
+      <AppLayout
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        connectionStatus={connectionStatus}
+        loading={loading}
+        disconnecting={disconnecting}
+        onConnect={handleConnect}
+        onDisconnect={handleDisconnect}
+        badges={{ tracker: trackerCount }}
+      >
+        <div className="space-y-6">
+          {error && (
+            <Card className="border-destructive/50 bg-destructive/10">
+              <CardContent className="flex items-center gap-2 p-4">
+                <AlertCircle className="text-destructive h-5 w-5" />
+                <p className="text-destructive">{error}</p>
+              </CardContent>
+            </Card>
+          )}
 
-        {!connectionStatus.connected && (
-          <ConnectionSettings
-            connectionSettings={connectionSettings}
-            setConnectionSettings={setConnectionSettings}
-          />
-        )}
-
-        {connectionStatus.connected && (
-          <>
-            <DataTierBanner />
-
-            <AccountSummary
-              accounts={accounts}
-              accountSummary={accountSummary}
-              positions={positions}
+          {!connectionStatus.connected && (
+            <ConnectionSettings
+              connectionSettings={connectionSettings}
+              setConnectionSettings={setConnectionSettings}
             />
+          )}
 
-            {currentPage === "analysis" && <TickerAnalysis pendingSymbol={pendingAnalysisSymbol} />}
+          {connectionStatus.connected && (
+            <>
+              <DataTierBanner />
 
-            {currentPage === "scanner" && (
-              <MarketScanner
-                onSelectSymbol={handleSelectSymbol}
-                onAddToTracker={handleRequestAddToTracker}
-              />
-            )}
-
-            {currentPage === "candidates" && <CandidateBrowser />}
-
-            {currentPage === "tracker" && (
-              <TrackerTab
-                refreshKey={trackerVersion}
-                onSelectSymbol={handleSelectSymbol}
-                onAddClick={handleAddTrackerManual}
-                onCountChange={setTrackerCount}
-              />
-            )}
-
-            {currentPage === "research" && <ResearchTab />}
-
-            {currentPage === "eval" && <EvalTab />}
-
-            {currentPage === "positions" && (
-              <>
-                <StockPositions positions={positions} />
-                <OptionPositions positions={positions} />
-                {positions.length === 0 && (
-                  <Card>
-                    <CardContent className="py-8 text-center">
-                      <p className="text-muted-foreground">No positions found</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
-            )}
-
-            {currentPage === "account" && (
-              <AccountDetails
+              <AccountSummary
                 accounts={accounts}
                 accountSummary={accountSummary}
-                connectionStatus={connectionStatus}
+                positions={positions}
               />
-            )}
-          </>
-        )}
-      </div>
 
-      <AddToTrackerDialog
-        open={addDialogOpen}
-        prefill={addDialogPrefill}
-        onClose={handleDialogClose}
-        onAdded={handleDialogAdded}
-      />
-    </AppLayout>
+              {currentPage === "ticker" && <WorkspaceTab />}
+
+              {currentPage === "scanner" && (
+                <ScannerPage onAddToTracker={handleRequestAddToTracker} />
+              )}
+
+              {currentPage === "candidates" && <CandidateBrowser />}
+
+              {currentPage === "tracker" && (
+                <TrackerPage
+                  refreshKey={trackerVersion}
+                  onAddClick={handleAddTrackerManual}
+                  onCountChange={setTrackerCount}
+                />
+              )}
+
+              {currentPage === "research" && <ResearchTab />}
+
+              {currentPage === "eval" && <EvalTab />}
+
+              {currentPage === "positions" && (
+                <>
+                  <StockPositions positions={positions} />
+                  <OptionPositions positions={positions} />
+                  {positions.length === 0 && (
+                    <Card>
+                      <CardContent className="py-8 text-center">
+                        <p className="text-muted-foreground">No positions found</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+
+              {currentPage === "account" && (
+                <AccountDetails
+                  accounts={accounts}
+                  accountSummary={accountSummary}
+                  connectionStatus={connectionStatus}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        <AddToTrackerDialog
+          open={addDialogOpen}
+          prefill={addDialogPrefill}
+          onClose={handleDialogClose}
+          onAdded={handleDialogAdded}
+        />
+      </AppLayout>
+    </WorkspaceProvider>
+  )
+}
+
+interface ScannerPageProps {
+  onAddToTracker: (prefill: AddToTrackerPrefill) => void
+}
+
+function ScannerPage({ onAddToTracker }: ScannerPageProps) {
+  const navigate = useTickerNavigate()
+  return <MarketScanner onSelectSymbol={navigate} onAddToTracker={onAddToTracker} />
+}
+
+interface TrackerPageProps {
+  refreshKey: number
+  onAddClick: () => void
+  onCountChange: (count: number) => void
+}
+
+function TrackerPage({ refreshKey, onAddClick, onCountChange }: TrackerPageProps) {
+  const navigate = useTickerNavigate()
+  return (
+    <TrackerTab
+      refreshKey={refreshKey}
+      onSelectSymbol={navigate}
+      onAddClick={onAddClick}
+      onCountChange={onCountChange}
+    />
   )
 }
