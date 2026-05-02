@@ -51,6 +51,25 @@ pub struct ProjectionResults {
     pub cagr: ScenarioCagr,            // CAGR for each scenario
 }
 
+/// Bundled response for `ibkr_generate_projection_results`. Returning
+/// fundamentals + projection results in a single Tauri call lets the UI
+/// hook collapse to one request instead of fetching fundamentals twice
+/// (once for display, once internally for the projection inputs).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectionResultsWithFundamentals {
+    pub fundamentals: FundamentalData,
+    pub results: ProjectionResults,
+}
+
+/// Same idea for the deprecated `ibkr_generate_projections` command.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScenarioProjectionsWithFundamentals {
+    pub fundamentals: FundamentalData,
+    pub projections: ScenarioProjections,
+}
+
 /// Complete scenario projections (Bear/Base/Bull) - DEPRECATED, use ProjectionResults
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioProjections {

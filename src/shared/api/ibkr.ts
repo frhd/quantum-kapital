@@ -6,9 +6,9 @@ import type {
   Position,
   OrderRequest,
   FundamentalData,
-  ScenarioProjections,
-  ProjectionResults,
   ProjectionAssumptions,
+  ProjectionResultsWithFundamentals,
+  ScenarioProjectionsWithFundamentals,
   ScannerSubscription,
   Quote,
   DataTier,
@@ -92,11 +92,20 @@ export const ibkrApi = {
   },
 
   generateProjections: async (symbol: string, assumptions?: ProjectionAssumptions) => {
-    return invoke<ScenarioProjections>("ibkr_generate_projections", { symbol, assumptions })
+    return invoke<ScenarioProjectionsWithFundamentals>("ibkr_generate_projections", {
+      symbol,
+      assumptions,
+    })
   },
 
+  /** Returns projection results bundled with the fundamentals they were
+   *  computed from, so callers don't need a parallel `getFundamentalData`
+   *  fetch (which doubled the daily AV quota burn). */
   generateProjectionResults: async (symbol: string, assumptions?: ProjectionAssumptions) => {
-    return invoke<ProjectionResults>("ibkr_generate_projection_results", { symbol, assumptions })
+    return invoke<ProjectionResultsWithFundamentals>("ibkr_generate_projection_results", {
+      symbol,
+      assumptions,
+    })
   },
 
   getCachedTickers: async () => {

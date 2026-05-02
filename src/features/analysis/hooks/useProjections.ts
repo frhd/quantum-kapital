@@ -24,14 +24,12 @@ export function useProjections(symbol: string | null, assumptions?: ProjectionAs
       setError(null)
 
       try {
-        // Fetch both fundamental data and projection results
-        const [fundamentals, projectionResults] = await Promise.all([
-          ibkrApi.getFundamentalData(symbol),
-          ibkrApi.generateProjectionResults(symbol, assumptions),
-        ])
-
-        setFundamentalData(fundamentals)
-        setResults(projectionResults)
+        // Single Tauri call returns fundamentals + projection results.
+        // Splitting this into a parallel `getFundamentalData` doubled
+        // the daily AV quota burn (3 endpoints × 2 calls).
+        const bundle = await ibkrApi.generateProjectionResults(symbol, assumptions)
+        setFundamentalData(bundle.fundamentals)
+        setResults(bundle.results)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch projections")
         console.error("Error fetching projections:", err)

@@ -38,12 +38,28 @@ export interface ProjectionResults {
   cagr: ScenarioCagr // CAGR for each scenario
 }
 
+// Bundled response from `ibkr_generate_projection_results`. The
+// projection inputs and the underlying fundamentals come back in a
+// single call so the UI doesn't need to parallel-fetch fundamentals
+// (which used to double the daily AV quota burn).
+export interface ProjectionResultsWithFundamentals {
+  fundamentals: FundamentalData
+  results: ProjectionResults
+}
+
 // Complete scenario projections (Bear/Base/Bull) - DEPRECATED, use ProjectionResults
 export interface ScenarioProjections {
   bear: FinancialProjection[]
   base: FinancialProjection[]
   bull: FinancialProjection[]
   cagr: ScenarioCagr
+}
+
+// Bundled equivalent of ScenarioProjections for the deprecated
+// `ibkr_generate_projections` Tauri command.
+export interface ScenarioProjectionsWithFundamentals {
+  fundamentals: FundamentalData
+  projections: ScenarioProjections
 }
 
 export interface ScenarioCagr {

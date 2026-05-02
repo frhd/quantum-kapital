@@ -22,6 +22,8 @@ mod overview;
 pub mod news;
 
 #[cfg(test)]
+mod fundamentals_tests;
+#[cfg(test)]
 mod news_tests;
 
 /// HTTP transport seam for the Alpha Vantage fundamentals endpoints.
@@ -305,8 +307,16 @@ impl FinancialDataService {
     /// tests inject a counter-fake to assert request counts (e.g., for
     /// the in-flight coalescing test).
     #[cfg(test)]
-    pub fn with_http(mut self, http: Arc<dyn AvHttp>) -> Self {
+    pub(crate) fn with_http(mut self, http: Arc<dyn AvHttp>) -> Self {
         self.av_http = http;
+        self
+    }
+
+    /// Inject a custom `CacheService` (e.g., a `with_ttl` variant for
+    /// the stale-cache-fallback test).
+    #[cfg(test)]
+    pub(crate) fn with_cache(mut self, cache: CacheService) -> Self {
+        self.cache = Some(cache);
         self
     }
 
