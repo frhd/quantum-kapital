@@ -512,6 +512,152 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn manual_cleared_falls_back_to_av() {
+        // Mirrors the master-plan e2e step "Manual store has Y, then
+        // clear it → fetch falls back to AV cache, then AV".
+        let (_tmp_store, store) = fresh_store();
+        store
+            .upsert(
+                "AAPL",
+                fd("AAPL", 99.0),
+                "2026-05-02",
+                "src",
+                "interactive",
+                0,
+            )
+            .await
+            .unwrap();
+        let manual = Arc::new(ManualFundamentalsProvider::new(Arc::clone(&store)));
+        let av_fake = Arc::new(CountingFake::new());
+        av_fake.insert("AAPL", fd("AAPL", 30.0));
+        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let composite = CompositeFundamentalsProvider::new(manual, av);
+
+        // Manual wins.
+        assert_eq!(
+            composite
+                .fetch("AAPL")
+                .await
+                .unwrap()
+                .current_metrics
+                .pe_ratio,
+            99.0
+        );
+        assert_eq!(av_fake.calls(), 0);
+
+        // Clear manual; AV now serves.
+        store.clear("AAPL").await.unwrap();
+        assert_eq!(
+            composite
+                .fetch("AAPL")
+                .await
+                .unwrap()
+                .current_metrics
+                .pe_ratio,
+            30.0
+        );
+        assert_eq!(av_fake.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn av_branch_serves_stale_cache_when_daily_cap_exhausted() {
+        // Pre-seed the AV cache with payloads that round-trip through
+        // FinancialDataService::read_cached_fundamentals_ignoring_ttl,
+        // exhaust the daily ledger, and assert the composite returns
+        // the stale data instead of the typed error.
+        use crate::services::cache_service::CacheService;
+        use serde_json::json;
+        use tempfile::TempDir;
+
+        let (_tmp_store, store) = fresh_store();
+        let manual = Arc::new(ManualFundamentalsProvider::new(store));
+
+        let cache_dir = TempDir::new().unwrap();
+        let cache = Arc::new(CacheService::new(cache_dir.path()).unwrap());
+        // Plant stale-but-parseable AV cache rows. Production cache
+        // keys are `<SYM>_overview`, `<SYM>_income_statement`,
+        // `<SYM>_earnings` — see `AV_FUNDAMENTALS_CACHE_SUFFIXES`.
+        cache
+            .write(
+                "AAPL_overview",
+                &json!({
+                    "Symbol": "AAPL",
+                    "Name": "Apple Inc.",
+                    "Exchange": "NASDAQ",
+                    "MarketCapitalization": "3000000000000",
+                    "PERatio": "25.0",
+                    "SharesOutstanding": "15000000000",
+                    "DividendYield": "0.005"
+                }),
+            )
+            .unwrap();
+        cache
+            .write(
+                "AAPL_income_statement",
+                &json!({
+                    "symbol": "AAPL",
+                    "annualReports": [
+                        {"fiscalDateEnding": "2024-09-30", "totalRevenue": "390000000000", "netIncome": "100000000000"}
+                    ]
+                }),
+            )
+            .unwrap();
+        cache
+            .write(
+                "AAPL_earnings",
+                &json!({
+                    "symbol": "AAPL",
+                    "annualEarnings": [
+                        {"fiscalDateEnding": "2024-09-30", "reportedEPS": "6.5"}
+                    ],
+                    "quarterlyEarnings": []
+                }),
+            )
+            .unwrap();
+
+        // Make the cache 8 days old (past the 7-day TTL) so the
+        // cache-fresh probe returns false but the stale-allowed read
+        // still succeeds.
+        let entries = std::fs::read_dir(cache_dir.path()).unwrap();
+        let stale_time =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(8 * 24 * 60 * 60);
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let f = std::fs::File::open(&path).unwrap();
+                f.set_modified(stale_time).unwrap();
+            }
+        }
+
+        let (_tmp_db, db) = fresh_db();
+        let ledger = Arc::new(AvCallLedger::with_caps(
+            Arc::clone(&db),
+            1,
+            2,
+            5,
+            Arc::new(super::super::av_call_ledger::LocalDateSource),
+        ));
+        // Burn the daily budget: 2 commits hit the hard cap.
+        ledger.check("PRE1").await.unwrap();
+        ledger.commit("PRE1").await.unwrap();
+        ledger.check("PRE2").await.unwrap();
+        ledger.commit("PRE2").await.unwrap();
+
+        let av_fake = Arc::new(CountingFake::new());
+        let av: Arc<dyn FundamentalsProvider> = Arc::clone(&av_fake) as Arc<dyn FundamentalsProvider>;
+        let guard = Arc::new(AvGuard::new(Arc::clone(&ledger), Arc::clone(&cache)));
+        let composite = CompositeFundamentalsProvider::new(manual, av).with_av_guard(guard);
+
+        let got = composite.fetch("AAPL").await.expect("stale fallback hits");
+        assert_eq!(got.symbol, "AAPL");
+        assert_eq!(got.current_metrics.pe_ratio, 25.0);
+        assert!(!got.historical.is_empty());
+        // AV provider was never called — the composite served the
+        // stale cache directly.
+        assert_eq!(av_fake.calls(), 0);
+    }
+
+    #[tokio::test]
     async fn av_branch_does_not_burn_ticket_on_av_fetch_failure() {
         let (_tmp_store, store) = fresh_store();
         let manual = Arc::new(ManualFundamentalsProvider::new(store));
