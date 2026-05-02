@@ -27,14 +27,21 @@ continue. Resolve and prune as phases progress.
 ## P2: Phase 2 spike capture is human-in-the-loop — TWS + Reuters subscription required
 
 - **Found:** Phase 2, 2026-05-02
-- **What's blocked:** Three of Phase 2's five exit criteria need a
-  live IBKR account with the Reuters Worldwide Fundamentals
-  subscription enabled and TWS / IB Gateway running locally:
+- **Subscription resolved 2026-05-02:** `IBIS Research Platform`
+  (Fee Waived) is active on the account and covers `req_fundamental_data`.
+  Verified by the user opening AAPL → Financials in TWS and seeing
+  populated fundamentals data. **No explicit "Reuters Worldwide
+  Fundamentals" line item on the IBKR GFIS Subscriptions page** —
+  IBKR appears to bundle the Refinitiv data under IBIS now. Worth
+  recording for future sessions; the original plan language assumed
+  a discrete "Reuters" line that no longer exists for this account
+  tier.
+- **What's still blocked:** Two of Phase 2's exit criteria still
+  need a live TWS / IB Gateway running locally:
   1. The four `AAPL_*.xml` fixtures under
      `src-tauri/tests/fixtures/ibkr_fundamentals/` (>1KB each).
   2. The Python capture script run-to-completion against a paper or
      live TWS at `127.0.0.1:7497`.
-  3. Subscription confirmation (screenshot or written note here).
 - **Why this is human-in-the-loop:** The /loop session has no TWS
   instance and cannot subscribe to Reuters on the user's behalf. The
   capture-script blueprint in
@@ -56,8 +63,7 @@ continue. Resolve and prune as phases progress.
   ends this iteration with `loop/BREAK` so we don't burn iterations
   re-discovering the same blocker.
 - **Action items for the user (when TWS is up):**
-  1. Confirm the Reuters Worldwide Fundamentals subscription under
-     TWS → Account → Market Data Subscriptions.
+  1. ✅ Subscription confirmed via IBIS Research Platform (2026-05-02).
   2. `pip install ibapi` (official PyPI package) and run the
      Python capture script from
      `loop/plan/notes/ibkr-fundamentals-xml.md` § "Capture script
