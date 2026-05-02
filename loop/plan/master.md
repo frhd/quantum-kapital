@@ -60,7 +60,7 @@ Violating the letter of these rules is violating the spirit.
 | 1. AV burn fixes (stop the bleed) | [phase-1-av-burn-fixes.md](phase-1-av-burn-fixes.md) | — | done (commit c239bf4, 2026-05-02) |
 | 2. IBKR Reuters spike (de-risk) | [phase-2-ibkr-spike.md](phase-2-ibkr-spike.md) | — | abandoned (2026-05-02 — API deprecated + 10358 entitlement gap; see master.md Context) |
 | 3. Fundamentals provider trait + AV adapter | [phase-3-provider-trait.md](phase-3-provider-trait.md) | 1 | done (commit bd6e835, 2026-05-02) |
-| 4. MCP `set_fundamentals` write tool + manual store + composite provider | [phase-4-mcp-fundamentals.md](phase-4-mcp-fundamentals.md) | 3 | todo |
+| 4. MCP `set_fundamentals` write tool + manual store + composite provider | [phase-4-mcp-fundamentals.md](phase-4-mcp-fundamentals.md) | 3 | in-progress (started 2026-05-02) |
 | 5. Cutover: composite default + AV guardrails (daily cap + per-symbol cap + tracker invariant test) | [phase-5-cutover.md](phase-5-cutover.md) | 4 | todo |
 | 6. IBKR news spike (de-risk) | [phase-6-ibkr-news-spike.md](phase-6-ibkr-news-spike.md) | — | in-progress (started 2026-05-02) |
 | 7. News provider trait + IBKR news provider | [phase-7-news-provider.md](phase-7-news-provider.md) | 3, 6 | todo |
