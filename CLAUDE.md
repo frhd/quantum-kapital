@@ -8,6 +8,8 @@ Stack-specific rules:
 
 - **`src-tauri/CLAUDE.md`** — Rust backend, IBKR adapter, services, tracker pipeline, cargo commands
 - **`src/CLAUDE.md`** — React 19 + Vite frontend, feature folders, Tauri command wrappers
+- **`agent/`** — Python (uv) subtree. Headless research agents (morning sweep, alert dive) that talk to the running app via the MCP socket. Owns its own `pyproject.toml`, venv, and tests; **not** part of the Rust/Tauri build. Entry points, budget rules, and shadow-mode rollout in `agent/README.md`. The hardcoded US-holiday list in `agent/morning_sweep.py` mirrors `src-tauri/src/utils/market_calendar/holidays.rs` — keep them in lockstep.
+- **`loop/`** — Claude Code's own multi-phase plan and orchestration (`loop/plan/master.md` + `phase-N-*.md`, `prompt.md`, `loop.sh`). Roadmap state, not production code. Use the `superpowers:writing-phased-plans` skill when extending it.
 
 ## Running the app
 
@@ -17,7 +19,10 @@ The `tauri` script is wrapped by `scripts/tauri.sh`: `pnpm tauri dev` sets `RUST
 
 ## Secrets
 
-Backend reads `src-tauri/.env` (Alpha Vantage `ALPHA_VANTAGE_API_KEY`, etc.). The frontend never sees these — all external API calls go through Rust services. App falls back to mock data if the key is missing; failures here are silent in the UI, so check logs if fundamentals look stale.
+Backend reads `src-tauri/.env`. The frontend never sees these — all external API calls go through Rust services.
+
+- `ANTHROPIC_API_KEY` — required for the LLM features (thesis generator, decay watcher, news interpreter, daily ranker).
+- `ALPHA_VANTAGE_API_KEY` — used only by the **fundamentals fallback** path (`CompositeFundamentalsProvider` → AV adapter, when a symbol isn't in the manual MCP store). News is fully on IBKR after Phase 8; AV is no longer consulted for news. The composite serves manual-store rows when the AV key is unset, so missing it only impacts symbols the user hasn't curated.
 
 ## LLM budget
 

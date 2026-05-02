@@ -248,7 +248,54 @@ continue. Resolve and prune as phases progress.
 
 ---
 
-## P5: Phase 8 cutover landed; deletion gated on shadow soak
+## P5: Phase 8 cutover + deletion landed same day; soak window skipped per user
+
+- **RESOLVED 2026-05-02 (later same day):** User opted out of the
+  ~2-week shadow soak after the tradeoff was explained
+  ("delete now vs. observe for two weeks"). Deletion commit landed
+  immediately:
+  - `src-tauri/src/services/news_provider/alpha_vantage.rs`,
+    `shadow.rs`, `tests/news_provider_parity.rs`,
+    `services/financial_data_service/news.rs`,
+    `services/financial_data_service/news_tests.rs`,
+    `tests/fixtures/av_news_sentiment.json` deleted.
+  - `news_source` settings flag, `shadow_av_news_comparison` flag,
+    `resolved_news_source()` helper, `NEWS_SOURCE_*` constants,
+    `news_parity_support` re-export gateway in `lib.rs`,
+    `FinancialDataService::{with_db, with_news_interpreter,
+    fetch_news_sentiment}` all gone.
+  - Cache helpers (`read_cache_with_verdict`, `write_verdict`,
+    `CachedNews`, `write_cache`) relocated to a new vendor-neutral
+    module `services/news_cache.rs` so `news_interpreter` and
+    `mcp/tools/news.rs` keep working.
+  - `IbkrNewsProvider` gained `with_news_cache(db)` and
+    `with_news_interpreter(arc)` builders; lib.rs wires both so
+    successful IBKR fetches write through to `news_cache` and trigger
+    a best-effort verdict pass — replacing the AV-side path that used
+    to fill those rows.
+  - AV fundamentals adapter, rate limiter, cache directory,
+    `ALPHA_VANTAGE_API_KEY` env var all retained per Hard Invariant
+    #9. `CLAUDE.md` Secrets section + `.env.example` updated to scope
+    the AV key to the fundamentals fallback only.
+- **Verification:** `cargo check`, `cargo clippy --all-targets
+  --all-features -- -D warnings`, `cargo fmt --check`, `cargo test
+  --lib` (607 pass; the pre-existing `decay_watcher::respects_budget_kill_switch`
+  remains red on `main` per P1 — unchanged), `cargo test --tests`
+  (same single pre-existing failure, otherwise green), `pnpm typecheck`,
+  `pnpm lint` (warnings only, all pre-existing), `pnpm test:run`
+  (3/3 files, 18/18 tests). Exit-criteria grep
+  `rg 'fetch_news_sentiment|AlphaVantageNews|news_source|ShadowingNews|shadow_av_news'`
+  over `src-tauri/src` + `src-tauri/tests` returns zero hits.
+- **Tradeoffs accepted by skipping the soak:**
+  - No shadow-comparison data was collected, so per-symbol IBKR vs AV
+    coverage gaps are unknown. If a symbol class is materially
+    under-covered by the IBKR provider mix (Briefing.com + Dow Jones
+    bundle, no Reuters Real-time), the user finds out organically.
+  - News path now has no HTTP fallback — TWS being down means the
+    news pass returns empty. The deferred Phase 9 daemon (prior
+    roadmap) is the long-term answer.
+
+### Original entry (kept for context):
 
 - **Found:** Phase 8 cutover, 2026-05-02
 - **What changed:**

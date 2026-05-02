@@ -18,41 +18,7 @@ pub struct AppConfig {
     pub auto_scanner: AutoScannerConfig,
     #[serde(default)]
     pub social_sentiment: SocialSentimentConfig,
-    /// Phase 7 (AV migration): selects the active news backend. Valid
-    /// values are `"ibkr"` (default as of the Phase 8 cutover) and
-    /// `"alpha_vantage"` (retained until the Phase 8 deletion commit).
-    /// Unknown values fall back to the default with a warn-log at
-    /// startup; see [`AppConfig::resolved_news_source`]. Phase 8
-    /// deletion removes both the flag and the AV news adapter — only
-    /// IBKR remains.
-    #[serde(default = "default_news_source")]
-    pub news_source: String,
-
-    /// Phase 8 cutover: when `true`, wraps the active IBKR news
-    /// provider in a shadow comparator that fires the AV provider in
-    /// the background and logs coverage diffs. Default `false` — the
-    /// flag is opt-in and lives only for the ~2-week soak window
-    /// preceding the Phase 8 deletion commit. AV failures during
-    /// shadowing are swallowed (logged as `AV unavailable`) so the
-    /// IBKR path never blocks. Has no effect when `news_source` is
-    /// not `"ibkr"` or when no AV API key is configured.
-    #[serde(default)]
-    pub shadow_av_news_comparison: bool,
 }
-
-/// Default news backend. Phase 8 cutover (2026-05-02) flipped this
-/// from `"alpha_vantage"` to `"ibkr"`. The Phase 8 deletion commit
-/// removes the field altogether.
-pub fn default_news_source() -> String {
-    "ibkr".to_string()
-}
-
-/// Recognised news-backend identifiers. Kept narrow on purpose — adding
-/// a new variant means adding a new `NewsProvider` impl, not a new
-/// settings string. See [`AppConfig::resolved_news_source`] for the
-/// validation entry point.
-pub const NEWS_SOURCE_ALPHA_VANTAGE: &str = "alpha_vantage";
-pub const NEWS_SOURCE_IBKR: &str = "ibkr";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IbkrConfig {
@@ -367,23 +333,6 @@ impl Default for TrackerConfig {
 
 #[allow(dead_code)]
 impl AppConfig {
-    /// Validate [`Self::news_source`] against the recognised constants
-    /// ([`NEWS_SOURCE_ALPHA_VANTAGE`], [`NEWS_SOURCE_IBKR`]) and return
-    /// the value `lib.rs` should wire through to the `NewsProvider`
-    /// fan-out. Unknown values warn-log and fall back to
-    /// [`default_news_source`]. Centralising this here means callers
-    /// don't re-implement the validation per consumer.
-    pub fn resolved_news_source(&self) -> String {
-        match self.news_source.as_str() {
-            NEWS_SOURCE_ALPHA_VANTAGE | NEWS_SOURCE_IBKR => self.news_source.clone(),
-            other => {
-                let fallback = default_news_source();
-                tracing::warn!("Unknown news_source = {other:?}; falling back to {fallback:?}",);
-                fallback
-            }
-        }
-    }
-
     /// Get the path to the settings file
     pub fn settings_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
         let config_dir = dirs::config_dir().ok_or("Could not find config directory")?;

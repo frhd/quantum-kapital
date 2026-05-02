@@ -8,10 +8,8 @@
 //!   signal, NOT an error).
 //! - Forced error surfaces as [`NewsError::Other`].
 //!
-//! Adapter-level classifier tests live in
-//! [`super::alpha_vantage::adapter_tests`]. End-to-end round-trip
-//! through `FinancialDataService` waits on Phase 7 part B's IBKR
-//! provider, where the integration shape is exercised against fixtures.
+//! Backend-specific tests live alongside the impls — see
+//! [`super::ibkr::tests`] for the IBKR provider's fixture coverage.
 
 use std::sync::Arc;
 

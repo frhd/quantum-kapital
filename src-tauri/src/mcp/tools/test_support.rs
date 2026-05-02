@@ -188,10 +188,10 @@ fn build_handler_with_llm(
     llm: Arc<LlmService>,
 ) -> McpHandler {
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
-    // Empty API key + empty base URL — every news fetch falls through to
-    // the cache-only path. Tests that exercise the AV-fallback branch
-    // override this by calling `FinancialDataService::new(...)` themselves.
-    let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
+    // Empty API key — fundamentals requests will short-circuit to the
+    // friendly typed error inside the AV adapter (tests that exercise
+    // the AV branch construct their own `FinancialDataService`).
+    let financial = Arc::new(FinancialDataService::new(String::new()));
     let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(PanickingFetcher);
     let hist = Arc::new(HistoricalDataService::new(
         Arc::clone(&db),
@@ -303,7 +303,7 @@ pub async fn test_handler_with_seeded_spend(
             .with_clock(clock),
     );
     let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
-    let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
+    let financial = Arc::new(FinancialDataService::new(String::new()));
     let fetcher: Arc<dyn HistoricalDataFetcher> = Arc::new(PanickingFetcher);
     let hist = Arc::new(HistoricalDataService::new(
         Arc::clone(&db),

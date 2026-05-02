@@ -7,10 +7,10 @@ use serde_json::{json, Value};
 use tempfile::NamedTempFile;
 
 use crate::ibkr::types::news::{NewsItem, NewsTone, NewsVerdict, TickerSentiment};
-use crate::services::financial_data_service::news::read_cache_with_verdict;
 use crate::services::llm_service::{
     AnthropicHttp, AnthropicHttpError, LlmKind, LlmService, ToolChoice,
 };
+use crate::services::news_cache::read_cache_with_verdict;
 use crate::storage::Db;
 
 use super::{NewsInterpreter, MODEL, TOOL_NAME};

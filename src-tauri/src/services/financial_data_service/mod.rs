@@ -1,8 +1,9 @@
-use crate::ibkr::types::news::NewsItem;
+// Alpha Vantage fundamentals adapter retained as opportunistic fallback
+// (see CompositeFundamentalsProvider). The news path is fully migrated
+// to IBKR — see services/news_provider/.
+
 use crate::middleware::AlphaVantageRateLimiter;
 use crate::services::cache_service::CacheService;
-use crate::services::news_interpreter::NewsInterpreter;
-use crate::storage::Db;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
@@ -19,12 +20,8 @@ mod earnings;
 mod income;
 mod overview;
 
-pub mod news;
-
 #[cfg(test)]
 mod fundamentals_tests;
-#[cfg(test)]
-mod news_tests;
 
 /// HTTP transport seam for the Alpha Vantage fundamentals endpoints.
 /// Mirrors the news-side [`news::NewsHttp`] trait so tests can return
@@ -112,8 +109,6 @@ pub struct FinancialDataService {
     api_key: String,
     base_url: String,
     cache: Option<CacheService>,
-    db: Option<Arc<Db>>,
-    news_interpreter: Option<Arc<NewsInterpreter>>,
     rate_limiter: Option<Arc<AlphaVantageRateLimiter>>,
     /// Per-symbol coalescing map. While a fetch for `SYMBOL` is in
     /// flight, additional callers subscribe to the broadcast and wait
@@ -279,34 +274,15 @@ impl FinancialDataService {
             api_key,
             base_url: "https://www.alphavantage.co/query".to_string(),
             cache,
-            db: None,
-            news_interpreter: None,
             rate_limiter: None,
             inflight_fundamentals: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 
-    /// Attach a SQLite handle so news fetches can read/write `news_cache`.
-    pub fn with_db(mut self, db: Arc<Db>) -> Self {
-        self.db = Some(db);
-        self
-    }
-
-    /// Attach an LLM-backed news interpreter (Phase 19). When wired,
-    /// each successful `fetch_news_sentiment` triggers a best-effort
-    /// `interpret(symbol)` that lands a `NewsVerdict` in
-    /// `news_cache.news_verdict_json`. Interpreter failures are logged
-    /// but never propagate — the news fetch itself stays unaffected.
-    pub fn with_news_interpreter(mut self, interpreter: Arc<NewsInterpreter>) -> Self {
-        self.news_interpreter = Some(interpreter);
-        self
-    }
-
     /// Attach a per-vendor rate limiter. AV's free tier permits 1
     /// request per second across the entire account; without this,
     /// `tokio::try_join!`-style parallel fetches burn the per-second
-    /// quota in a single tick. All Alpha Vantage HTTP calls
-    /// (fundamentals + news) consult the same limiter when set.
+    /// quota in a single tick.
     pub fn with_rate_limiter(mut self, limiter: Arc<AlphaVantageRateLimiter>) -> Self {
         self.rate_limiter = Some(limiter);
         self
@@ -398,46 +374,6 @@ impl FinancialDataService {
             analyst_estimates: earnings::process_analyst_estimates(&earnings),
             current_metrics: overview::process_current_metrics(&overview),
         })
-    }
-
-    /// Fetch ticker-tagged news + sentiment from Alpha Vantage NEWS_SENTIMENT,
-    /// using the SQLite news cache (1-hour default TTL). Falls back to cached
-    /// or empty data on rate-limit / no-key / transport failures so the
-    /// surrounding flow never crashes on news. Requires a `Db` previously
-    /// attached via [`FinancialDataService::with_db`].
-    ///
-    /// When a [`NewsInterpreter`] has been attached via
-    /// [`with_news_interpreter`](Self::with_news_interpreter), this call
-    /// also kicks off a best-effort verdict pass after a successful
-    /// fetch. The interpreter short-circuits if the cache row already
-    /// has a non-NULL `news_verdict_json`, so no LLM tokens are burned
-    /// when the AV cache returns a fresh hit.
-    pub async fn fetch_news_sentiment(
-        &self,
-        symbol: &str,
-        lookback_hours: u32,
-    ) -> Result<Vec<NewsItem>, Box<dyn Error + Send + Sync>> {
-        let db = self
-            .db
-            .as_ref()
-            .ok_or("News fetching requires a Db; call FinancialDataService::with_db first")?;
-        let items = news::fetch_news_sentiment_default(
-            Arc::clone(db),
-            self.rate_limiter.as_deref(),
-            &self.api_key,
-            &self.base_url,
-            symbol,
-            lookback_hours,
-        )
-        .await?;
-
-        if let Some(interpreter) = self.news_interpreter.as_ref() {
-            if let Err(e) = interpreter.interpret(symbol).await {
-                warn!("news interpreter failed for {symbol} (best-effort, continuing): {e}");
-            }
-        }
-
-        Ok(items)
     }
 
     /// Fetches fundamental data for a given symbol.

@@ -8,25 +8,6 @@ mod storage;
 mod strategies;
 mod utils;
 
-/// Phase 8 cutover support — re-exports of the internal types the
-/// `tests/news_provider_parity.rs` integration test needs to wire up
-/// the IBKR + AV news providers side-by-side. Scoped this narrowly
-/// (rather than making the parent modules `pub`) because the lib has
-/// no other external consumer beyond `bin/mcp-server.rs` and the
-/// existing integration tests under `tests/`. Removed alongside the
-/// Phase 8 deletion commit.
-pub mod news_parity_support {
-    pub use crate::ibkr::client::IbkrClient;
-    pub use crate::ibkr::types::connection::ConnectionConfig;
-    pub use crate::ibkr::types::news::NewsItem;
-    pub use crate::middleware::IbkrNewsRateLimiter;
-    pub use crate::services::financial_data_service::FinancialDataService;
-    pub use crate::services::news_provider::alpha_vantage::AlphaVantageNewsProvider;
-    pub use crate::services::news_provider::ibkr::client::IbkrNewsClient;
-    pub use crate::services::news_provider::ibkr::IbkrNewsProvider;
-    pub use crate::services::news_provider::{NewsError, NewsProvider};
-}
-
 use std::sync::Arc;
 
 use std::time::Duration;
@@ -49,10 +30,8 @@ use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
 use services::manual_fundamentals_store::ManualFundamentalsStore;
 use services::news_interpreter::NewsInterpreter;
-use services::news_provider::alpha_vantage::AlphaVantageNewsProvider;
 use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
-use services::news_provider::shadow::ShadowingNewsProvider;
 use services::news_provider::NewsProvider;
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -138,17 +117,17 @@ pub fn run() {
                 quote_fetcher,
             ));
 
-            // Phase 10: shared FinancialDataService instance (the news
-            // half is best-effort and falls back to cached/empty when
-            // the API key is missing or rate-limited). The tracker
-            // runner lifts bars + news + the detector registry into a
-            // single command-callable surface.
+            // Shared `FinancialDataService` instance — after the Phase 8
+            // AV-news strip-out it serves only the fundamentals
+            // fallback inside `CompositeFundamentalsProvider`. News is
+            // owned by `IbkrNewsProvider` (constructed below).
             let api_key = std::env::var("ALPHA_VANTAGE_API_KEY").unwrap_or_default();
             let api_key_present = !api_key.trim().is_empty();
-            // Phase 19: news interpreter runs after each successful AV
+            // Phase 19: news interpreter runs after each successful
             // news fetch and lands a structured NewsVerdict in
-            // news_cache.news_verdict_json. Best-effort — interpreter
-            // failures never propagate.
+            // news_cache.news_verdict_json. Wired into the IBKR news
+            // provider below so a fresh fetch invalidates any stale
+            // verdict and re-runs the interpreter best-effort.
             let news_interpreter = Arc::new(NewsInterpreter::new(
                 Arc::clone(&llm_service),
                 Arc::clone(&db),
@@ -157,14 +136,10 @@ pub fn run() {
             // across the whole account. Without this serialiser, three
             // parallel fundamentals fetches burn the per-second cap in
             // a single tick and the next call returns "Information"
-            // rate-limit payloads. Shared between fundamentals + news
-            // because both hit the same AV quota.
+            // rate-limit payloads.
             let av_rate_limiter = Arc::new(AlphaVantageRateLimiter::per_second());
             let financial_service = Arc::new(
-                FinancialDataService::new(api_key)
-                    .with_db(Arc::clone(&db))
-                    .with_news_interpreter(Arc::clone(&news_interpreter))
-                    .with_rate_limiter(Arc::clone(&av_rate_limiter)),
+                FinancialDataService::new(api_key).with_rate_limiter(Arc::clone(&av_rate_limiter)),
             );
 
             // Phase 4 (AV migration): the production fundamentals path
@@ -214,55 +189,24 @@ pub fn run() {
             let decay_bars: Arc<dyn BarsFetcher> =
                 Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
 
-            // Phase 8 cutover (2026-05-02): default news backend is
-            // now `IbkrNewsProvider`. The AV branch is reached only
-            // when `news_source` is explicitly `"alpha_vantage"` in a
-            // pre-existing settings file — kept on the path for the
-            // soak window before the Phase 8 deletion commit removes
-            // it. Hard Invariant #5: a missing AV key short-circuits
-            // with a friendly typed error inside the adapter rather
-            // than silently returning empty.
-            let resolved_news_source = config.resolved_news_source();
-            let news_provider: Arc<dyn NewsProvider> = match resolved_news_source.as_str() {
-                config::settings::NEWS_SOURCE_ALPHA_VANTAGE => {
-                    // Soak-window AV branch (Phase 8 cutover → Phase 8
-                    // deletion). Existing settings.json with
-                    // `news_source: "alpha_vantage"` continue to route
-                    // here until the deletion commit lands.
-                    Arc::new(AlphaVantageNewsProvider::new(
-                        Arc::clone(&financial_service),
-                        api_key_present,
-                    ))
-                }
-                _ => {
-                    // Default (Phase 8 onward) and explicit `"ibkr"`.
-                    // The `IbkrClient` impls `IbkrNewsClient` (see
-                    // `ibkr/client/news.rs`), so the same connection
-                    // that serves bars / scanner / quote also serves
-                    // news. 30 calls/min mirrors the Phase 6 spike
-                    // pacing.
-                    let news_client: Arc<dyn IbkrNewsClient> =
-                        Arc::clone(&ibkr_state.client) as Arc<dyn IbkrNewsClient>;
-                    let news_rate_limiter = Arc::new(IbkrNewsRateLimiter::new(30));
-                    let ibkr_provider: Arc<dyn NewsProvider> =
-                        Arc::new(IbkrNewsProvider::new(news_client, news_rate_limiter));
-
-                    // Phase 8 cutover: optional shadow comparator.
-                    // Wraps the IBKR provider, fires AV in the
-                    // background, logs coverage diffs. Active only
-                    // when the flag is on AND an AV key is configured.
-                    // Removed alongside the Phase 8 deletion commit.
-                    if config.shadow_av_news_comparison && api_key_present {
-                        let av_shadow = Arc::new(AlphaVantageNewsProvider::new(
-                            Arc::clone(&financial_service),
-                            api_key_present,
-                        ));
-                        Arc::new(ShadowingNewsProvider::new(ibkr_provider, av_shadow))
-                    } else {
-                        ibkr_provider
-                    }
-                }
-            };
+            // Phase 8 deletion: AV news is gone — the production news
+            // path is exclusively `IbkrNewsProvider`. The same
+            // `IbkrClient` connection that serves bars / scanner /
+            // quote impls `IbkrNewsClient` (see `ibkr/client/news.rs`).
+            // 30 calls/min mirrors the Phase 6 spike pacing.
+            // `with_news_cache` write-throughs every successful fetch
+            // to the `news_cache` SQLite table so `NewsInterpreter` and
+            // the MCP `get_news` tool keep seeing fresh rows;
+            // `with_news_interpreter` runs the verdict pass best-effort
+            // after each write.
+            let news_client: Arc<dyn IbkrNewsClient> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn IbkrNewsClient>;
+            let news_rate_limiter = Arc::new(IbkrNewsRateLimiter::new(30));
+            let news_provider: Arc<dyn NewsProvider> = Arc::new(
+                IbkrNewsProvider::new(news_client, news_rate_limiter)
+                    .with_news_cache(Arc::clone(&db))
+                    .with_news_interpreter(Arc::clone(&news_interpreter)),
+            );
 
             // Phase 17: thesis generator runs after each persisted setup
             // and re-emits `SetupDetected` with the populated thesis.

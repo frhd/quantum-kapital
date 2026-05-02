@@ -44,19 +44,15 @@ pub struct McpHandler {
     /// Used by `tools::watchlist` and `tools::setups`.
     pub(crate) tracker: Arc<TrackerService>,
     /// Used by `tools::alerts` (`list_alerts(&Arc<Db>, ...)`) and
-    /// `tools::news` (`read_cache_with_verdict(&Db, ...)`).
+    /// `tools::news` (`news_cache::read_cache_with_verdict(&Db, ...)`).
     pub(crate) db: Arc<Db>,
-    /// Phase 7 (AV strip-out): retained for the residual fundamentals
-    /// AV-cache invalidation hook used by `tools::set_fundamentals`.
-    /// The news refresh path moved off this handle to
-    /// [`Self::news_provider`] — `tools::news` no longer reaches into
-    /// `FinancialDataService` directly.
+    /// Retained for the residual fundamentals AV-cache invalidation
+    /// hook used by `tools::set_fundamentals`. The news path no longer
+    /// reaches into `FinancialDataService` — see [`Self::news_provider`].
     pub(crate) financial_service: Arc<FinancialDataService>,
-    /// Used by `tools::news` for the best-effort refresh path on a
-    /// stale cache. Phase 7 part A points this at
-    /// [`crate::services::news_provider::alpha_vantage::AlphaVantageNewsProvider`];
-    /// Phase 7 part B + Phase 8 swap in the IBKR backend behind the
-    /// `news_source` settings flag without touching this field's type.
+    /// Used by `tools::news` for the best-effort upstream refresh path
+    /// when the cache is missing or stale. Production wires
+    /// [`crate::services::news_provider::ibkr::IbkrNewsProvider`].
     pub(crate) news_provider: Arc<dyn NewsProvider>,
     /// Used by `tools::fundamentals` for `fetch(symbol)`. Phase 3 wires
     /// the AV adapter directly; Phase 4 swaps in the composite (manual

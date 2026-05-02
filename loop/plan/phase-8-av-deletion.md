@@ -2,7 +2,7 @@
 
 > Part of [Alpha Vantage strip-out: manual MCP fundamentals + IBKR news](master.md). See index for invariants.
 
-**Status:** in-progress (cutover landed 2026-05-02; deletion gated on ~2-week soak)
+**Status:** done (2026-05-02 — cutover + deletion landed same day; user opted out of the soak window after weighing the tradeoff)
 
 **Depends on:** 5 (composite fundamentals path is the production default + AV guardrails active), 7 (news provider trait shipped + IBKR news provider available)
 

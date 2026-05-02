@@ -23,12 +23,10 @@ use thiserror::Error;
 use tracing::warn;
 
 use crate::ibkr::types::news::{NewsItem, NewsTone, NewsVerdict};
-use crate::services::financial_data_service::news::{
-    read_cache_with_verdict, write_verdict, CachedNews,
-};
 use crate::services::llm_service::{
     LlmError, LlmKind, LlmRequest, LlmService, Message, Role, SystemBlock, ToolChoice, ToolSchema,
 };
+use crate::services::news_cache::{read_cache_with_verdict, write_verdict, CachedNews};
 use crate::storage::{Db, StorageError};
 
 #[cfg(test)]

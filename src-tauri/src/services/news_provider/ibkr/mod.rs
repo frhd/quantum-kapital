@@ -30,13 +30,16 @@ use tracing::warn;
 
 use crate::ibkr::types::news::NewsItem;
 use crate::middleware::IbkrNewsRateLimiter;
+use crate::services::news_cache;
+use crate::services::news_interpreter::NewsInterpreter;
+use crate::storage::Db;
 
 use super::{NewsError, NewsProvider};
 use client::{IbkrNewsClient, IbkrNewsProviderInfo};
 
-/// Default headline batch size — mirrors AV's `limit=50` so a flag-flip
-/// from `alpha_vantage` to `ibkr` does not silently change the volume
-/// of headlines feeding the `NewsInterpreter`.
+/// Default headline batch size — mirrors what AV used to return so the
+/// `NewsInterpreter` keeps seeing similar prompt sizes after the AV
+/// strip-out.
 pub const DEFAULT_TOTAL_RESULTS: u8 = 50;
 
 pub struct IbkrNewsProvider {
@@ -48,6 +51,15 @@ pub struct IbkrNewsProvider {
     /// lock-free for reads.
     providers: Arc<RwLock<Option<Vec<IbkrNewsProviderInfo>>>>,
     total_results: u8,
+    /// When wired, every successful non-empty `fetch` write-throughs to
+    /// `news_cache` so `NewsInterpreter` and the MCP `get_news` tool
+    /// can read the same items the runner just saw. The Phase 8
+    /// deletion moved this responsibility from the (now-removed) AV
+    /// news adapter into the IBKR provider.
+    cache_db: Option<Arc<Db>>,
+    /// Optional best-effort verdict pass after a fresh write. Mirrors
+    /// the AV path — interpreter failures never propagate.
+    interpreter: Option<Arc<NewsInterpreter>>,
 }
 
 impl IbkrNewsProvider {
@@ -57,6 +69,8 @@ impl IbkrNewsProvider {
             rate_limiter,
             providers: Arc::new(RwLock::new(None)),
             total_results: DEFAULT_TOTAL_RESULTS,
+            cache_db: None,
+            interpreter: None,
         }
     }
 
@@ -65,6 +79,22 @@ impl IbkrNewsProvider {
     #[allow(dead_code)]
     pub fn with_total_results(mut self, total: u8) -> Self {
         self.total_results = total;
+        self
+    }
+
+    /// Attach a SQLite handle so successful fetches land rows in
+    /// `news_cache`. Without this the interpreter and MCP `get_news`
+    /// tool see an empty cache forever.
+    pub fn with_news_cache(mut self, db: Arc<Db>) -> Self {
+        self.cache_db = Some(db);
+        self
+    }
+
+    /// Attach a [`NewsInterpreter`] for the best-effort verdict pass
+    /// that runs after each cache write. Failures are logged and
+    /// swallowed.
+    pub fn with_news_interpreter(mut self, interpreter: Arc<NewsInterpreter>) -> Self {
+        self.interpreter = Some(interpreter);
         self
     }
 
@@ -119,6 +149,22 @@ impl NewsProvider for IbkrNewsProvider {
                 headlines.len()
             );
         }
+
+        if !items.is_empty() {
+            if let Some(db) = self.cache_db.as_deref() {
+                let now = chrono::Utc::now().timestamp();
+                if let Err(e) = news_cache::write_cache(db, &symbol_upper, now, &items).await {
+                    warn!("news_cache write failed for {symbol_upper} (best-effort): {e}");
+                } else if let Some(interpreter) = self.interpreter.as_ref() {
+                    if let Err(e) = interpreter.interpret(&symbol_upper).await {
+                        warn!(
+                            "news interpreter failed for {symbol_upper} (best-effort, continuing): {e}"
+                        );
+                    }
+                }
+            }
+        }
+
         Ok(items)
     }
 }

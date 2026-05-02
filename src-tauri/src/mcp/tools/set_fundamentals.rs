@@ -652,7 +652,7 @@ mod tests {
             100.0,
         ));
         let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
-        let financial = Arc::new(FinancialDataService::new(String::new()).with_db(Arc::clone(&db)));
+        let financial = Arc::new(FinancialDataService::new(String::new()));
         let stub = Arc::new(NotConnectedStub);
         struct Panicker;
         #[async_trait]

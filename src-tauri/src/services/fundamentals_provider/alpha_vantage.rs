@@ -17,10 +17,10 @@ use crate::services::financial_data_service::FinancialDataService;
 use super::{FundamentalsError, FundamentalsProvider};
 
 /// Wraps the AV-backed [`FinancialDataService`] behind the trait. The
-/// `inner` `Arc` is shared with the rest of the app — the same
-/// `FinancialDataService` instance still serves the news path through
-/// `fetch_news_sentiment`, which is intentionally NOT abstracted here
-/// (Phase 7 introduces `NewsProvider`).
+/// news side has been migrated off AV entirely (Phase 8 — see
+/// [`crate::services::news_provider`]); this adapter now serves only
+/// the opportunistic fundamentals fallback inside
+/// [`super::composite::CompositeFundamentalsProvider`].
 pub struct AlphaVantageFundamentalsProvider {
     inner: Arc<FinancialDataService>,
     api_key_present: bool,

@@ -19,7 +19,7 @@ use serde::Deserialize;
 use crate::ibkr::types::news::NewsItem;
 use crate::mcp::handler::McpHandler;
 use crate::mcp::tools::map_tool_result;
-use crate::services::financial_data_service::news::read_cache_with_verdict;
+use crate::services::news_cache::read_cache_with_verdict;
 
 /// Default freshness window. Matches the news cache TTL most other
 /// callers use. Public so test code can reference it explicitly.
@@ -62,7 +62,7 @@ impl McpHandler {
             .map_err(|e| McpError::internal_error(format!("read_cache_with_verdict: {e}"), None))?;
 
         let (cache, source, upstream_note): (
-            Option<crate::services::financial_data_service::news::CachedNews>,
+            Option<crate::services::news_cache::CachedNews>,
             &'static str,
             Option<String>,
         ) = match initial {
