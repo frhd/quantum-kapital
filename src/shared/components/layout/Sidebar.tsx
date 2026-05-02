@@ -1,4 +1,5 @@
 import {
+  Activity,
   BarChart3,
   Eye,
   FileText,
@@ -20,6 +21,7 @@ export type PageId =
   | "candidates"
   | "tracker"
   | "research"
+  | "eval"
   | "positions"
   | "account"
 
@@ -43,6 +45,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "candidates", label: "Candidates", icon: Inbox },
       { id: "tracker", label: "Tracker", icon: Eye },
       { id: "research", label: "Research", icon: FileText },
+      { id: "eval", label: "Eval", icon: Activity },
     ],
   },
   {

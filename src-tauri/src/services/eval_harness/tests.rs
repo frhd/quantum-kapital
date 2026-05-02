@@ -4,9 +4,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use tempfile::NamedTempFile;
 
 use crate::services::agent_morning_packs::{self, NewAgentMorningPack, RankedIdea};
-use crate::services::eval_harness::{
-    calibration_stats, cost_attribution, prediction_history,
-};
+use crate::services::eval_harness::{calibration_stats, cost_attribution, prediction_history};
 use crate::services::outcome_extractor::{record_outcome, NewOutcome, OutcomeClass};
 use crate::services::predictions::find_for_pack;
 use crate::services::research_notes::Conviction;
@@ -93,10 +91,38 @@ async fn calibration_stats_buckets_by_conviction() {
     )
     .await;
 
-    record(&db, pack_date, "TSLA", OutcomeClass::HitTarget, Some(Conviction::A)).await;
-    record(&db, pack_date, "AAPL", OutcomeClass::HitInvalidation, Some(Conviction::A)).await;
-    record(&db, pack_date, "MSFT", OutcomeClass::HitEntry, Some(Conviction::B)).await;
-    record(&db, pack_date, "NVDA", OutcomeClass::Drifted, Some(Conviction::C)).await;
+    record(
+        &db,
+        pack_date,
+        "TSLA",
+        OutcomeClass::HitTarget,
+        Some(Conviction::A),
+    )
+    .await;
+    record(
+        &db,
+        pack_date,
+        "AAPL",
+        OutcomeClass::HitInvalidation,
+        Some(Conviction::A),
+    )
+    .await;
+    record(
+        &db,
+        pack_date,
+        "MSFT",
+        OutcomeClass::HitEntry,
+        Some(Conviction::B),
+    )
+    .await;
+    record(
+        &db,
+        pack_date,
+        "NVDA",
+        OutcomeClass::Drifted,
+        Some(Conviction::C),
+    )
+    .await;
 
     let stats = calibration_stats(&db, 30, 0).await.unwrap();
     let a = stats
@@ -132,8 +158,22 @@ async fn calibration_stats_excludes_skipped_from_rates() {
     )
     .await;
 
-    record(&db, pack_date, "TSLA", OutcomeClass::HitTarget, Some(Conviction::A)).await;
-    record(&db, pack_date, "AAPL", OutcomeClass::Skipped, Some(Conviction::A)).await;
+    record(
+        &db,
+        pack_date,
+        "TSLA",
+        OutcomeClass::HitTarget,
+        Some(Conviction::A),
+    )
+    .await;
+    record(
+        &db,
+        pack_date,
+        "AAPL",
+        OutcomeClass::Skipped,
+        Some(Conviction::A),
+    )
+    .await;
 
     let stats = calibration_stats(&db, 30, 0).await.unwrap();
     let a = stats
@@ -205,7 +245,14 @@ async fn prediction_history_joins_outcome_when_present() {
     )
     .await;
 
-    record(&db, pack_date, "TSLA", OutcomeClass::HitTarget, Some(Conviction::A)).await;
+    record(
+        &db,
+        pack_date,
+        "TSLA",
+        OutcomeClass::HitTarget,
+        Some(Conviction::A),
+    )
+    .await;
     // AAPL has no outcome row.
 
     let pack_date2 = date("2026-05-04");
@@ -214,9 +261,15 @@ async fn prediction_history_joins_outcome_when_present() {
     let hist = prediction_history(&db, "tsla", 0).await.unwrap();
     assert_eq!(hist.len(), 2);
     // newest first
-    assert_eq!(hist[0].prediction.morning_pack_id.as_deref(), Some("2026-05-04"));
+    assert_eq!(
+        hist[0].prediction.morning_pack_id.as_deref(),
+        Some("2026-05-04")
+    );
     assert!(hist[0].outcome.is_none());
-    assert_eq!(hist[1].prediction.morning_pack_id.as_deref(), Some("2026-05-03"));
+    assert_eq!(
+        hist[1].prediction.morning_pack_id.as_deref(),
+        Some("2026-05-03")
+    );
     let outcome = hist[1].outcome.as_ref().expect("outcome present");
     assert_eq!(outcome.outcome_class, OutcomeClass::HitTarget);
 
@@ -233,7 +286,10 @@ async fn calibration_stats_respects_since_unix_window() {
 
     // Old pack with custom predicted_at (90 days ago).
     seed_pack(&db, old_pack, vec![idea("TSLA", Conviction::A)]).await;
-    let old_unix = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().timestamp();
+    let old_unix = Utc
+        .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+        .unwrap()
+        .timestamp();
     db.with_conn(move |conn| {
         conn.execute(
             "UPDATE predictions SET predicted_at = ?1 WHERE morning_pack_id = '2026-04-01'",
@@ -243,14 +299,34 @@ async fn calibration_stats_respects_since_unix_window() {
     })
     .await
     .unwrap();
-    record(&db, old_pack, "TSLA", OutcomeClass::HitTarget, Some(Conviction::A)).await;
+    record(
+        &db,
+        old_pack,
+        "TSLA",
+        OutcomeClass::HitTarget,
+        Some(Conviction::A),
+    )
+    .await;
 
     seed_pack(&db, recent_pack, vec![idea("AAPL", Conviction::A)]).await;
-    record(&db, recent_pack, "AAPL", OutcomeClass::HitInvalidation, Some(Conviction::A)).await;
+    record(
+        &db,
+        recent_pack,
+        "AAPL",
+        OutcomeClass::HitInvalidation,
+        Some(Conviction::A),
+    )
+    .await;
 
-    let cutoff = Utc.with_ymd_and_hms(2026, 4, 15, 0, 0, 0).unwrap().timestamp();
+    let cutoff = Utc
+        .with_ymd_and_hms(2026, 4, 15, 0, 0, 0)
+        .unwrap()
+        .timestamp();
     let stats = calibration_stats(&db, 30, cutoff).await.unwrap();
-    assert_eq!(stats.overall.total, 1, "only the recent pack falls in window");
+    assert_eq!(
+        stats.overall.total, 1,
+        "only the recent pack falls in window"
+    );
     let a = stats
         .buckets
         .iter()

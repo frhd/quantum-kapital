@@ -26,6 +26,11 @@ import type {
   MorningPack,
 } from "../../features/tracker/types"
 import type { AgentMorningPack, McpAuditEntry, ResearchNote } from "../../features/research/types"
+import type {
+  CalibrationStats,
+  CostAttribution,
+  PredictionWithOutcome,
+} from "../../features/eval/types"
 import type { SocialSentimentRow } from "../../features/sentiment/types"
 import type {
   Candidate,
@@ -239,6 +244,29 @@ export const ibkrApi = {
       return invoke<McpAuditEntry[]>("research_list_mcp_audit", {
         limit: params?.limit ?? null,
         offset: params?.offset ?? null,
+      })
+    },
+  },
+
+  /** Phase 8 — eval harness read-only views. Mirrors the matching MCP
+   *  read tools so the dashboard and the agent see the same numbers. */
+  eval: {
+    calibrationStats: async (windowDays?: number) => {
+      return invoke<CalibrationStats>("eval_calibration_stats", {
+        windowDays: windowDays ?? null,
+      })
+    },
+
+    costAttribution: async (windowDays?: number) => {
+      return invoke<CostAttribution>("eval_cost_attribution", {
+        windowDays: windowDays ?? null,
+      })
+    },
+
+    predictionHistory: async (symbol: string, windowDays?: number) => {
+      return invoke<PredictionWithOutcome[]>("eval_prediction_history", {
+        symbol,
+        windowDays: windowDays ?? null,
       })
     },
   },

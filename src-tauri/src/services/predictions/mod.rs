@@ -30,6 +30,16 @@ mod tests;
 
 pub const SOURCE_AGENT_MORNING_SWEEP: &str = "agent_morning_sweep";
 
+/// Internal helper alias — one tuple per ranked idea moved into the
+/// `with_conn` closure: `(symbol, conviction, entry_zone, invalidation, thesis_md)`.
+type IdeaTuple = (
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    String,
+);
+
 /// Persisted form of a single prediction row.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Prediction {
@@ -61,7 +71,7 @@ pub async fn record_predictions_from_pack(
     let pack_id = pack.date.to_string();
     let predicted_at = pack.written_at.timestamp();
 
-    let ideas: Vec<(String, Option<String>, Option<String>, Option<String>, String)> = pack
+    let ideas: Vec<IdeaTuple> = pack
         .ranked_ideas
         .iter()
         .map(|i| {

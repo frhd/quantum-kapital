@@ -313,7 +313,16 @@ async fn records_call_in_db_with_cost() {
     let svc = build_service(Arc::clone(&db), Arc::clone(&http), clock, 10.0);
     svc.message(req).await.unwrap();
 
-    let (kind, setup_id, model, input_tokens, output_tokens, cache_read_tokens, cost_usd, loop_name) = db
+    let (
+        kind,
+        setup_id,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cost_usd,
+        loop_name,
+    ) = db
         .with_conn(|conn| {
             conn.query_row(
                 "SELECT kind, setup_id, model, input_tokens, output_tokens, \

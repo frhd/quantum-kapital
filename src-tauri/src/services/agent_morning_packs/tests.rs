@@ -159,7 +159,9 @@ async fn write_pack_snapshots_predictions() {
     let mut symbols: Vec<&str> = preds.iter().map(|p| p.symbol.as_str()).collect();
     symbols.sort();
     assert_eq!(symbols, vec!["AAPL", "TSLA"]);
-    assert!(preds.iter().all(|p| p.morning_pack_id.as_deref() == Some("2026-05-07")));
+    assert!(preds
+        .iter()
+        .all(|p| p.morning_pack_id.as_deref() == Some("2026-05-07")));
 
     // Re-write replaces the snapshot set.
     agent_morning_packs::write_pack(

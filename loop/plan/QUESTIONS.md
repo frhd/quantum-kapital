@@ -23,6 +23,13 @@
   `caller` will be `interactive` until per-connection caller
   resolution lands (still tracked under Phase 5/9).
 
+## Phase 8 (2026-05-02)
+
+- The pre-existing `services::decay_watcher::tests::respects_budget_kill_switch`
+  flake first noted in Phase 2 is still present on Phase 8's clean
+  tree (`MockHttp queue exhausted`). Phase 8 does not touch
+  `decay_watcher`; leaving as-is.
+
 ## Phase 5 (2026-05-02)
 
 - Per-connection caller identity is unresolved. Hard invariant 3 in

@@ -15,6 +15,7 @@ import { CandidateBrowser } from "../features/candidates/components/CandidateBro
 import { TrackerTab } from "../features/tracker/components/TrackerTab"
 import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerDialog"
 import { ResearchTab } from "../features/research/components/ResearchTab"
+import { EvalTab } from "../features/eval/components/EvalTab"
 import { DataTierBanner } from "../shared/components/DataTierBanner"
 import type { AddToTrackerPrefill } from "../features/tracker/types"
 
@@ -154,6 +155,8 @@ export default function App() {
             )}
 
             {currentPage === "research" && <ResearchTab />}
+
+            {currentPage === "eval" && <EvalTab />}
 
             {currentPage === "positions" && (
               <>

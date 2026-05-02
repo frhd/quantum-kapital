@@ -25,7 +25,12 @@ fn pack_at(date: NaiveDate, written_at: DateTime<Utc>, ideas: Vec<RankedIdea>) -
     }
 }
 
-fn idea(symbol: &str, conv: Option<Conviction>, entry: Option<&str>, inv: Option<&str>) -> RankedIdea {
+fn idea(
+    symbol: &str,
+    conv: Option<Conviction>,
+    entry: Option<&str>,
+    inv: Option<&str>,
+) -> RankedIdea {
     RankedIdea {
         symbol: symbol.to_string(),
         thesis_md: format!("thesis for {symbol}"),
@@ -43,7 +48,12 @@ async fn record_predictions_inserts_one_row_per_idea() {
         NaiveDate::from_ymd_opt(2026, 5, 4).unwrap(),
         Utc.timestamp_opt(1_714_780_800, 0).unwrap(),
         vec![
-            idea("TSLA", Some(Conviction::A), Some("100-105"), Some("close < 95")),
+            idea(
+                "TSLA",
+                Some(Conviction::A),
+                Some("100-105"),
+                Some("close < 95"),
+            ),
             idea("aapl", Some(Conviction::B), Some("180"), None),
         ],
     );
@@ -118,9 +128,7 @@ async fn find_for_pack_returns_matching_prediction() {
     assert_eq!(row.symbol, "TSLA");
     assert_eq!(row.conviction, Some(Conviction::A));
 
-    let missing = find_for_pack(&db, "2026-05-06", "MISSING")
-        .await
-        .unwrap();
+    let missing = find_for_pack(&db, "2026-05-06", "MISSING").await.unwrap();
     assert!(missing.is_none());
 }
 
@@ -153,7 +161,11 @@ async fn list_predictions_filters_by_symbol_and_since() {
     .unwrap();
 
     let recent = list_predictions(&db, 1_714_700_000, None).await.unwrap();
-    assert_eq!(recent.len(), 2, "only the second pack's two rows are recent");
+    assert_eq!(
+        recent.len(),
+        2,
+        "only the second pack's two rows are recent"
+    );
 
     let tsla_only = list_predictions(&db, 0, Some("tsla")).await.unwrap();
     assert_eq!(tsla_only.len(), 2);

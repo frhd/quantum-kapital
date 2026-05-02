@@ -57,9 +57,7 @@ mod tests {
         let (_tmp, db) = make_db();
         let handler = handler_for_db(db);
         let r = handler
-            .get_cost_attribution(Parameters(GetCostAttributionArgs {
-                window_days: None,
-            }))
+            .get_cost_attribution(Parameters(GetCostAttributionArgs { window_days: None }))
             .await
             .expect("ok");
         assert_eq!(r.is_error, Some(false));

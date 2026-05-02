@@ -321,7 +321,7 @@ async fn lookup_outcome_for_prediction(
             .map_err(StorageError::from)
         })
         .await?;
-    Ok(raw.map(decode_outcome).transpose()?)
+    raw.map(decode_outcome).transpose()
 }
 
 type RawOutcomeRow = (
@@ -377,8 +377,12 @@ fn decode_outcome(r: RawOutcomeRow) -> Result<OutcomeRow, EvalError> {
         evaluated_at,
         prediction_id,
     ) = r;
-    let pack_date: NaiveDate = NaiveDate::parse_from_str(&pack_date_s, "%Y-%m-%d")
-        .map_err(|e| EvalError::Storage(StorageError::Migration(format!("invalid pack_date '{pack_date_s}': {e}"))))?;
+    let pack_date: NaiveDate =
+        NaiveDate::parse_from_str(&pack_date_s, "%Y-%m-%d").map_err(|e| {
+            EvalError::Storage(StorageError::Migration(format!(
+                "invalid pack_date '{pack_date_s}': {e}"
+            )))
+        })?;
     let outcome_class = OutcomeClass::parse(&outcome_s).ok_or_else(|| {
         EvalError::Storage(StorageError::Migration(format!(
             "invalid outcome_class '{outcome_s}'"
