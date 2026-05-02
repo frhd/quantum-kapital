@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
-use middleware::{AlphaVantageRateLimiter, HistoricalRateLimiter};
+use middleware::{AlphaVantageRateLimiter, HistoricalRateLimiter, IbkrNewsRateLimiter};
 use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketScanner};
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
@@ -31,6 +31,8 @@ use services::llm_service::LlmService;
 use services::manual_fundamentals_store::ManualFundamentalsStore;
 use services::news_interpreter::NewsInterpreter;
 use services::news_provider::alpha_vantage::AlphaVantageNewsProvider;
+use services::news_provider::ibkr::client::IbkrNewsClient;
+use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -203,14 +205,16 @@ pub fn run() {
             let resolved_news_source = config.resolved_news_source();
             let news_provider: Arc<dyn NewsProvider> = match resolved_news_source.as_str() {
                 config::settings::NEWS_SOURCE_IBKR => {
-                    tracing::warn!(
-                        "news_source = \"ibkr\" is not yet implemented (Phase 7 part B); \
-                         falling back to alpha_vantage for now"
-                    );
-                    Arc::new(AlphaVantageNewsProvider::new(
-                        Arc::clone(&financial_service),
-                        api_key_present,
-                    ))
+                    // Phase 7 part B: live IBKR-backed news. The
+                    // `IbkrClient` impls `IbkrNewsClient` (see
+                    // `ibkr/client/news.rs`), so the same connection
+                    // that serves bars / scanner / quote also serves
+                    // news. 30 calls/min mirrors the Phase 6 spike
+                    // pacing.
+                    let news_client: Arc<dyn IbkrNewsClient> =
+                        Arc::clone(&ibkr_state.client) as Arc<dyn IbkrNewsClient>;
+                    let news_rate_limiter = Arc::new(IbkrNewsRateLimiter::new(30));
+                    Arc::new(IbkrNewsProvider::new(news_client, news_rate_limiter))
                 }
                 _ => Arc::new(AlphaVantageNewsProvider::new(
                     Arc::clone(&financial_service),

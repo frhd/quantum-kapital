@@ -1,5 +1,6 @@
 mod historical;
 mod market_data;
+mod news;
 mod orders;
 mod streams;
 

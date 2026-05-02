@@ -2,7 +2,18 @@
 
 > Part of [Alpha Vantage → IBKR: Full Vendor Strip-out](master.md). See index for invariants.
 
-**Status:** in-progress (part A landed 2026-05-02 — trait + AV adapter + consumer rewire + `news_source` flag; part B awaits Phase 6 fixtures)
+**Status:** done (2026-05-02 — part A: trait + AV adapter + consumer rewire + `news_source` flag; part B: `IbkrNewsClient` seam + live impl on `IbkrClient` + parser + `IbkrNewsRateLimiter` + `IbkrNewsProvider` honouring the flag)
+
+**Part B implementation notes** — landed alongside this status flip:
+
+- `services/news_provider/ibkr/{mod.rs,client.rs,parsers.rs,test_support.rs,tests.rs}` — `IbkrNewsProvider` impl over a narrow `IbkrNewsClient` seam (deliberately NOT extending the broad `IbkrClientTrait` — mirrors the per-concern seams `BarsFetcher` / `QuoteFetcher` / `MarketScanner`).
+- `ibkr/client/news.rs` — live `IbkrNewsClient` impl on `IbkrClient`. Resolves conid via `contract_details(&Contract::stock(...))`, batches every subscribed `provider_code` into one `historical_news` call, runs all blocking `ibapi` calls under `spawn_blocking`. TWS error mapping classifies subscription denial (codes 322 / 10168 / 10169 + keyword fallback) → `NewsError::NoSubscription`, pacing-keyword text → `NewsError::RateLimited`, `ConnectionFailed`/`ConnectionReset`/`Shutdown` → `NewsError::NotConnected`.
+- `middleware/ibkr_news_rate_limit.rs` — sliding-window limiter sized at 30 calls/min (matches the Phase 6 spike's 2-second pacing).
+- `services/news_provider/ibkr/parsers.rs` — strips the leading `{A:<conids>:L:<locales>}` metadata block from headlines (defensive on malformed / unclosed blocks), looks up `NewsItem.source` from the cached provider directory (falls back to provider code), leaves all sentiment fields at `None` / `Vec::new()` per the Phase 6 sentiment-loss audit.
+- `lib.rs` — `news_source = "ibkr"` now constructs `IbkrNewsProvider` over `Arc<IbkrClient> as Arc<dyn IbkrNewsClient>` instead of warn-falling-back to AV.
+- `Cargo.toml` — `time = "0.3"` is now a real (non-optional) dep so the live impl compiles in CI without flipping `ibkr-spike`. `ibkr-spike` feature retained as an empty marker for the spike-binary `[[bin]]` entries.
+
+**Tests landed:** 6 fixture-driven integration tests (Phase 6 AAPL replay, symbol uppercasing, unknown symbol → `Ok(vec![])`, no-subscriptions → `NoSubscription`, subscription-denial propagation, provider-directory caching), 6 parser tests (metadata stripping in 4 shapes + provider-name lookup + sentiment defaults), 2 rate-limiter tests (in-budget burst + over-budget block), 4 ibapi-error-mapping tests, 1 dyn-compat compile check, 1 `IbkrNewsProvider` integration sentiment-loss assertion. All green; pre-commit clean.
 
 **Depends on:** 3 (mirrors the `FundamentalsProvider` trait pattern), 6 (need fixtures + crate-path decision + sentiment-loss audit)
 

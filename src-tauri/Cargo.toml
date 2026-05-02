@@ -48,11 +48,15 @@ schemars = "1"
 # Throwaway IBKR spike binaries (Phase 2 fundamentals + Phase 6 news).
 # Off by default; both binaries require a live TWS connection (and the
 # relevant subscriptions), so they must never build in CI / pre-commit.
-ibkr-spike = ["dep:time"]
+ibkr-spike = []
 
 [dependencies.time]
+# Phase 7 part B: `time::OffsetDateTime` is the argument shape `ibapi`'s
+# `historical_news` API takes. Always-on (no feature gate) so the IBKR
+# news provider compiles in CI without flipping `ibkr-spike`. Minimal
+# features to keep build tight; the spike binaries layer on `formatting`
+# + `macros` via this same dep.
 version = "0.3"
-optional = true
 default-features = false
 features = ["formatting", "macros"]
 
