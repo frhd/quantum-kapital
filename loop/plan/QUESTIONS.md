@@ -6,4 +6,12 @@ Each entry should name the file/test/symbol so the next maintainer pass can find
 
 ---
 
-(empty — no phases executed yet)
+## Phase 2 (2026-05-02)
+
+- **Pre-existing flake: `services::decay_watcher::tests::respects_budget_kill_switch`** —
+  fails on a clean main tree (verified by stashing all phase-2 changes
+  and re-running). Panics with `MockHttp queue exhausted` at
+  `src-tauri/src/services/decay_watcher/tests.rs:59`. Not introduced by
+  this phase; deferred to a separate fix that owns the decay_watcher
+  area.
+

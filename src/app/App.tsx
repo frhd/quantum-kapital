@@ -10,6 +10,7 @@ import { StockPositions } from "../features/portfolio/components/StockPositions"
 import { OptionPositions } from "../features/portfolio/components/OptionPositions"
 import { AccountDetails } from "../features/portfolio/components/AccountDetails"
 import { WorkspaceProvider } from "../features/workspace/context/WorkspaceContext"
+import { AddToTrackerProvider } from "../features/workspace/context/AddToTrackerContext"
 import { useTickerNavigate } from "../features/workspace/hooks/useTickerNavigate"
 import { WorkspaceTab } from "../features/workspace/components/WorkspaceTab"
 import { MarketScanner } from "../features/scanner/components/MarketScanner"
@@ -93,7 +94,8 @@ export default function App() {
 
   return (
     <WorkspaceProvider onNavigatePage={handleNavigateToWorkspace}>
-      <AppLayout
+      <AddToTrackerProvider open={handleRequestAddToTracker}>
+        <AppLayout
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         connectionStatus={connectionStatus}
@@ -181,7 +183,8 @@ export default function App() {
           onClose={handleDialogClose}
           onAdded={handleDialogAdded}
         />
-      </AppLayout>
+        </AppLayout>
+      </AddToTrackerProvider>
     </WorkspaceProvider>
   )
 }

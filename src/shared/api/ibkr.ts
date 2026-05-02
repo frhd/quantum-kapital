@@ -193,13 +193,15 @@ export const ibkrApi = {
       return invoke<MorningPack | null>("tracker_get_morning_pack", { date: date ?? null })
     },
 
-    /** Phase 21 — read a slice of the alert feed. All filters are AND-combined. */
+    /** Phase 21 — read a slice of the alert feed. All filters are AND-combined.
+     *  Workspace Phase 2 — `symbol` joins to `setups` so pagination is correct. */
     listAlerts: async (params?: {
       limit?: number
       offset?: number
       since?: string | null
       kind?: AlertKind | null
       onlyUnseen?: boolean
+      symbol?: string | null
     }) => {
       return invoke<Alert[]>("tracker_list_alerts", {
         limit: params?.limit ?? null,
@@ -207,6 +209,7 @@ export const ibkrApi = {
         since: params?.since ?? null,
         kind: params?.kind ?? null,
         onlyUnseen: params?.onlyUnseen ?? null,
+        symbol: params?.symbol ?? null,
       })
     },
 

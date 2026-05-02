@@ -24,6 +24,18 @@ vi.mock("./panels/OverviewPanel", () => ({
   },
 }))
 
+vi.mock("./panels/ResearchPanel", () => ({
+  ResearchPanel: () => <div data-testid="research-panel" />,
+}))
+
+vi.mock("./panels/AlertsPanel", () => ({
+  AlertsPanel: () => <div data-testid="alerts-panel" />,
+}))
+
+vi.mock("./panels/WatchlistMetaPanel", () => ({
+  WatchlistMetaPanel: () => <div data-testid="watchlist-meta-panel" />,
+}))
+
 interface DriverProps {
   navigateTo?: { symbol: string; tab?: WorkspaceTabId }
   setTabTo?: WorkspaceTabId
@@ -75,9 +87,9 @@ describe("WorkspaceTab", () => {
       </WorkspaceProvider>,
     )
 
-    // Placeholder panel rendered, overview unmounted
+    // Alerts panel rendered, overview unmounted
     expect(screen.queryByTestId("overview-panel")).toBeNull()
-    expect(screen.getByText(/Alerts.*Phase 2/)).toBeInTheDocument()
+    expect(screen.getByTestId("alerts-panel")).toBeInTheDocument()
   })
 
   it("unmounts the active panel when switching tabs (lazy panel mount invariant)", () => {

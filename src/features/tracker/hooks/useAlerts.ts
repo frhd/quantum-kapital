@@ -34,6 +34,12 @@ interface UseAlertsArgs {
   filterKind: AlertKind | null
   /** When true, hide alerts already marked seen. */
   onlyUnseen: boolean
+  /**
+   * Workspace Phase 2 — when set, restrict to alerts whose parent
+   * setup carries this symbol. Server-side via `tracker_list_alerts`
+   * so pagination remains correct. `null`/omitted = global feed.
+   */
+  symbol?: string | null
 }
 
 export interface UseAlertsResult {
@@ -59,6 +65,7 @@ export function useAlerts({
   lastStatusChanged,
   filterKind,
   onlyUnseen,
+  symbol,
 }: UseAlertsArgs): UseAlertsResult {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(false)
@@ -76,6 +83,7 @@ export function useAlerts({
           offset,
           kind: filterKind,
           onlyUnseen,
+          symbol: symbol ?? null,
         })
         if (cancelledRef.current) return
         setAlerts((prev) => {
@@ -95,7 +103,7 @@ export function useAlerts({
         if (!cancelledRef.current) setLoading(false)
       }
     },
-    [filterKind, onlyUnseen],
+    [filterKind, onlyUnseen, symbol],
   )
 
   const refresh = useCallback(async () => {

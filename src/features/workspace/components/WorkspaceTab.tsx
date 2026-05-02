@@ -1,14 +1,14 @@
 import { WorkspaceHeader } from "./WorkspaceHeader"
 import { WorkspaceTabsNav } from "./WorkspaceTabsNav"
 import { OverviewPanel } from "./panels/OverviewPanel"
+import { ResearchPanel } from "./panels/ResearchPanel"
+import { AlertsPanel } from "./panels/AlertsPanel"
+import { WatchlistMetaPanel } from "./panels/WatchlistMetaPanel"
 import { PlaceholderPanel } from "./panels/PlaceholderPanel"
 import { useWorkspace } from "../context/WorkspaceContext"
 import { WORKSPACE_TAB_LABELS, type WorkspaceTabId } from "../types"
 
 const PLACEHOLDER_PHASE: Partial<Record<WorkspaceTabId, number>> = {
-  research: 2,
-  alerts: 2,
-  watchlist: 2,
   news: 3,
   history: 3,
 }
@@ -22,9 +22,11 @@ export function WorkspaceTab() {
       <WorkspaceHeader />
       <WorkspaceTabsNav />
       <div key={panelKey}>
-        {tab === "overview" ? (
-          <OverviewPanel />
-        ) : (
+        {tab === "overview" && <OverviewPanel />}
+        {tab === "research" && <ResearchPanel />}
+        {tab === "alerts" && <AlertsPanel />}
+        {tab === "watchlist" && <WatchlistMetaPanel />}
+        {(tab === "news" || tab === "history" || tab === "projection") && (
           <PlaceholderPanel label={WORKSPACE_TAB_LABELS[tab]} phase={PLACEHOLDER_PHASE[tab]} />
         )}
       </div>
