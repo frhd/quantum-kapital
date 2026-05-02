@@ -1,9 +1,4 @@
-import type {
-  AccountSummary,
-  ConnectionStatus,
-  Position,
-  Quote,
-} from "../../shared/types"
+import type { AccountSummary, ConnectionStatus, Position, Quote } from "../../shared/types"
 import type { AppConfig } from "../../shared/api/settings"
 import type { Alert, MorningPack, TrackedTicker } from "../../features/tracker/types"
 import type { AgentMorningPack, McpAuditEntry, ResearchNote } from "../../features/research/types"
@@ -150,7 +145,13 @@ export const candidates: Candidate[] = [
     symbol: "AMD",
     score: 0.82,
     sources: [
-      { source: "scanner_top_gainers", score: 0.78, rank: 3, meta: {}, last_seen: unixMinusMin(15) },
+      {
+        source: "scanner_top_gainers",
+        score: 0.78,
+        rank: 3,
+        meta: {},
+        last_seen: unixMinusMin(15),
+      },
       { source: "sentiment_surge", score: 0.86, rank: null, meta: {}, last_seen: unixMinusMin(8) },
     ],
     reason_md: "Top-3 gainer with concurrent WSB sentiment surge.",
