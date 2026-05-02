@@ -103,20 +103,22 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // promote_candidate) + Phase 6 (1 write: mark_alert_enriched) +
     // Phase 7 (2 reads: get_morning_pack, get_outcomes; 1 write:
     // append_journal_entry) + Phase 8 (3 reads: get_calibration_stats,
-    // get_prediction_history, get_cost_attribution) = 26.
+    // get_prediction_history, get_cost_attribution) + AV strip-out
+    // Phase 4 (1 write: set_fundamentals — operator-curated reference
+    // data, never market actions) = 27.
     assert_eq!(
         names.len(),
-        26,
-        "expected 26 registered MCP tools, got {}: {:?}",
+        27,
+        "expected 27 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
 
     // The only "write" verbs allowed are the closed set below. A future
     // write tool whose name starts with `write_` / `add_` / `archive_` /
-    // `ack_` / `promote_` / `mark_` / `append_` *must* be added here
-    // AND reviewed for surveillance-only compliance — never an
-    // order-placement primitive.
+    // `ack_` / `promote_` / `mark_` / `append_` / `set_` *must* be
+    // added here AND reviewed for surveillance-only compliance — never
+    // an order-placement primitive.
     let allowed_writes: &[&str] = &[
         "add_ticker",
         "archive_ticker",
@@ -126,6 +128,7 @@ async fn mcp_tool_registry_is_surveillance_only() {
         "promote_candidate",
         "mark_alert_enriched",
         "append_journal_entry",
+        "set_fundamentals",
     ];
     for name in &names {
         let n = name.to_ascii_lowercase();
@@ -135,7 +138,8 @@ async fn mcp_tool_registry_is_surveillance_only() {
             || n.starts_with("ack_")
             || n.starts_with("promote_")
             || n.starts_with("mark_")
-            || n.starts_with("append_");
+            || n.starts_with("append_")
+            || n.starts_with("set_");
         if looks_like_write {
             assert!(
                 allowed_writes.contains(&name.as_str()),

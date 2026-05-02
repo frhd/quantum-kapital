@@ -24,6 +24,7 @@ use crate::services::financial_data_service::FinancialDataService;
 use crate::services::fundamentals_provider::FundamentalsProvider;
 use crate::services::historical_data_service::HistoricalDataService;
 use crate::services::llm_service::LlmService;
+use crate::services::manual_fundamentals_store::ManualFundamentalsStore;
 use crate::services::quote_service::QuoteService;
 use crate::services::social_sentiment::SocialSentimentService;
 use crate::services::tracker_service::TrackerService;
@@ -52,6 +53,9 @@ pub struct McpHandler {
     /// the AV adapter directly; Phase 4 swaps in the composite (manual
     /// store → AV cache → AV API) without touching this field's type.
     pub(crate) fundamentals_provider: Arc<dyn FundamentalsProvider>,
+    /// Used by `tools::set_fundamentals` (Phase 4) to persist operator-
+    /// curated rows that the composite provider reads ahead of AV.
+    pub(crate) manual_fundamentals: Arc<ManualFundamentalsStore>,
     /// Used by `tools::bars` (`fetch_bars` — cache-first, IBKR fallback).
     pub(crate) historical_service: Arc<HistoricalDataService>,
     /// Used by `tools::quote` (live IBKR snapshot, never cached).
@@ -119,6 +123,7 @@ impl McpHandler {
         db: Arc<Db>,
         financial_service: Arc<FinancialDataService>,
         fundamentals_provider: Arc<dyn FundamentalsProvider>,
+        manual_fundamentals: Arc<ManualFundamentalsStore>,
         historical_service: Arc<HistoricalDataService>,
         quote_service: Arc<QuoteService>,
         ibkr_client: Arc<dyn AccountReader>,
@@ -140,6 +145,7 @@ impl McpHandler {
             + Self::news_router()
             + Self::bars_router()
             + Self::fundamentals_router()
+            + Self::set_fundamentals_router()
             + Self::quote_router()
             + Self::positions_router()
             + Self::account_summary_router()
@@ -165,6 +171,7 @@ impl McpHandler {
             db,
             financial_service,
             fundamentals_provider,
+            manual_fundamentals,
             historical_service,
             quote_service,
             ibkr_client,

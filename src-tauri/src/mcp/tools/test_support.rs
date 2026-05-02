@@ -40,6 +40,7 @@ use crate::services::fundamentals_provider::test_support::FakeFundamentalsProvid
 use crate::services::fundamentals_provider::FundamentalsProvider;
 use crate::services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use crate::services::llm_service::{LlmClock, LlmService};
+use crate::services::manual_fundamentals_store::ManualFundamentalsStore;
 use crate::services::quote_service::{QuoteFetcher, QuoteService};
 use crate::services::social_sentiment::SocialSentimentService;
 use crate::services::tracker_service::TrackerService;
@@ -228,12 +229,14 @@ fn build_handler_with_llm(
     // explicit handler.
     let fundamentals_provider: Arc<dyn FundamentalsProvider> =
         Arc::new(FakeFundamentalsProvider::new());
+    let manual_fundamentals = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
     McpHandler::new(
         llm,
         tracker,
         db,
         financial,
         fundamentals_provider,
+        manual_fundamentals,
         hist,
         quote,
         ibkr_client,
@@ -325,12 +328,14 @@ pub async fn test_handler_with_seeded_spend(
     let social_sentiment = Arc::new(SocialSentimentService::new(Arc::clone(&db), Vec::new()));
     let fundamentals_provider: Arc<dyn FundamentalsProvider> =
         Arc::new(FakeFundamentalsProvider::new());
+    let manual_fundamentals = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
     Ok(McpHandler::new(
         llm,
         tracker,
         db,
         financial,
         fundamentals_provider,
+        manual_fundamentals,
         hist,
         quote,
         ibkr_client,

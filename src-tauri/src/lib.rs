@@ -21,10 +21,13 @@ use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
 use services::financial_data_service::FinancialDataService;
 use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
+use services::fundamentals_provider::composite::CompositeFundamentalsProvider;
+use services::fundamentals_provider::manual::ManualFundamentalsProvider;
 use services::fundamentals_provider::FundamentalsProvider;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::intraday_scheduler::IntradayScheduler;
 use services::llm_service::LlmService;
+use services::manual_fundamentals_store::ManualFundamentalsStore;
 use services::news_interpreter::NewsInterpreter;
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -139,14 +142,28 @@ pub fn run() {
                     .with_rate_limiter(Arc::clone(&av_rate_limiter)),
             );
 
-            // Phase 3 (AV migration): the AV adapter is the only
-            // FundamentalsProvider impl wired right now. Phase 4
-            // wraps this in a CompositeFundamentalsProvider (manual
-            // store → AV cache → AV API) without changing call sites.
-            let fundamentals_provider: Arc<dyn FundamentalsProvider> =
+            // Phase 4 (AV migration): the production fundamentals path
+            // is the composite (manual store → AV adapter). The AV
+            // branch retains the Phase-1 file cache, in-flight
+            // coalescing, and stale-cache fallback because the
+            // FinancialDataService it wraps is unchanged. Hard
+            // Invariant #8: the composite checks the manual store
+            // first; manual writes invalidate the AV file cache for
+            // the same symbol via `set_fundamentals`.
+            let manual_fundamentals_store =
+                Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
+            let av_fundamentals_provider: Arc<dyn FundamentalsProvider> =
                 Arc::new(AlphaVantageFundamentalsProvider::new(
                     Arc::clone(&financial_service),
                     api_key_present,
+                ));
+            let manual_fundamentals_provider = Arc::new(ManualFundamentalsProvider::new(
+                Arc::clone(&manual_fundamentals_store),
+            ));
+            let fundamentals_provider: Arc<dyn FundamentalsProvider> =
+                Arc::new(CompositeFundamentalsProvider::new(
+                    Arc::clone(&manual_fundamentals_provider),
+                    Arc::clone(&av_fundamentals_provider),
                 ));
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;
@@ -343,6 +360,7 @@ pub fn run() {
                 Arc::clone(&db),
                 Arc::clone(&financial_service),
                 Arc::clone(&fundamentals_provider),
+                Arc::clone(&manual_fundamentals_store),
                 Arc::clone(&hist_service),
                 Arc::clone(&quote_service),
                 mcp_ibkr_client,
@@ -378,6 +396,7 @@ pub fn run() {
             app.manage(hist_service);
             app.manage(financial_service);
             app.manage(fundamentals_provider);
+            app.manage(manual_fundamentals_store);
             app.manage(tracker_runner);
             app.manage(eod_scheduler);
             app.manage(intraday_scheduler);

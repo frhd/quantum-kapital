@@ -156,6 +156,15 @@ pub enum AppEvent {
         alert_id: i64,
         reason: String,
     },
+    /// Phase 4 (AV strip-out) — emitted after the MCP `set_fundamentals`
+    /// tool persists a manual row. The analysis UI re-queries
+    /// `get_fundamentals(symbol)` and re-renders the projection so the
+    /// freshly pasted snapshot is immediately reflected without polling.
+    FundamentalsManualWritten {
+        symbol: String,
+        as_of_date: String,
+        source: String,
+    },
 
     // System events
     RateLimitWarning {
@@ -194,6 +203,7 @@ impl AppEvent {
             AppEvent::AlertDecisionRecorded { .. } => "alert-decision-recorded",
             AppEvent::AlertEnriched { .. } => "alert-enriched",
             AppEvent::AlertDiveSkipped { .. } => "alert-dive-skipped",
+            AppEvent::FundamentalsManualWritten { .. } => "fundamentals-manual-written",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }

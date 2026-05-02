@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Financial projection for a single year
@@ -88,7 +89,7 @@ pub struct ScenarioCagr {
 }
 
 /// Historical financial data point
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoricalFinancial {
     pub year: u32,
@@ -98,7 +99,7 @@ pub struct HistoricalFinancial {
 }
 
 /// Analyst estimate for a specific metric
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalystEstimate {
     pub year: u32,
@@ -106,7 +107,7 @@ pub struct AnalystEstimate {
 }
 
 /// Complete fundamental data for a security
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FundamentalData {
     pub symbol: String,
@@ -115,14 +116,14 @@ pub struct FundamentalData {
     pub current_metrics: CurrentMetrics,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalystEstimates {
     pub revenue: Vec<AnalystEstimate>,
     pub eps: Vec<AnalystEstimate>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentMetrics {
     /// Optional because Alpha Vantage's OVERVIEW endpoint does not

@@ -36,6 +36,7 @@ pub mod promote_candidate;
 pub mod quote;
 pub mod reads;
 pub mod scanner;
+pub mod set_fundamentals;
 pub mod setups;
 pub mod test_support;
 pub mod types;
