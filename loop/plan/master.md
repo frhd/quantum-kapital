@@ -52,7 +52,7 @@ Violating the letter of these rules is violating the spirit.
 |---|---|---|---|
 | 1. Workspace shell + Overview tab (cutover from Analysis page) | [phase-1-shell-overview.md](phase-1-shell-overview.md) | — | done (commit 466a670, 2026-05-02) |
 | 2. Research + Alerts + Watchlist-meta tabs | [phase-2-research-alerts-meta.md](phase-2-research-alerts-meta.md) | 1 | done (commit 642350a, 2026-05-02) |
-| 3. News + History tabs | [phase-3-news-history.md](phase-3-news-history.md) | 1 | todo |
+| 3. News + History tabs | [phase-3-news-history.md](phase-3-news-history.md) | 1 | in-progress (started 2026-05-03) |
 | 4. Universal navigation (every entry point routes to workspace) | [phase-4-universal-nav.md](phase-4-universal-nav.md) | 2, 3 | todo |
 | 5. Recent symbols + quick switcher (Cmd+K) | [phase-5-recents-switcher.md](phase-5-recents-switcher.md) | 4 | todo |
 
