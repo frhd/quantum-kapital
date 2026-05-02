@@ -15,6 +15,7 @@ pub mod historical_data_service;
 pub mod intraday_scheduler;
 pub mod journal_writer;
 pub mod llm_service;
+pub mod manual_fundamentals_store;
 pub mod mcp_audit;
 pub mod news_interpreter;
 pub mod outcome_extractor;
