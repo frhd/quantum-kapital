@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ibkrApi } from "../../../shared/api/ibkr"
 import type { ConnectionConfig, ConnectionStatus } from "../../../shared/types"
 
@@ -16,28 +16,47 @@ export function useConnection() {
   const [loading, setLoading] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasCheckedConnection, setHasCheckedConnection] = useState(false)
+  // Ref-guarded so StrictMode's double-mount doesn't fire two connect attempts.
+  const hasBootstrappedRef = useRef(false)
 
-  // Check for existing connection on mount (only once)
   useEffect(() => {
-    if (!hasCheckedConnection) {
-      const checkExistingConnection = async () => {
-        try {
-          const status = await ibkrApi.getConnectionStatus()
-          if (status.connected) {
-            console.log("Found existing connection, reusing it")
-            setConnectionStatus(status)
-          }
-        } catch (err) {
-          console.error("Failed to check existing connection:", err)
-        } finally {
-          setHasCheckedConnection(true)
+    if (hasBootstrappedRef.current) return
+    hasBootstrappedRef.current = true
+
+    const checkAndAutoConnect = async () => {
+      try {
+        const status = await ibkrApi.getConnectionStatus()
+        if (status.connected) {
+          console.log("Found existing connection, reusing it")
+          setConnectionStatus(status)
+          return
         }
+      } catch (err) {
+        console.error("Failed to check existing connection:", err)
       }
 
-      checkExistingConnection()
+      setLoading(true)
+      try {
+        await ibkrApi.connect(connectionSettings)
+        const next = await ibkrApi.getConnectionStatus()
+        setConnectionStatus(next)
+      } catch (err) {
+        console.error("Auto-connect to IBKR failed:", err)
+        setError(
+          typeof err === "string"
+            ? err
+            : "Failed to auto-connect to IBKR. Please ensure TWS/Gateway is running.",
+        )
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [hasCheckedConnection])
+
+    checkAndAutoConnect()
+    // Intentional one-shot: bootstraps with whatever connectionSettings is at
+    // mount time. User-edited settings flow through the manual Connect button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const connect = async () => {
     setLoading(true)
