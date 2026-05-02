@@ -50,7 +50,7 @@ Violating the letter of these rules is violating the spirit.
 | 3. Fundamentals provider trait + AV adapter | [phase-3-provider-trait.md](phase-3-provider-trait.md) | 1, 2 | todo |
 | 4. IBKR fundamentals provider implementation | [phase-4-ibkr-provider.md](phase-4-ibkr-provider.md) | 2, 3 | todo |
 | 5. Fundamentals cutover + AV-fundamentals deprecation | [phase-5-cutover.md](phase-5-cutover.md) | 4 | todo |
-| 6. IBKR news spike (de-risk) | [phase-6-ibkr-news-spike.md](phase-6-ibkr-news-spike.md) | — | todo |
+| 6. IBKR news spike (de-risk) | [phase-6-ibkr-news-spike.md](phase-6-ibkr-news-spike.md) | — | in-progress (started 2026-05-02) |
 | 7. News provider trait + IBKR news provider | [phase-7-news-provider.md](phase-7-news-provider.md) | 3, 6 | todo |
 | 8. Full AV deletion (news cutover + module rip-out) | [phase-8-av-deletion.md](phase-8-av-deletion.md) | 5, 7 | todo |
 
