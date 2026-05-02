@@ -51,3 +51,21 @@
   mcp-server` step. If we want the binary to ship with the bundled app
   on user machines, sidecar wiring needs to be added — out of scope for
   this phase.
+
+## Phase 9 deferral (2026-05-02)
+
+- Phase 9 (daemon refactor) is marked `(optional)` in the master-plan
+  index and `Why optional` in `phase-9-daemon.md`. Its trigger
+  conditions ("Overnight ingestion becomes critical", "Morning sweep at
+  07:00 must work without manual app launch", "Multiple UI clients")
+  are user-judgment calls that haven't been declared met. The phase
+  body is an explicit `(sketch)` rather than a concrete plan — new
+  crate `quantum-kapital-core/`, new `quantum-kapital-daemon/` binary,
+  systemd/launchd integration, IBKR reconnection logic, full test
+  surface rewrite. A multi-week architectural refactor of that size
+  isn't appropriate to drive autonomously through `/loop` without
+  explicit user authorization, especially when the phase itself says
+  "schedule when X becomes required." Quarter outcome stated in
+  `master.md` ("every weekday a ranked morning pack…") is achieved by
+  Phases 1-8 (all `done`). Leaving Phase 9 as `todo`; user to schedule
+  manually if/when the trigger conditions are met. This loop ends here.
