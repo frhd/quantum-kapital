@@ -17,7 +17,6 @@ use crate::services::intraday_scheduler::IntradayScheduler;
 #[cfg(debug_assertions)]
 use crate::services::llm_service::{LlmKind, LlmRequest, LlmService, Message, Role};
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
-use crate::storage::Db;
 
 #[tauri::command]
 pub async fn tracker_fetch_bars(
@@ -34,13 +33,11 @@ pub async fn tracker_fetch_bars(
 
 #[tauri::command]
 pub async fn tracker_get_news(
-    db: State<'_, Arc<Db>>,
+    financial: State<'_, Arc<FinancialDataService>>,
     symbol: String,
     lookback_hours: u32,
 ) -> Result<Vec<NewsItem>, String> {
-    let api_key = std::env::var("ALPHA_VANTAGE_API_KEY").unwrap_or_default();
-    let service = FinancialDataService::new(api_key).with_db(Arc::clone(&*db));
-    service
+    financial
         .fetch_news_sentiment(&symbol, lookback_hours)
         .await
         .map_err(|e| e.to_string())

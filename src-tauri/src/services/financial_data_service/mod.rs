@@ -1,13 +1,18 @@
 use crate::ibkr::types::news::NewsItem;
+use crate::middleware::AlphaVantageRateLimiter;
 use crate::services::cache_service::CacheService;
 use crate::services::news_interpreter::NewsInterpreter;
 use crate::storage::Db;
+use async_trait::async_trait;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
+use thiserror::Error;
+use tokio::sync::broadcast;
 use tracing::{debug, info, warn};
 
 mod earnings;
@@ -19,22 +24,132 @@ pub mod news;
 #[cfg(test)]
 mod news_tests;
 
+/// HTTP transport seam for the Alpha Vantage fundamentals endpoints.
+/// Mirrors the news-side [`news::NewsHttp`] trait so tests can return
+/// canned JSON without standing up a real HTTP server.
+#[async_trait]
+pub trait AvHttp: Send + Sync {
+    async fn fetch(&self, url: &str) -> Result<Value, AvHttpError>;
+}
+
+#[derive(Error, Debug)]
+pub enum AvHttpError {
+    #[error("transport: {0}")]
+    Transport(String),
+    #[error("status: {0}")]
+    Status(String),
+}
+
+pub struct ReqwestAvHttp {
+    client: Client,
+}
+
+impl ReqwestAvHttp {
+    pub fn new() -> Self {
+        Self {
+            client: Client::new(),
+        }
+    }
+}
+
+impl Default for ReqwestAvHttp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl AvHttp for ReqwestAvHttp {
+    async fn fetch(&self, url: &str) -> Result<Value, AvHttpError> {
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| AvHttpError::Transport(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(AvHttpError::Status(response.status().to_string()));
+        }
+        response
+            .json::<Value>()
+            .await
+            .map_err(|e| AvHttpError::Transport(e.to_string()))
+    }
+}
+
+/// Result type stored in the in-flight coalescing map. Errors are
+/// stringified so the result can be `Clone`'d and shared with multiple
+/// awaiting callers; the public boxed-error API is reconstructed in
+/// `fetch_fundamental_data`.
+type FundamentalsResult = Result<crate::ibkr::types::fundamentals::FundamentalData, String>;
+
+enum FetchSlot {
+    /// Joining an in-flight leader: subscribe and wait for their result.
+    Joined(broadcast::Receiver<Arc<FundamentalsResult>>),
+    /// Claimed leadership: leader runs the work, then broadcasts.
+    Leader(broadcast::Sender<Arc<FundamentalsResult>>),
+}
+
+/// Stale fundamentals older than this trigger a louder warning when
+/// served from the stale-cache fallback path. Day-stale is acceptable
+/// when AV is rate-limited; year-stale is a smell.
+const STALE_FUNDAMENTALS_WARN_AGE_SECS: u64 = 30 * 24 * 60 * 60;
+
 /// Service for fetching fundamental data from Alpha Vantage API
 pub struct FinancialDataService {
-    client: Client,
+    av_http: Arc<dyn AvHttp>,
     api_key: String,
     base_url: String,
     cache: Option<CacheService>,
     db: Option<Arc<Db>>,
     news_interpreter: Option<Arc<NewsInterpreter>>,
+    rate_limiter: Option<Arc<AlphaVantageRateLimiter>>,
+    /// Per-symbol coalescing map. While a fetch for `SYMBOL` is in
+    /// flight, additional callers subscribe to the broadcast and wait
+    /// for the leader's result instead of issuing more AV requests.
+    /// The slot is cleared on completion (success or error), so a
+    /// failed fetch never poisons future attempts.
+    inflight_fundamentals:
+        Arc<StdMutex<HashMap<String, broadcast::Sender<Arc<FundamentalsResult>>>>>,
+}
+
+#[derive(Debug)]
+enum AvCheck {
+    Hard(String),
+    SoftSkip(String),
+}
+
+/// Classify an Alpha Vantage JSON payload. `Hard` errors propagate
+/// immediately; `SoftSkip` (rate-limit `Note` or quota `Information`)
+/// triggers the stale-cache fallback in `fetch_av_function`.
+fn classify_av_response(json: &Value) -> Result<(), AvCheck> {
+    if let Some(error_msg) = json.get("Error Message").and_then(|v| v.as_str()) {
+        return Err(AvCheck::Hard(format!(
+            "Alpha Vantage API error: {error_msg}"
+        )));
+    }
+    if let Some(note) = json.get("Note").and_then(|v| v.as_str()) {
+        return Err(AvCheck::SoftSkip(note.to_string()));
+    }
+    if let Some(info) = json.get("Information").and_then(|v| v.as_str()) {
+        return Err(AvCheck::SoftSkip(info.to_string()));
+    }
+    Ok(())
 }
 
 /// Fetch a single Alpha Vantage `function=...` payload, hitting the local
 /// JSON cache first and falling back to the live API. Cache key is namespaced
 /// per (symbol, suffix) so the three callers — OVERVIEW, INCOME_STATEMENT,
 /// EARNINGS — don't collide on disk.
+///
+/// On rate-limit / quota soft-skip responses, falls back to the most
+/// recently cached payload (even if past TTL) and emits a `warn!`. This
+/// mirrors the news-path behavior in `news.rs` and keeps the surrounding
+/// agent loop alive when AV says "you're done for the day."
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn fetch_av_function<T>(
-    client: &Client,
+    http: &dyn AvHttp,
+    rate_limiter: Option<&AlphaVantageRateLimiter>,
     api_key: &str,
     base_url: &str,
     cache: &Option<CacheService>,
@@ -57,38 +172,74 @@ where
     info!("Fetching {function} data from API for {symbol}");
     let url = format!("{base_url}?function={function}&symbol={symbol}&apikey={api_key}");
 
-    let response = client.get(&url).send().await?;
-    if !response.status().is_success() {
-        return Err(format!("API request failed: {}", response.status()).into());
+    if let Some(limiter) = rate_limiter {
+        limiter.acquire().await;
     }
 
-    let json: Value = response.json().await?;
-    check_api_error(&json)?;
+    let json = match http.fetch(&url).await {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("Alpha Vantage {function} HTTP fetch failed for {symbol}: {e}");
+            if let Some(value) = read_stale_cache::<T>(cache, &cache_key, function, symbol) {
+                return Ok(value);
+            }
+            return Err(Box::new(e));
+        }
+    };
 
-    let parsed: T = serde_json::from_value(json)?;
-    if let Some(ref c) = cache {
-        let _ = c.write(&cache_key, &parsed);
+    match classify_av_response(&json) {
+        Ok(()) => {
+            let parsed: T = serde_json::from_value(json)?;
+            if let Some(ref c) = cache {
+                let _ = c.write(&cache_key, &parsed);
+            }
+            Ok(parsed)
+        }
+        Err(AvCheck::SoftSkip(msg)) => {
+            warn!("Alpha Vantage {function} soft-skip for {symbol}: {msg}");
+            if let Some(value) = read_stale_cache::<T>(cache, &cache_key, function, symbol) {
+                return Ok(value);
+            }
+            Err(format!("Alpha Vantage {function}: {msg}").into())
+        }
+        Err(AvCheck::Hard(msg)) => Err(msg.into()),
     }
-    Ok(parsed)
 }
 
-/// Check if the API response contains an error message
-pub(super) fn check_api_error(json: &Value) -> Result<(), Box<dyn Error + Send + Sync>> {
-    if let Some(error_msg) = json.get("Error Message").and_then(|v| v.as_str()) {
-        return Err(format!("Alpha Vantage API error: {error_msg}").into());
+/// Read a stale-allowed cache entry for the given key. Returns `None`
+/// when no cache row exists, or when the cache hasn't been provisioned.
+/// Logs at `warn!` on hit so operators can see the fallback firing; the
+/// log gets louder when the entry is older than 30 days (don't silently
+/// serve year-old fundamentals).
+fn read_stale_cache<T>(
+    cache: &Option<CacheService>,
+    cache_key: &str,
+    function: &str,
+    symbol: &str,
+) -> Option<T>
+where
+    T: DeserializeOwned,
+{
+    let c = cache.as_ref()?;
+    match c.read_ignoring_ttl::<T>(cache_key) {
+        Ok((value, age)) => {
+            if age >= STALE_FUNDAMENTALS_WARN_AGE_SECS {
+                warn!(
+                    "serving very stale cached {function} data for {symbol} \
+                     (age {}s, > {} day threshold) — refresh next time AV is reachable",
+                    age,
+                    STALE_FUNDAMENTALS_WARN_AGE_SECS / 86_400
+                );
+            } else {
+                warn!(
+                    "serving stale cached {function} data for {symbol} (age {}s)",
+                    age
+                );
+            }
+            Some(value)
+        }
+        Err(_) => None,
     }
-
-    if let Some(note) = json.get("Note").and_then(|v| v.as_str()) {
-        warn!("Alpha Vantage API note: {}", note);
-        return Err("API rate limit reached. Please try again later.".into());
-    }
-
-    if let Some(info) = json.get("Information").and_then(|v| v.as_str()) {
-        warn!("Alpha Vantage API information: {}", info);
-        return Err(format!("Alpha Vantage API: {info}").into());
-    }
-
-    Ok(())
 }
 
 impl FinancialDataService {
@@ -113,12 +264,14 @@ impl FinancialDataService {
         }
 
         Self {
-            client: Client::new(),
+            av_http: Arc::new(ReqwestAvHttp::new()),
             api_key,
             base_url: "https://www.alphavantage.co/query".to_string(),
             cache,
             db: None,
             news_interpreter: None,
+            rate_limiter: None,
+            inflight_fundamentals: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 
@@ -135,6 +288,25 @@ impl FinancialDataService {
     /// but never propagate — the news fetch itself stays unaffected.
     pub fn with_news_interpreter(mut self, interpreter: Arc<NewsInterpreter>) -> Self {
         self.news_interpreter = Some(interpreter);
+        self
+    }
+
+    /// Attach a per-vendor rate limiter. AV's free tier permits 1
+    /// request per second across the entire account; without this,
+    /// `tokio::try_join!`-style parallel fetches burn the per-second
+    /// quota in a single tick. All Alpha Vantage HTTP calls
+    /// (fundamentals + news) consult the same limiter when set.
+    pub fn with_rate_limiter(mut self, limiter: Arc<AlphaVantageRateLimiter>) -> Self {
+        self.rate_limiter = Some(limiter);
+        self
+    }
+
+    /// Override the HTTP transport. Production wires `ReqwestAvHttp`;
+    /// tests inject a counter-fake to assert request counts (e.g., for
+    /// the in-flight coalescing test).
+    #[cfg(test)]
+    pub fn with_http(mut self, http: Arc<dyn AvHttp>) -> Self {
+        self.av_http = http;
         self
     }
 
@@ -161,6 +333,7 @@ impl FinancialDataService {
             .ok_or("News fetching requires a Db; call FinancialDataService::with_db first")?;
         let items = news::fetch_news_sentiment_default(
             Arc::clone(db),
+            self.rate_limiter.as_deref(),
             &self.api_key,
             &self.base_url,
             symbol,
@@ -177,29 +350,107 @@ impl FinancialDataService {
         Ok(items)
     }
 
-    /// Fetches fundamental data for a given symbol
+    /// Fetches fundamental data for a given symbol.
+    ///
+    /// Concurrent calls for the same symbol coalesce: the first call
+    /// fans out to AV (3 endpoints) while later callers join the
+    /// in-flight broadcast and reuse the result. The slot is cleared on
+    /// completion so a failed fetch never poisons future attempts.
     pub async fn fetch_fundamental_data(
         &self,
         symbol: &str,
     ) -> Result<crate::ibkr::types::fundamentals::FundamentalData, Box<dyn Error + Send + Sync>>
     {
+        let key = symbol.to_uppercase();
+
+        let leader_tx = match self.claim_or_join(&key) {
+            FetchSlot::Joined(mut rx) => {
+                debug!("Coalescing fundamentals fetch for {symbol}");
+                return match rx.recv().await {
+                    Ok(arc) => match arc.as_ref() {
+                        Ok(d) => Ok(d.clone()),
+                        Err(s) => Err(s.clone().into()),
+                    },
+                    Err(e) => Err(format!(
+                        "Coalesced fundamentals fetch for {symbol} dropped before completion: {e}"
+                    )
+                    .into()),
+                };
+            }
+            FetchSlot::Leader(tx) => tx,
+        };
+
+        // We are the leader. Run the actual fan-out fetch.
+        let result = self.do_fetch_fundamental_data(symbol).await;
+        let stringified: FundamentalsResult = match &result {
+            Ok(d) => Ok(d.clone()),
+            Err(e) => Err(e.to_string()),
+        };
+
+        // Clear the slot BEFORE broadcasting so any caller that arrives
+        // after this point starts a fresh fetch.
+        self.release_slot(&key);
+        let _ = leader_tx.send(Arc::new(stringified));
+
+        result
+    }
+
+    /// Sync helper: under the inflight mutex, either subscribe to an
+    /// existing leader's broadcast or claim leadership by inserting a
+    /// fresh sender. Kept synchronous so the `MutexGuard` never crosses
+    /// an `.await` (would otherwise make the enclosing future `!Send`).
+    fn claim_or_join(&self, key: &str) -> FetchSlot {
+        let mut map = self
+            .inflight_fundamentals
+            .lock()
+            .expect("inflight_fundamentals mutex poisoned");
+        if let Some(tx) = map.get(key) {
+            return FetchSlot::Joined(tx.subscribe());
+        }
+        let (tx, _rx0) = broadcast::channel::<Arc<FundamentalsResult>>(1);
+        map.insert(key.to_string(), tx.clone());
+        FetchSlot::Leader(tx)
+    }
+
+    fn release_slot(&self, key: &str) {
+        let mut map = self
+            .inflight_fundamentals
+            .lock()
+            .expect("inflight_fundamentals mutex poisoned");
+        map.remove(key);
+    }
+
+    /// Underlying fan-out fetch: fires OVERVIEW + INCOME_STATEMENT +
+    /// EARNINGS in parallel. Each call honours the rate limiter, so
+    /// `try_join!` issues them on the wire in 1-req-per-second order
+    /// even though the futures themselves run concurrently.
+    async fn do_fetch_fundamental_data(
+        &self,
+        symbol: &str,
+    ) -> Result<crate::ibkr::types::fundamentals::FundamentalData, Box<dyn Error + Send + Sync>>
+    {
+        let limiter_ref = self.rate_limiter.as_deref();
+        let http_ref: &dyn AvHttp = self.av_http.as_ref();
         let (av_overview, av_income, av_earnings) = tokio::try_join!(
             overview::fetch_overview(
-                &self.client,
+                http_ref,
+                limiter_ref,
                 &self.api_key,
                 &self.base_url,
                 &self.cache,
                 symbol
             ),
             income::fetch_income_statement(
-                &self.client,
+                http_ref,
+                limiter_ref,
                 &self.api_key,
                 &self.base_url,
                 &self.cache,
                 symbol
             ),
             earnings::fetch_earnings(
-                &self.client,
+                http_ref,
+                limiter_ref,
                 &self.api_key,
                 &self.base_url,
                 &self.cache,

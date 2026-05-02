@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use config::{AppConfig, SettingsState};
 use ibkr::IbkrState;
-use middleware::HistoricalRateLimiter;
+use middleware::{AlphaVantageRateLimiter, HistoricalRateLimiter};
 use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketScanner};
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
@@ -122,10 +122,18 @@ pub fn run() {
                 Arc::clone(&llm_service),
                 Arc::clone(&db),
             ));
+            // Phase 1 (AV migration): the AV free tier permits 1 req/sec
+            // across the whole account. Without this serialiser, three
+            // parallel fundamentals fetches burn the per-second cap in
+            // a single tick and the next call returns "Information"
+            // rate-limit payloads. Shared between fundamentals + news
+            // because both hit the same AV quota.
+            let av_rate_limiter = Arc::new(AlphaVantageRateLimiter::per_second());
             let financial_service = Arc::new(
                 FinancialDataService::new(api_key)
                     .with_db(Arc::clone(&db))
-                    .with_news_interpreter(Arc::clone(&news_interpreter)),
+                    .with_news_interpreter(Arc::clone(&news_interpreter))
+                    .with_rate_limiter(Arc::clone(&av_rate_limiter)),
             );
 
             let bars: Arc<dyn BarsFetcher> = Arc::clone(&hist_service) as Arc<dyn BarsFetcher>;

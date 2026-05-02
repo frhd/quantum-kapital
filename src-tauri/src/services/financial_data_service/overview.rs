@@ -1,8 +1,10 @@
 use crate::ibkr::types::fundamentals::CurrentMetrics;
+use crate::middleware::AlphaVantageRateLimiter;
 use crate::services::cache_service::CacheService;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+
+use super::AvHttp;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -26,14 +28,22 @@ pub(super) struct AlphaVantageOverview {
 }
 
 pub(super) async fn fetch_overview(
-    client: &Client,
+    http: &dyn AvHttp,
+    rate_limiter: Option<&AlphaVantageRateLimiter>,
     api_key: &str,
     base_url: &str,
     cache: &Option<CacheService>,
     symbol: &str,
 ) -> Result<AlphaVantageOverview, Box<dyn Error + Send + Sync>> {
     super::fetch_av_function(
-        client, api_key, base_url, cache, symbol, "OVERVIEW", "overview",
+        http,
+        rate_limiter,
+        api_key,
+        base_url,
+        cache,
+        symbol,
+        "OVERVIEW",
+        "overview",
     )
     .await
 }

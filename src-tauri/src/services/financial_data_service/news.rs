@@ -13,6 +13,7 @@ use thiserror::Error;
 use tracing::{debug, warn};
 
 use crate::ibkr::types::news::{NewsItem, TickerSentiment};
+use crate::middleware::AlphaVantageRateLimiter;
 use crate::storage::Db;
 
 /// Default cache TTL for news. Callers that need stricter freshness can
@@ -225,6 +226,7 @@ pub async fn fetch_news_sentiment_with_deps<H, C>(
     http: &H,
     clock: &C,
     db: &Db,
+    rate_limiter: Option<&AlphaVantageRateLimiter>,
     api_key: &str,
     base_url: &str,
     symbol: &str,
@@ -269,6 +271,10 @@ where
     let url = format!(
         "{base_url}?function=NEWS_SENTIMENT&tickers={symbol_upper}&limit=50&apikey={api_key}"
     );
+
+    if let Some(limiter) = rate_limiter {
+        limiter.acquire().await;
+    }
 
     match http.fetch(&url).await {
         Ok(json) => match classify_av_response(&json) {
@@ -422,6 +428,7 @@ async fn write_cache(
 /// instantiates the reqwest transport and system clock and delegates.
 pub async fn fetch_news_sentiment_default(
     db: Arc<Db>,
+    rate_limiter: Option<&AlphaVantageRateLimiter>,
     api_key: &str,
     base_url: &str,
     symbol: &str,
@@ -433,6 +440,7 @@ pub async fn fetch_news_sentiment_default(
         &http,
         &clock,
         &db,
+        rate_limiter,
         api_key,
         base_url,
         symbol,

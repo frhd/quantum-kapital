@@ -1,9 +1,11 @@
 use crate::ibkr::types::fundamentals::{AnalystEstimate, AnalystEstimates};
+use crate::middleware::AlphaVantageRateLimiter;
 use crate::services::cache_service::CacheService;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use tracing::info;
+
+use super::AvHttp;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -33,14 +35,22 @@ pub(super) struct QuarterlyEarning {
 }
 
 pub(super) async fn fetch_earnings(
-    client: &Client,
+    http: &dyn AvHttp,
+    rate_limiter: Option<&AlphaVantageRateLimiter>,
     api_key: &str,
     base_url: &str,
     cache: &Option<CacheService>,
     symbol: &str,
 ) -> Result<AlphaVantageEarnings, Box<dyn Error + Send + Sync>> {
     super::fetch_av_function(
-        client, api_key, base_url, cache, symbol, "EARNINGS", "earnings",
+        http,
+        rate_limiter,
+        api_key,
+        base_url,
+        cache,
+        symbol,
+        "EARNINGS",
+        "earnings",
     )
     .await
 }

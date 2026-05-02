@@ -93,6 +93,26 @@ impl CacheService {
         Ok(cached.data)
     }
 
+    /// Reads data from cache without consulting the TTL. Returns the
+    /// payload alongside its age in seconds so callers can decide whether
+    /// to warn or surface staleness. Use when an upstream rate limit /
+    /// transport failure means stale-but-present data is preferable to
+    /// no data at all.
+    pub fn read_ignoring_ttl<T>(&self, key: &str) -> Result<(T, u64), Box<dyn Error + Send + Sync>>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        let cache_path = self.get_cache_path(key);
+        if !cache_path.exists() {
+            return Err("Cache miss".into());
+        }
+        let content = fs::read_to_string(&cache_path)?;
+        let cached: CachedData<T> = serde_json::from_str(&content)?;
+        let age = self.get_cache_age(&cache_path).unwrap_or(0);
+        debug!("Read stale-allowed cache: {} (age: {}s)", key, age);
+        Ok((cached.data, age))
+    }
+
     /// Writes data to cache
     pub fn write<T>(&self, key: &str, data: &T) -> Result<(), Box<dyn Error + Send + Sync>>
     where
@@ -262,6 +282,32 @@ mod tests {
         // Wait for expiration
         thread::sleep(Duration::from_secs(2));
         assert!(!cache.is_valid("test_key"));
+    }
+
+    #[test]
+    fn test_read_ignoring_ttl_returns_expired_payload() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache = CacheService::with_ttl(temp_dir.path(), Duration::from_secs(1)).unwrap();
+
+        let data = TestData {
+            value: "stale".to_string(),
+        };
+        cache.write("k", &data).unwrap();
+        thread::sleep(Duration::from_secs(2));
+
+        // TTL-respecting read fails…
+        assert!(cache.read::<TestData>("k").is_err());
+        // …but the stale-allowed read returns the payload + age.
+        let (recovered, age): (TestData, u64) = cache.read_ignoring_ttl("k").unwrap();
+        assert_eq!(recovered, data);
+        assert!(age >= 1, "age should reflect at least the sleep");
+    }
+
+    #[test]
+    fn test_read_ignoring_ttl_misses_when_no_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let cache = CacheService::new(temp_dir.path()).unwrap();
+        assert!(cache.read_ignoring_ttl::<TestData>("nope").is_err());
     }
 
     #[test]
