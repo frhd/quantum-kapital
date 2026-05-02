@@ -2,7 +2,7 @@
 
 > Part of [Quantum Kapital → Autonomous Researcher](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-02)
+**Status:** done (commit 29d8dc6, 2026-05-02)
 
 **Depends on:** Phase 5 (data starts flowing). Dashboard meaningful at ~30 trading days.
 
