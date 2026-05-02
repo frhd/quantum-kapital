@@ -2,7 +2,7 @@
 
 > Part of [Alpha Vantage strip-out: manual MCP fundamentals + IBKR news](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-02)
+**Status:** done (commit ab87c5d, 2026-05-02)
 
 **Depends on:** 3 (need `FundamentalsProvider` trait + `AlphaVantageFundamentalsProvider`)
 
