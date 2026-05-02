@@ -2,7 +2,7 @@
 
 > Part of [Alpha Vantage → IBKR Reuters](master.md). See index for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-02)
 
 **Depends on:** none (independent of Phase 1; can run in parallel)
 
