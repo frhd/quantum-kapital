@@ -64,7 +64,7 @@ Violating the letter of these rules is violating the spirit.
 | 5. Cutover: composite default + AV guardrails (daily cap + per-symbol cap + tracker invariant test) | [phase-5-cutover.md](phase-5-cutover.md) | 4 | done (commit e201093, 2026-05-02) |
 | 6. IBKR news spike (de-risk) | [phase-6-ibkr-news-spike.md](phase-6-ibkr-news-spike.md) | — | done (2026-05-02 — fixtures captured against paper Gateway port 4004; 8 providers, 50 AAPL headlines / 24h) |
 | 7. News provider trait + IBKR news provider | [phase-7-news-provider.md](phase-7-news-provider.md) | 3, 6 | done (2026-05-02 — part A: trait + AV adapter + consumer rewire + `news_source` flag; part B: `IbkrNewsClient` seam + live impl on `IbkrClient` + parser + `IbkrNewsRateLimiter` + `IbkrNewsProvider` honouring the flag) |
-| 8. AV news deletion (fundamentals AV adapter retained as fallback) | [phase-8-av-deletion.md](phase-8-av-deletion.md) | 5, 7 | todo |
+| 8. AV news deletion (fundamentals AV adapter retained as fallback) | [phase-8-av-deletion.md](phase-8-av-deletion.md) | 5, 7 | in-progress (cutover landed 2026-05-02; deletion gated on ~2-week soak) |
 
 > **Status convention:** values are `todo` | `in-progress (started YYYY-MM-DD)` | `done (commit <sha>, YYYY-MM-DD)` | `abandoned (YYYY-MM-DD — reason)`. Update both this table AND the phase file's `**Status:**` header at phase start and exit. Don't start a phase whose dependencies aren't `done`.
 

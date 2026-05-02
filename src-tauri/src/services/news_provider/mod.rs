@@ -23,6 +23,7 @@ use crate::ibkr::types::news::NewsItem;
 
 pub mod alpha_vantage;
 pub mod ibkr;
+pub mod shadow;
 pub mod test_support;
 
 #[cfg(test)]

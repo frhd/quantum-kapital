@@ -245,3 +245,52 @@ continue. Resolve and prune as phases progress.
      re-run before declaring the phase done.
   5. Resume the /loop or kick a fresh iteration; Phase 6 can then
      flip to `done` and Phase 7 unblocks.
+
+---
+
+## P5: Phase 8 cutover landed; deletion gated on shadow soak
+
+- **Found:** Phase 8 cutover, 2026-05-02
+- **What changed:**
+  - `default_news_source()` flipped from `"alpha_vantage"` to `"ibkr"`.
+  - `lib.rs` match restructured to explicit arms — existing
+    `settings.json` files with `news_source: "alpha_vantage"` still
+    route to the AV adapter through the soak window.
+  - New `shadow_av_news_comparison: bool` settings field (default
+    `false`). When `true` AND an `ALPHA_VANTAGE_API_KEY` is
+    configured, `ShadowingNewsProvider` wraps the IBKR provider and
+    fires AV in the background, logging `shadow_news_comparison`
+    spans with `coverage_ratio` + `material_gap` per call. AV
+    failures during shadowing are swallowed (logged as
+    `AV unavailable, no comparison`) so the IBKR path never blocks.
+  - `tests/news_provider_parity.rs` — `#[ignore]`-gated live test
+    over AAPL/AMD/DIS/TSM/RIVN. Run manually with
+    `cargo test --test news_provider_parity -- --ignored --nocapture`.
+- **What's blocked / human-in-the-loop:** the deletion commit
+  (`AlphaVantageNewsProvider`, `services/financial_data_service/news.rs`,
+  the news-side `news_source` flag, `ShadowingNewsProvider` itself)
+  cannot land until ~2 weeks of clean shadow operation. Mechanically
+  the user must:
+  1. Set `shadow_av_news_comparison: true` in
+     `~/.config/quantum-kapital/settings.json` (or via the UI when
+     a settings panel exposes it).
+  2. Run the morning sweep over the standard 100-ticker universe at
+     least a few times across the soak window. Each sweep produces
+     `shadow_news_comparison` log lines (one per symbol) with the
+     coverage ratio.
+  3. Spot-check `/tmp/qk-tauri.log` for `material_gap=true` lines.
+     Per-symbol gaps below 80% over multiple runs need to be logged
+     here before the deletion commit (per
+     `phase-8-av-deletion.md` § "Decisions to make in this phase").
+  4. Optionally run `cargo test --test news_provider_parity --
+     --ignored --nocapture` against TWS once per week of soak as a
+     point-in-time fixture.
+- **Safer interpretation taken:** Phase 8 stays `in-progress` (not
+  flipped to `done`). The deletion phase is mechanically gated on
+  human confirmation that the soak is clean. Resume the /loop after
+  ~2 weeks (target window: **2026-05-16 → 2026-05-23**) to land the
+  deletion commit; if shadow logs surface a material gap, log
+  affected symbols here first.
+- **Pre-existing failure unchanged:** P1
+  (`decay_watcher::tests::respects_budget_kill_switch`) still red
+  on `main`. Cutover did not touch it.
