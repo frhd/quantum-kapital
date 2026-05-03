@@ -9,7 +9,7 @@ Stack-specific rules:
 - **`src-tauri/CLAUDE.md`** — Rust backend, IBKR adapter, services, tracker pipeline, cargo commands
 - **`src/CLAUDE.md`** — React 19 + Vite frontend, feature folders, Tauri command wrappers
 - **`agent/`** — Python (uv) subtree. Headless research agents (morning sweep, alert dive) that talk to the running app via the MCP socket. Owns its own `pyproject.toml`, venv, and tests; **not** part of the Rust/Tauri build. Entry points, budget rules, and shadow-mode rollout in `agent/README.md`. The hardcoded US-holiday list in `agent/morning_sweep.py` mirrors `src-tauri/src/utils/market_calendar/holidays.rs` — keep them in lockstep.
-- **`loop/`** — Claude Code's own multi-phase plan and orchestration (`loop/plan/master.md` + `phase-N-*.md`, `prompt.md`, `loop.sh`). Roadmap state, not production code. Use the `superpowers:writing-phased-plans` skill when extending it.
+- **`loop/`** — Claude Code's own orchestration harness (`loop.sh`, `prompt.md`, `settings.json`, `stop-hook.sh`, dev shell scripts). Not production code. If a multi-phase roadmap is started, it lives under `loop/plan/` (master + `phase-N-*.md`) — use the `superpowers:writing-phased-plans` skill when extending it.
 
 ## Running the app
 
