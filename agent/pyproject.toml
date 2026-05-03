@@ -39,6 +39,7 @@ include = [
     "config.py",
     "data_summary.py",
     "llm.py",
+    "llm_cli.py",
     "prompts/*.md",
 ]
 

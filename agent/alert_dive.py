@@ -30,7 +30,7 @@ from typing import Any, Mapping, Sequence
 import budget_guard as bg
 import data_summary as ds
 from config import AgentConfig, load as load_config
-from llm import AnthropicLlmClient, LlmClient
+from llm import LlmClient, make_llm_client
 from mcp_client import McpClient, McpToolError
 
 
@@ -355,7 +355,12 @@ async def _dive_one(
         log.exception("LLM call failed for alert#%s", alert_id)
         return DiveResult(alert_id=alert_id, symbol=symbol, skipped_reason=f"llm error: {e}")
 
-    cost = guard.record(cfg.models.smart, resp.input_tokens, resp.output_tokens)
+    cost = guard.record(
+        cfg.models.smart,
+        resp.input_tokens,
+        resp.output_tokens,
+        envelope_cost_usd=resp.cost_usd,
+    )
 
     if not resp.tool_uses:
         return DiveResult(
@@ -657,7 +662,7 @@ async def _async_main(args: argparse.Namespace) -> int:
         # them into mcp_client.py, but keeping them here means the
         # morning-sweep client API stays minimal.
         adapter = _ProdAdapter(mcp)
-        llm: LlmClient = AnthropicLlmClient()
+        llm: LlmClient = make_llm_client(cfg.llm_backend)
 
         if args.once:
             tick = await run_tick(

@@ -23,7 +23,7 @@ from typing import Sequence
 import budget_guard as bg
 import data_summary as ds
 from config import AgentConfig, load as load_config
-from llm import AnthropicLlmClient, LlmClient
+from llm import LlmClient, make_llm_client
 from mcp_client import McpClient, hours_ago_unix
 from ranker import rank_candidates
 from synthesizer import synthesize_pack
@@ -298,7 +298,7 @@ async def _async_main(args: argparse.Namespace) -> int:
     socket_path = cfg.mcp.socket_path
 
     async with McpClient.connect(server_bin, socket_path=socket_path) as mcp:
-        llm: LlmClient = AnthropicLlmClient()
+        llm: LlmClient = make_llm_client(cfg.llm_backend)
         result = await run_sweep(
             mcp=mcp,
             llm=llm,

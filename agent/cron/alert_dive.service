@@ -28,6 +28,10 @@ Type=simple
 # Replace <repo> with the absolute path to your quantum-kapital checkout
 # and <user> with the system user that runs the desktop app.
 WorkingDirectory=/home/<user>/<repo>/agent
+# `EnvironmentFile=` is the single mechanism for env vars feeding both
+# `ANTHROPIC_API_KEY` and `QK_LLM_BACKEND` (anthropic | claude_cli).
+# Flipping the latter in `.env` toggles every loop on the next restart.
+# See `agent/README.md` § "LLM backend selection".
 EnvironmentFile=/home/<user>/<repo>/agent/.env
 ExecStart=/home/<user>/<repo>/agent/.venv/bin/python -m alert_dive --interval 30 --concurrent 2
 Restart=always

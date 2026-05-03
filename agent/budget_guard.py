@@ -100,8 +100,26 @@ class BudgetGuard:
                 f">= abort threshold {self.abort_if_global_spend_above:.0%}"
             )
 
-    def record(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        cost = estimate_call_cost(model, input_tokens, output_tokens)
+    def record(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        envelope_cost_usd: float | None = None,
+    ) -> float:
+        """Record one LLM call against the loop's running total.
+
+        `envelope_cost_usd` is the per-call USD figure parsed from the
+        backend's response envelope (only the `claude_cli` backend
+        surfaces this — see `llm_cli.ClaudeCliLlmClient.parse_envelope`).
+        Values <= 0 are treated as missing so a zero-cost envelope under
+        subscription auth still gets the per-token estimate, otherwise
+        the kill-switch would think inference is free. Returns the cost
+        actually charged."""
+        if envelope_cost_usd is not None and envelope_cost_usd > 0:
+            cost = float(envelope_cost_usd)
+        else:
+            cost = estimate_call_cost(model, input_tokens, output_tokens)
         self.spent_usd += cost
         return cost
 

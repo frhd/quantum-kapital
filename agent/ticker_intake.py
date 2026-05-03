@@ -33,7 +33,7 @@ from typing import Any, Mapping, Sequence
 import budget_guard as bg
 import data_summary as ds
 from config import AgentConfig, load as load_config
-from llm import AnthropicLlmClient, LlmClient
+from llm import LlmClient, make_llm_client
 from mcp_client import McpClient, McpToolError
 
 
@@ -328,7 +328,12 @@ async def _intake_one(
         log.exception("LLM call failed for %s", symbol)
         return IntakeResult(symbol=symbol, skipped_reason=f"llm error: {e}")
 
-    cost = guard.record(cfg.models.smart, resp.input_tokens, resp.output_tokens)
+    cost = guard.record(
+        cfg.models.smart,
+        resp.input_tokens,
+        resp.output_tokens,
+        envelope_cost_usd=resp.cost_usd,
+    )
 
     if not resp.tool_uses:
         return IntakeResult(
@@ -599,7 +604,7 @@ async def _async_main(args: argparse.Namespace) -> int:
 
     async with McpClient.connect(server_bin, socket_path=socket_path) as mcp:
         adapter = _ProdAdapter(mcp)
-        llm: LlmClient = AnthropicLlmClient()
+        llm: LlmClient = make_llm_client(cfg.llm_backend)
 
         if args.once or args.dry_run:
             seen = SeenCache()

@@ -1,6 +1,15 @@
-"""Thin Anthropic-API wrapper. Exists as a seam for tests — `LlmClient` is a
-Protocol the orchestrator depends on; `AnthropicLlmClient` is the production
-impl, and tests pass a `FakeLlmClient`.
+"""LLM client seam for the agent loops.
+
+Two production transports:
+
+- `AnthropicLlmClient` — POSTs to `api.anthropic.com` via the SDK; needs
+  `ANTHROPIC_API_KEY`.
+- `ClaudeCliLlmClient` (`agent/llm_cli.py`) — spawns `claude -p` under
+  the user's Claude Code subscription; no key required.
+
+Selection is via `QK_LLM_BACKEND` (`anthropic` | `claude_cli`); use
+`make_llm_client(...)` rather than constructing either class directly so
+a single shell-level flip toggles every loop.
 """
 
 from __future__ import annotations
@@ -21,7 +30,15 @@ class ToolUse:
 
 @dataclass
 class LlmResponse:
-    """Subset of an Anthropic Messages response we use downstream."""
+    """Subset of an Anthropic Messages response we use downstream.
+
+    `cost_usd` carries the envelope-reported cost when the CLI backend
+    parses one (see `llm_cli.ClaudeCliLlmClient.parse_envelope`). The
+    Anthropic SDK does not surface a per-call USD figure, so the API
+    backend leaves it `None` and `BudgetGuard.record` falls back to the
+    per-token estimate. Any value <= 0 is treated as missing — callers
+    must not record a free call.
+    """
 
     text: str
     tool_uses: list[ToolUse]
@@ -29,6 +46,14 @@ class LlmResponse:
     output_tokens: int
     stop_reason: str | None
     raw: Any  # original SDK response, for debugging
+    cost_usd: float | None = None
+
+
+class BackendError(RuntimeError):
+    """Raised by a non-Anthropic backend (e.g. the CLI client) on
+    subprocess failure, unparseable envelopes, or `is_error=true`. Loops
+    catch this like any other LLM error — it does not bypass the
+    per-loop graceful-skip path."""
 
 
 class LlmClient(Protocol):
@@ -105,3 +130,37 @@ def _to_llm_response(resp: Any) -> LlmResponse:
         stop_reason=getattr(resp, "stop_reason", None),
         raw=resp,
     )
+
+
+_ANTHROPIC_ALIASES = {"anthropic", "anthropic-api", "anthropic_api", ""}
+_CLAUDE_CLI_ALIASES = {"claude_cli", "claude-cli", "cli"}
+
+
+def normalize_backend(value: str | None) -> str:
+    """Canonicalize a backend name. Mirrors
+    `LlmBackendKind::from_env_str` in `src-tauri/src/config/settings.rs`
+    so the same `QK_LLM_BACKEND` value parses identically in both
+    languages. Unknown values raise — callers that want a default
+    should pre-substitute it."""
+    v = (value or "").strip().lower()
+    if v in _ANTHROPIC_ALIASES:
+        return "anthropic"
+    if v in _CLAUDE_CLI_ALIASES:
+        return "claude_cli"
+    raise ValueError(f"unknown llm backend {value!r}; expected anthropic | claude_cli")
+
+
+def make_llm_client(backend: str | None = None) -> LlmClient:
+    """Construct the configured backend. `backend` defaults to
+    `QK_LLM_BACKEND` and falls back to `anthropic`. The CLI client is
+    imported lazily so the API path doesn't pay for the subprocess
+    plumbing import (and vice versa)."""
+    selected = normalize_backend(backend or os.environ.get("QK_LLM_BACKEND") or "anthropic")
+    if selected == "anthropic":
+        return AnthropicLlmClient()
+    if selected == "claude_cli":
+        from llm_cli import ClaudeCliLlmClient
+
+        return ClaudeCliLlmClient()
+    # `normalize_backend` already validates; defensive fall-through.
+    raise ValueError(f"unsupported backend {selected!r}")

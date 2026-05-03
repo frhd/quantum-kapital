@@ -116,7 +116,7 @@ async def rank_candidates(
         tool_choice={"type": "tool", "name": "score_candidates"},
         max_tokens=2048,
     )
-    guard.record(model, resp.input_tokens, resp.output_tokens)
+    guard.record(model, resp.input_tokens, resp.output_tokens, envelope_cost_usd=resp.cost_usd)
 
     if not resp.tool_uses:
         return []

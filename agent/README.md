@@ -14,7 +14,8 @@ build or release pipeline.
 - `uv` package manager: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 - The Rust app's MCP server binary built and on disk:
   `cd src-tauri && cargo build --release --bin mcp-server`.
-- `ANTHROPIC_API_KEY` exported in the shell or in `agent/.env`.
+- Either `ANTHROPIC_API_KEY` exported in the shell or in `agent/.env`,
+  OR the `claude` CLI v2.1+ on PATH (see "LLM backend selection" below).
 - The Tauri desktop app running (so the unix socket the bridge connects to
   is bound). Phase 9 will lift this requirement via a daemon.
 
@@ -72,6 +73,50 @@ The trading-calendar check inside `morning_sweep.py` early-exits on weekends
 and US market holidays (hardcoded for 2024-2026; mirror the Rust list at
 `src-tauri/src/utils/market_calendar/holidays.rs`). Cron may safely fire every
 weekday — non-trading days produce no output and no error.
+
+## LLM backend selection
+
+Two transports ship; pick one with the `QK_LLM_BACKEND` env var (read by
+both the Tauri app and the agent loops, so a single shell-level flip
+toggles both at once):
+
+| Value | Transport | Auth |
+|---|---|---|
+| `anthropic` (default) | `anthropic.AsyncAnthropic` SDK → `api.anthropic.com` | `ANTHROPIC_API_KEY` |
+| `claude_cli` | spawn `claude -p` (one subprocess per call) | the user's Claude Code subscription (no key) |
+
+Set `QK_LLM_BACKEND=claude_cli` in `agent/.env` (or the systemd unit's
+`EnvironmentFile`) to flip. The change takes effect on the next loop
+restart — each loop builds its `LlmClient` once at startup and caches
+it. A `[llm].backend` entry in `config.toml` is the secondary fallback;
+the env var wins when set.
+
+### Caveats specific to `claude_cli`
+
+- **Cost is best-effort.** The CLI envelope reports `total_cost_usd`,
+  but it can be 0 under subscription auth. When that happens
+  `BudgetGuard` falls back to a per-token estimate from
+  `budget_guard._PRICES_USD_PER_MTOK` so the per-loop kill-switch still
+  trips deterministically — but the daily ledger's USD figure becomes
+  rough rather than exact. Token counts stay accurate.
+- **Pricing tables are mirrored.** `agent/budget_guard.py` mirrors
+  `src-tauri/src/services/llm_service/prices.rs`. A unit test
+  (`tests/test_prices.py`) parses the Rust table and asserts every
+  `(input, output)` pair matches the Python side. If you change one,
+  change the other.
+- **Surveillance lockdown is unconditional.** Every CLI spawn passes
+  `--tools ""`, `--strict-mcp-config`, `--mcp-config '{"mcpServers":{}}'`,
+  and `--permission-mode dontAsk`. The argv unit test
+  (`tests/test_llm_cli.py`) pins these literals so a regression fails
+  CI rather than silently re-enabling tools.
+- **`ANTHROPIC_*` does not leak into the subprocess.** The CLI's auth
+  precedence prefers env vars over keychain/OAuth, so leaking
+  `ANTHROPIC_API_KEY` into the child would silently disable
+  subscription mode. Tests assert the spawn env is `PATH`+`HOME` only.
+- **Single forced tool only.** Multi-tool, `tool_choice=auto`, and
+  multi-turn (assistant-role) messages are rejected at argv-build.
+  Every current call site uses a single forced tool, so this is not a
+  practical limitation today.
 
 ## Budget
 
@@ -168,7 +213,8 @@ systemd unit lives at `agent/cron/ticker_intake.service`.
 - `data_summary.py` — compact strings for the LLM (252d bars, fundamentals, news, sentiment, setups).
 - `ranker.py` — LLM step #1: score each candidate on 0-1 rubric (forced tool: `score_candidates`).
 - `synthesizer.py` — LLM step #2: emit ranked ideas (forced tool: `write_morning_pack`).
-- `llm.py` — Anthropic SDK seam.
+- `llm.py` — Anthropic SDK seam + `make_llm_client` factory.
+- `llm_cli.py` — `claude -p` subprocess backend (subscription auth).
 - `config.py` + `config.toml` — typed config.
 - `prompts/morning_sweep.md` — morning-sweep system prompt.
 - `prompts/alert_dive.md` — alert-dive system prompt.

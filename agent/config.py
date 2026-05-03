@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+from llm import normalize_backend
 
 
 @dataclass(frozen=True)
@@ -45,12 +48,23 @@ class AgentConfig:
     output: OutputConfig
     models: ModelsConfig
     mcp: McpConfig
+    # `anthropic` (default) or `claude_cli`. Sourced from
+    # `QK_LLM_BACKEND`, with `[llm].backend` in config.toml as the
+    # fallback when the env var is unset. Mirrors the Rust
+    # `LlmBackendKind` so a single shell-level flip toggles every loop
+    # plus the desktop app at once.
+    llm_backend: str = "anthropic"
 
 
 def load(path: str | Path | None = None) -> AgentConfig:
     cfg_path = Path(path) if path else Path(__file__).resolve().parent / "config.toml"
     with cfg_path.open("rb") as fh:
         raw = tomllib.load(fh)
+
+    env_backend = os.environ.get("QK_LLM_BACKEND")
+    toml_backend = (raw.get("llm") or {}).get("backend") if isinstance(raw.get("llm"), dict) else None
+    backend_value = env_backend if env_backend is not None else toml_backend
+    llm_backend = normalize_backend(backend_value or "anthropic")
 
     return AgentConfig(
         budget=BudgetConfig(
@@ -76,4 +90,5 @@ def load(path: str | Path | None = None) -> AgentConfig:
             server_bin=str(raw["mcp"]["server_bin"]),
             socket_path=raw["mcp"].get("socket_path"),
         ),
+        llm_backend=llm_backend,
     )

@@ -26,7 +26,7 @@ from typing import Any, Mapping, Sequence
 
 import budget_guard as bg
 from config import AgentConfig, load as load_config
-from llm import AnthropicLlmClient, LlmClient
+from llm import LlmClient, make_llm_client
 from mcp_client import McpClient, McpToolError
 from morning_sweep import is_trading_day
 
@@ -166,7 +166,12 @@ async def run_eod_review(
             skipped_reason=f"llm error: {e}",
         )
 
-    cost = guard.record(cfg.models.smart, resp.input_tokens, resp.output_tokens)
+    cost = guard.record(
+        cfg.models.smart,
+        resp.input_tokens,
+        resp.output_tokens,
+        envelope_cost_usd=resp.cost_usd,
+    )
     body_md = (resp.text or "").strip()
     if not body_md:
         return EodReviewResult(
@@ -420,7 +425,7 @@ async def _async_main(args: argparse.Namespace) -> int:
 
     async with McpClient.connect(server_bin, socket_path=socket_path) as mcp:
         adapter = _ProdAdapter(mcp)
-        llm: LlmClient = AnthropicLlmClient()
+        llm: LlmClient = make_llm_client(cfg.llm_backend)
         result = await run_eod_review(
             mcp=adapter,
             llm=llm,

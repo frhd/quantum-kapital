@@ -1,6 +1,14 @@
 # Quantum Kapital morning-sweep agent config.
 # Edit values here; the agent reads this file at startup.
 
+[llm]
+# `anthropic` (default — POST api.anthropic.com using ANTHROPIC_API_KEY) or
+# `claude_cli` (spawn `claude -p` under the user's Claude Code subscription;
+# no API key required). The `QK_LLM_BACKEND` env var, if set, wins over this
+# value so a single shell-level flip toggles the desktop app + all three
+# agent loops at once. Aliases: `anthropic-api` / `claude-cli` / `cli`.
+backend = "anthropic"
+
 [budget]
 # Hard ceiling per single loop run, in USD. Loop aborts before its next LLM call
 # if the loop's accumulated spend would cross this. Independent of the global

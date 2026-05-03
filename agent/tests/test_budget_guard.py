@@ -74,3 +74,44 @@ def test_remaining_clamps_to_zero():
     guard = bg.BudgetGuard(per_loop_usd=0.10, abort_if_global_spend_above=0.5)
     guard.spent_usd = 0.20
     assert guard.remaining_usd == 0.0
+
+
+def test_record_uses_envelope_cost_when_provided():
+    """The CLI backend's `total_cost_usd` parses into
+    `LlmResponse.cost_usd`; the loop threads it through `record(...)`.
+    A non-zero envelope cost wins over the per-token estimate so the
+    ledger reflects what the subscription actually charged."""
+    guard = bg.BudgetGuard(per_loop_usd=1.0, abort_if_global_spend_above=0.5)
+    cost = guard.record(
+        "claude-sonnet-4-6",
+        input_tokens=1000,
+        output_tokens=200,
+        envelope_cost_usd=0.0078,
+    )
+    # Estimate would be 0.006; envelope value wins.
+    assert cost == pytest.approx(0.0078)
+    assert guard.spent_usd == pytest.approx(0.0078)
+
+
+def test_record_falls_back_to_estimate_when_envelope_zero():
+    """Subscription-mode often reports total_cost_usd=0. Treating that
+    as "free" would defeat the kill-switch — fall back to the per-token
+    estimate so the cap still trips deterministically."""
+    guard = bg.BudgetGuard(per_loop_usd=1.0, abort_if_global_spend_above=0.5)
+    cost = guard.record(
+        "claude-sonnet-4-6",
+        input_tokens=1000,
+        output_tokens=200,
+        envelope_cost_usd=0.0,
+    )
+    assert cost == pytest.approx(0.006)
+
+
+def test_record_falls_back_to_estimate_when_envelope_none():
+    """The Anthropic API client doesn't surface a per-call cost.
+    `cost_usd=None` ⇒ estimate."""
+    guard = bg.BudgetGuard(per_loop_usd=1.0, abort_if_global_spend_above=0.5)
+    cost = guard.record(
+        "claude-sonnet-4-6", 1000, 200, envelope_cost_usd=None
+    )
+    assert cost == pytest.approx(0.006)
