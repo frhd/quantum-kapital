@@ -40,7 +40,7 @@ impl TrackerService {
                     return Ok(false);
                 }
                 tx.execute(
-                    "UPDATE tracked_tickers SET archived_at = ?1 \
+                    "UPDATE tracked_tickers SET archived_at = ?1, last_primed_at = NULL \
                      WHERE symbol = ?2 AND archived_at IS NULL",
                     rusqlite::params![now_unix, symbol_for_db],
                 )?;

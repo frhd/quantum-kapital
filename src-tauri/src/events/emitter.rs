@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::RwLock;
 
-use crate::ibkr::types::tracker::{Setup, TrackerStatus};
+use crate::ibkr::types::tracker::{Setup, TickerPrimingOutcome, TrackerStatus};
 use crate::ibkr::types::{DataTier, ScannerData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,6 +165,14 @@ pub enum AppEvent {
         as_of_date: String,
         source: String,
     },
+    /// Ticker-intake Phase 1 — emitted by `TickerPrimerService` after the
+    /// post-add fundamentals → projection → news chain completes (success
+    /// or partial). `outcome` carries per-step status so the workspace
+    /// can decide which panels to refresh without a full re-fetch.
+    TickerPrimingDone {
+        symbol: String,
+        outcome: TickerPrimingOutcome,
+    },
 
     // System events
     RateLimitWarning {
@@ -204,6 +212,7 @@ impl AppEvent {
             AppEvent::AlertEnriched { .. } => "alert-enriched",
             AppEvent::AlertDiveSkipped { .. } => "alert-dive-skipped",
             AppEvent::FundamentalsManualWritten { .. } => "fundamentals-manual-written",
+            AppEvent::TickerPrimingDone { .. } => "ticker-priming-done",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }

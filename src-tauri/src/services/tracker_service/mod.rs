@@ -77,6 +77,7 @@ impl TrackerService {
             in_play_until: None,
             cool_down_until: None,
             archived_at: None,
+            last_primed_at: None,
         };
 
         let source_str = source.as_str().to_string();
@@ -148,7 +149,7 @@ impl TrackerService {
                 let iter = match &filter {
                     Some(s) => {
                         stmt = conn.prepare(
-                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at \
+                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at, last_primed_at \
                              FROM tracked_tickers WHERE status = ?1 AND archived_at IS NULL ORDER BY added_at DESC",
                         )?;
                         stmt.query_map(rusqlite::params![s], row_to_raw)?
@@ -156,7 +157,7 @@ impl TrackerService {
                     }
                     None => {
                         stmt = conn.prepare(
-                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at \
+                            "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at, last_primed_at \
                              FROM tracked_tickers WHERE archived_at IS NULL ORDER BY added_at DESC",
                         )?;
                         stmt.query_map([], row_to_raw)?
@@ -176,7 +177,7 @@ impl TrackerService {
             .db
             .with_conn(move |conn| {
                 conn.query_row(
-                    "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at \
+                    "SELECT symbol, source, source_meta, status, tags, notes, added_at, last_checked_at, in_play_until, cool_down_until, archived_at, last_primed_at \
                      FROM tracked_tickers WHERE symbol = ?1 AND archived_at IS NULL",
                     rusqlite::params![symbol],
                     row_to_raw,
@@ -246,6 +247,28 @@ impl TrackerService {
             .ok_or(TrackerError::NotFound(symbol_norm))
     }
 
+    /// Stamp `last_primed_at = now`. Called by `TickerPrimerService`
+    /// after a successful prime so the 24h idempotency window can
+    /// short-circuit repeat priming. No-op when the symbol has been
+    /// archived (the row is invisible to writes that gate on
+    /// `archived_at IS NULL`); a re-prime fires after `archive_ticker`
+    /// clears the column and the row is unarchived.
+    pub async fn mark_primed(&self, symbol: &str) -> Result<()> {
+        let symbol = symbol.to_uppercase();
+        let now_unix = Utc::now().timestamp();
+        self.db
+            .with_conn(move |conn| {
+                conn.execute(
+                    "UPDATE tracked_tickers SET last_primed_at = ?1 \
+                     WHERE symbol = ?2 AND archived_at IS NULL",
+                    rusqlite::params![now_unix, symbol],
+                )?;
+                Ok(())
+            })
+            .await?;
+        Ok(())
+    }
+
     /// Stamp `last_checked_at = now`. Phase 13/14 schedulers will call
     /// this; Phase 04 only exercises it via tests.
     #[allow(dead_code)]
@@ -283,6 +306,7 @@ type RawRow = (
     Option<i64>,    // in_play_until unix
     Option<i64>,    // cool_down_until unix
     Option<i64>,    // archived_at unix
+    Option<i64>,    // last_primed_at unix
 );
 
 pub(super) fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -298,6 +322,7 @@ pub(super) fn row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         row.get(8)?,
         row.get(9)?,
         row.get(10)?,
+        row.get(11)?,
     ))
 }
 
@@ -314,6 +339,7 @@ pub(super) fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
         in_play,
         cool_down,
         archived,
+        last_primed,
     ) = r;
     let source = TrackerSource::parse(&source_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -342,5 +368,6 @@ pub(super) fn decode_raw(r: RawRow) -> Result<TrackedTicker> {
         in_play_until: in_play.map(unix_to_utc),
         cool_down_until: cool_down.map(unix_to_utc),
         archived_at: archived.map(unix_to_utc),
+        last_primed_at: last_primed.map(unix_to_utc),
     })
 }

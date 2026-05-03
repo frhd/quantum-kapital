@@ -130,6 +130,40 @@ pub struct TrackedTicker {
     pub in_play_until: Option<DateTime<Utc>>,
     pub cool_down_until: Option<DateTime<Utc>>,
     pub archived_at: Option<DateTime<Utc>>,
+    /// Phase 1 of ticker-intake: unix-epoch stamp of the last successful
+    /// `TickerPrimerService::prime` run. `None` means "never primed". The
+    /// primer's 24h idempotency window reads this column to short-circuit
+    /// repeat calls; `archive_ticker` clears it so a re-prime fires on
+    /// unarchive. Cleared rows are eligible for the agent ticker-intake
+    /// loop only after a fresh prime stamps the column again.
+    pub last_primed_at: Option<DateTime<Utc>>,
+}
+
+/// Per-step status emitted by `TickerPrimerService::prime`. The chain
+/// runs fundamentals → projection → news; each step records one of these
+/// so the workspace event listener can decide which panels to refresh.
+///
+/// `Skipped` is reserved for the idempotent fast-path (a re-prime within
+/// 24h short-circuits with every step set to `Skipped`); `NoData` means
+/// the upstream was healthy but had nothing for this symbol.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "detail")]
+pub enum TickerPrimingStepStatus {
+    Ok,
+    NoData,
+    Err(String),
+    Skipped,
+}
+
+/// Outcome payload of `AppEvent::TickerPrimingDone`. Granular per-step
+/// status lets the UI decide which panel to refresh without re-querying
+/// every read command.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TickerPrimingOutcome {
+    pub fundamentals: TickerPrimingStepStatus,
+    pub projection: TickerPrimingStepStatus,
+    pub news: TickerPrimingStepStatus,
+    pub primed_at: DateTime<Utc>,
 }
 
 /// Lifecycle of a persisted strategy setup. Phase 10 only writes
