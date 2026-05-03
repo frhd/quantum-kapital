@@ -2,7 +2,7 @@
 
 > Part of [Ticker Intake Enrichment](master.md). See index for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-03)
 
 **Depends on:** none (foundation phase)
 
