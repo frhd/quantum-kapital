@@ -56,3 +56,48 @@ user to verify on their dev box per the master plan ("manual, recorded
 in PR"). No code change pending from this smoke unless the envelope
 shape diverges from v2.1.126.
 
+## Phase 2 (2026-05-03)
+
+### Pricing table reuses `agent/budget_guard.py::_PRICES_USD_PER_MTOK`
+
+The phase doc proposed a new `agent/prices.py` module mirroring
+`src-tauri/.../prices.rs`. Following the master plan's "two separate
+Python pricing tables risk" gotcha, we reused the existing table in
+`agent/budget_guard.py` rather than introducing a new module. The
+sync test (`agent/tests/test_prices.py`) parses the Rust file's
+`match` arms and asserts every `(input, output)` rate matches the
+Python dict. Asymmetry: Python additionally lists `claude-opus-4-7`
+(opus is the over-count fallback for unknown models); the test pins
+that asymmetric set so a maintainer who adds opus to the Rust side
+remembers to extend it there too.
+
+### `LlmResponse.cost_usd` optional field
+
+`ClaudeCliBackend` (Rust) carries `total_cost_usd` via
+`LlmResponse.cost_usd_override`; the Python mirror uses the simpler
+name `cost_usd: float | None = None`. The Anthropic SDK does not
+surface a per-call USD figure, so the API path leaves it `None`. Any
+non-positive envelope value is normalized to `None` in
+`ClaudeCliLlmClient.parse_envelope` so subscription-mode `0` figures
+don't make `BudgetGuard` think inference is free.
+
+### End-to-end tracer-bullet deferred to manual smoke
+
+The Phase 2 exit criteria's tracer-bullet (`uv run qk-ticker-intake`
+under `QK_LLM_BACKEND=claude_cli` driving a `research_notes` write
+within 90s of `add_ticker`) requires a live Tauri app + IBKR/TWS
+connection. The unit-test surface (19 new across `test_llm_cli.py` +
+`test_prices.py` + 3 new `test_budget_guard.py` cases) covers argv
+assembly, envelope parsing both structured and text, env hygiene
+(`ANTHROPIC_*` strip), version probe success/failure, factory
+selection, and pricing-table sync. End-to-end is left to the user
+per the master plan's "manual, recorded in PR" convention.
+
+### Unrelated working-tree change to `src-tauri/src/ibkr/client/market_data.rs`
+
+A modification to `market_data.rs` was present in the working tree
+during Phase 2 execution but was untouched by the phase work
+(snapshot dispatch / streaming-drain / `SnapshotMode` is unrelated
+to the LLM backend split). It was excluded from Phase 2's two
+commits and remains as a working-tree change for whoever owns it.
+

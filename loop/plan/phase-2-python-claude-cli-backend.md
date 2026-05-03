@@ -2,7 +2,7 @@
 
 > Part of [LLM backend split](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-03)
+**Status:** done (commit 3f43b30, 2026-05-03)
 
 **Depends on:** 1
 
