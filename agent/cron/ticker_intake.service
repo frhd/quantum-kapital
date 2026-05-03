@@ -1,0 +1,41 @@
+[Unit]
+# Quantum Kapital ticker-intake — long-running baseline-note agent.
+#
+# Polls `get_watchlist` every 60s and writes a baseline `research_notes`
+# row for each newly-primed symbol that doesn't yet have one. See
+# `agent/ticker_intake.py` for the full behaviour and
+# `loop/plan/phase-2-ticker-intake-loop.md` for the design notes.
+#
+# Install:
+#   1. Substitute the user / repo path placeholders below.
+#   2. Build the bridge: `cd <repo>/src-tauri && cargo build --release --bin mcp-server`.
+#   3. Install the Python venv: `cd <repo>/agent && uv venv && uv pip install -e .`.
+#   4. Copy this file to `~/.config/systemd/user/qk-ticker-intake.service`.
+#   5. `systemctl --user daemon-reload`
+#   6. `systemctl --user enable --now qk-ticker-intake.service`
+#
+# Logs land in the journal: `journalctl --user -u qk-ticker-intake.service -f`.
+#
+# Prerequisite: the Tauri desktop app must be running so the MCP unix
+# socket is bound. Phase 9 will lift this — until then `Restart=always`
+# absorbs short Tauri restarts at the cost of a brief gap in coverage.
+
+Description=Quantum Kapital — baseline-note ticker-intake agent (Phase 2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace <repo> with the absolute path to your quantum-kapital checkout
+# and <user> with the system user that runs the desktop app.
+WorkingDirectory=/home/<user>/<repo>/agent
+EnvironmentFile=/home/<user>/<repo>/agent/.env
+ExecStart=/home/<user>/<repo>/agent/.venv/bin/python -m ticker_intake --interval 60 --concurrent 2
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+MemoryMax=512M
+
+[Install]
+WantedBy=default.target

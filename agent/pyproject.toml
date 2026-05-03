@@ -1,7 +1,7 @@
 [project]
 name = "qk-agent"
 version = "0.1.0"
-description = "Quantum Kapital headless research agent (morning sweep, alert dive, EOD review)"
+description = "Quantum Kapital headless research agent (morning sweep, alert dive, EOD review, ticker intake)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,6 +19,7 @@ dev = [
 qk-morning-sweep = "morning_sweep:main"
 qk-alert-dive = "alert_dive:main"
 qk-eod-review = "eod_review:main"
+qk-ticker-intake = "ticker_intake:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,6 +31,7 @@ include = [
     "morning_sweep.py",
     "alert_dive.py",
     "eod_review.py",
+    "ticker_intake.py",
     "mcp_client.py",
     "budget_guard.py",
     "ranker.py",

@@ -40,3 +40,21 @@ server_bin = "../src-tauri/target/release/mcp-server"
 # Optional: override the unix-socket path the bridge connects to. If unset, the
 # bridge uses its own default (~/.local/share/com.quantyc.qqk/mcp.sock on Linux).
 # socket_path = "/custom/path/mcp.sock"
+
+[ticker_intake]
+# How often to poll the watchlist for newly-primed symbols missing a baseline
+# research note. 60s is the master-plan default; lower values just hammer the
+# IBKR rate limiter without producing more notes.
+poll_interval_secs = 60
+
+# Per-symbol USD cap for the baseline-note synthesis. The loop's max spend per
+# tick is roughly per_symbol_usd * max_concurrent.
+per_symbol_usd = 0.10
+
+# Skip a symbol whose baseline note (by any writer — agent.ticker_intake,
+# alert_dive, morning_sweep) was written within this window.
+reuse_note_window_days = 7
+
+# How many baseline notes the loop synthesises in parallel. Bounded by the
+# IBKR rate limiter and the LLM's TPS, so 2 is a safe default for one user.
+max_concurrent = 2

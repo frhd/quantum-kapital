@@ -122,10 +122,47 @@ synthesis — the UI shows a "deep dive skipped (budget)" badge via the
 
 The systemd unit lives at `agent/cron/alert_dive.service`.
 
+## Ticker-intake agent
+
+A long-running poller (Phase 2). Every 60s it scans the watchlist for
+symbols that the Rust `TickerPrimerService` (Phase 1) has primed but
+that don't yet have a recent baseline `research_notes` row, gathers
+context via MCP read tools, asks the LLM to synthesise a starting-point
+thesis, and persists it via `write_research_note`.
+
+```sh
+# Single tick (use for cron-style invocation or manual smoke-testing).
+uv run qk-ticker-intake --once
+
+# Cost-free smoke (skips the LLM call, exercises the orchestration only).
+uv run qk-ticker-intake --dry-run
+
+# Continuous polling (the systemd service uses this form).
+uv run qk-ticker-intake --interval 60 --concurrent 2
+```
+
+Eligibility predicate: watchlist symbol with `last_primed_at IS NOT
+NULL` AND no recent baseline note (per `--reuse-window-days`, default
+7). Re-priming after `archive_ticker` clears `last_primed_at` brings a
+symbol back into eligibility. Production uses an in-memory dedup cache
+since the MCP surface lacks a `list_research_notes` read; the cache is
+scoped to the daemon's runtime — see
+`loop/plan/QUESTIONS.md::Phase 2`.
+
+Budget guardrails: per-symbol USD cap (`--per-symbol-usd`, default
+$0.10) plus the global daily ceiling. With three concurrent agent
+loops (`morning_sweep` + `alert_dive` + `ticker_intake`) sharing the
+global cap, `GLOBAL_RESERVE_FRAC = 0.10` keeps a 10% headroom for the
+schedulers. Bump the daily cap if intake regularly trips the floor.
+
+The system prompt lives at `agent/prompts/ticker_intake.md`. The
+systemd unit lives at `agent/cron/ticker_intake.service`.
+
 ## Files
 
 - `morning_sweep.py` — orchestration + CLI entry.
 - `alert_dive.py` — per-alert dive poller + CLI entry (Phase 6).
+- `ticker_intake.py` — baseline-note poller + CLI entry (Phase 2).
 - `mcp_client.py` — async wrapper over the stdio MCP server.
 - `budget_guard.py` — server- and loop-budget enforcement.
 - `data_summary.py` — compact strings for the LLM (252d bars, fundamentals, news, sentiment, setups).
@@ -135,6 +172,8 @@ The systemd unit lives at `agent/cron/alert_dive.service`.
 - `config.py` + `config.toml` — typed config.
 - `prompts/morning_sweep.md` — morning-sweep system prompt.
 - `prompts/alert_dive.md` — alert-dive system prompt.
+- `prompts/ticker_intake.md` — ticker-intake system prompt.
 - `tests/` — pytest unit tests; mock both MCP and Anthropic.
 - `cron/morning_sweep.cron` — example crontab line.
 - `cron/alert_dive.service` — systemd unit for the long-running dive poller.
+- `cron/ticker_intake.service` — systemd unit for the long-running ticker-intake poller.
