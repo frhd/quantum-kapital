@@ -40,3 +40,19 @@ Canonical fields used by `ClaudeCliBackend::parse_envelope`:
 Recorded in `cli_backend.rs` doc comment so future maintainers can spot
 incompatible envelope drift.
 
+### End-to-end tracer-bullet deferred to manual smoke
+
+Phase 1 exit criteria call for a manual smoke run with
+`QK_LLM_BACKEND=claude_cli` set in `src-tauri/.env`,
+`ANTHROPIC_API_KEY` empty, then `add_ticker AMD` driving
+`news_interpreter` to a populated `news_cache` row. The unit-test
+surface (29 tests including 17 new) covers argv assembly, every
+surveillance flag, envelope parsing for both structured and text
+paths, `total_cost_usd` override threading, `is_error=true` →
+`LlmError::Backend`, version probe success/failure, and
+multi-tool / `tool_choice=Auto` / multi-turn rejection. The full
+end-to-end requires a live IBKR/TWS connection, so it's left for the
+user to verify on their dev box per the master plan ("manual, recorded
+in PR"). No code change pending from this smoke unless the envelope
+shape diverges from v2.1.126.
+

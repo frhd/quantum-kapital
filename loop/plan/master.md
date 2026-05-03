@@ -120,7 +120,7 @@ Violating the letter of these rules is violating the spirit.
 
 | Phase | File | Depends on | Status |
 |---|---|---|---|
-| 1. Rust `LlmBackend` trait + `ClaudeCliBackend` | [phase-1-rust-claude-cli-backend.md](phase-1-rust-claude-cli-backend.md) | — | in-progress (started 2026-05-03) |
+| 1. Rust `LlmBackend` trait + `ClaudeCliBackend` | [phase-1-rust-claude-cli-backend.md](phase-1-rust-claude-cli-backend.md) | — | done (commit a44bdd2, 2026-05-03) |
 | 2. Python `ClaudeCliLlmClient` + agent loop wiring | [phase-2-python-claude-cli-backend.md](phase-2-python-claude-cli-backend.md) | 1 | todo |
 
 > **Status convention:** `todo` | `in-progress (started YYYY-MM-DD)` | `done (commit <sha>, YYYY-MM-DD)`. Update both this table AND the phase file's `**Status:**` header at phase start and exit. Don't start a phase whose dependencies aren't `done`.
