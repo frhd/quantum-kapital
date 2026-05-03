@@ -267,7 +267,8 @@ fn handle_llm_error(setup_id: i64, e: LlmError) -> Option<Thesis> {
         | LlmError::Upstream { .. }
         | LlmError::Network(_)
         | LlmError::Malformed(_)
-        | LlmError::UnknownModel(_) => {
+        | LlmError::UnknownModel(_)
+        | LlmError::Backend { .. } => {
             warn!(setup_id, "thesis LLM call failed gracefully: {e}");
             None
         }

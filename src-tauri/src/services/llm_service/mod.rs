@@ -1,14 +1,17 @@
 //! Phase 16 — Anthropic Messages API service with cost ledger + budget kill-switch.
 //!
 //! - `LlmService::message` is the single entry point. It validates the daily
-//!   budget against rows in `llm_calls`, sends through the [`AnthropicHttp`]
-//!   trait seam, parses the response, computes cost from [`prices`], and
-//!   writes a row to `llm_calls` on success.
+//!   budget against rows in `llm_calls`, dispatches through an
+//!   [`LlmBackend`] (API or CLI subprocess), parses the response, computes
+//!   cost, and writes a row to `llm_calls` on success.
 //! - The transport seam is intentionally narrow so tests can return canned
-//!   JSON without standing up an HTTP server.
+//!   payloads without standing up an HTTP server or spawning a real
+//!   subprocess.
 
 #![allow(dead_code)] // Phase 16: surface consumed in Phases 17–20.
 
+pub mod backend;
+pub mod cli_backend;
 pub mod prices;
 pub mod types;
 
@@ -17,39 +20,20 @@ mod tests;
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use serde_json::{json, Value};
 use thiserror::Error;
 use tracing::warn;
 
 use crate::storage::{Db, StorageError};
 
+#[allow(unused_imports)]
+pub use backend::{
+    AnthropicHttp, AnthropicHttpError, ApiBackend, LlmBackend, ReqwestAnthropicHttp,
+    ANTHROPIC_BASE_URL, ANTHROPIC_VERSION,
+};
+#[allow(unused_imports)]
+pub use cli_backend::ClaudeCliBackend;
 pub use types::*;
-
-pub const ANTHROPIC_VERSION: &str = "2023-06-01";
-pub const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com";
-
-/// HTTP transport seam. Production wires [`ReqwestAnthropicHttp`]; tests
-/// return canned `Value` payloads without a real server.
-#[async_trait]
-pub trait AnthropicHttp: Send + Sync {
-    async fn send_messages(
-        &self,
-        api_key: &str,
-        anthropic_version: &str,
-        body: &Value,
-    ) -> Result<Value, AnthropicHttpError>;
-}
-
-#[derive(Debug, Error)]
-pub enum AnthropicHttpError {
-    #[error("auth (4xx unauthorized)")]
-    Auth,
-    #[error("upstream {status}: {body}")]
-    Upstream { status: u16, body: String },
-    #[error("network: {0}")]
-    Network(String),
-}
 
 #[derive(Debug, Error)]
 pub enum LlmError {
@@ -71,6 +55,13 @@ pub enum LlmError {
     UnknownModel(String),
     #[error("malformed response: {0}")]
     Malformed(String),
+    /// Backend-layer failure (subprocess spawn, envelope parse,
+    /// CLI-side `is_error: true`, version probe miss). Catch-all for
+    /// failures the API path can't produce. Existing graceful
+    /// degraders (e.g. `NewsInterpreter`) treat it like any other
+    /// transport error.
+    #[error("backend [{stage}]: {message}")]
+    Backend { stage: String, message: String },
 }
 
 /// Injectable clock — second-resolution to align with `llm_calls.called_at`.
@@ -85,94 +76,62 @@ impl LlmClock for SystemLlmClock {
     }
 }
 
-/// Production transport: POST `{base_url}/v1/messages` with required
-/// Anthropic headers + JSON body. `reqwest::Client::json` sets
-/// `content-type: application/json` automatically.
-pub struct ReqwestAnthropicHttp {
-    client: reqwest::Client,
-    base_url: String,
-}
-
-impl ReqwestAnthropicHttp {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::new(),
-            base_url: ANTHROPIC_BASE_URL.to_string(),
-        }
-    }
-    pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
-        self.base_url = base_url.into();
-        self
-    }
-}
-
-impl Default for ReqwestAnthropicHttp {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl AnthropicHttp for ReqwestAnthropicHttp {
-    async fn send_messages(
-        &self,
-        api_key: &str,
-        anthropic_version: &str,
-        body: &Value,
-    ) -> Result<Value, AnthropicHttpError> {
-        let url = format!("{}/v1/messages", self.base_url);
-        let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", anthropic_version)
-            .json(body)
-            .send()
-            .await
-            .map_err(|e| AnthropicHttpError::Network(e.to_string()))?;
-
-        let status = resp.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-            return Err(AnthropicHttpError::Auth);
-        }
-        if !status.is_success() {
-            let body_text = resp.text().await.unwrap_or_default();
-            return Err(AnthropicHttpError::Upstream {
-                status: status.as_u16(),
-                body: body_text,
-            });
-        }
-        resp.json::<Value>()
-            .await
-            .map_err(|e| AnthropicHttpError::Network(e.to_string()))
-    }
-}
-
 #[derive(Clone)]
 pub struct LlmService {
-    http: Arc<dyn AnthropicHttp>,
+    backend: Arc<dyn LlmBackend>,
     db: Arc<Db>,
     clock: Arc<dyn LlmClock>,
-    api_key: String,
     daily_budget_usd: f64,
+    /// Stashed so the test-only `with_http` builder can rebuild
+    /// `ApiBackend` with a swapped HTTP transport without callers
+    /// having to thread the api key through. Empty (and unused) when
+    /// the service is constructed via `new_with_backend`.
+    api_key_for_with_http: String,
 }
 
 impl LlmService {
+    /// Default constructor — wires the API-backed transport. Kept as
+    /// a thin shim over [`Self::new_with_backend`] so call sites that
+    /// don't care about backend selection (and existing tests) keep
+    /// the same surface.
     pub fn new(api_key: String, db: Arc<Db>, daily_budget_usd: f64) -> Self {
         let http: Arc<dyn AnthropicHttp> = Arc::new(ReqwestAnthropicHttp::new());
-        let clock: Arc<dyn LlmClock> = Arc::new(SystemLlmClock);
+        let backend: Arc<dyn LlmBackend> = Arc::new(ApiBackend::new(http, api_key.clone()));
         Self {
-            http,
+            backend,
             db,
-            clock,
-            api_key,
+            clock: Arc::new(SystemLlmClock),
             daily_budget_usd,
+            api_key_for_with_http: api_key,
         }
     }
+
+    /// Backend-aware constructor used by `lib.rs::run` after it
+    /// resolves `QK_LLM_BACKEND` and (for the CLI path) runs the
+    /// version probe.
+    pub fn new_with_backend(
+        backend: Arc<dyn LlmBackend>,
+        db: Arc<Db>,
+        daily_budget_usd: f64,
+    ) -> Self {
+        Self {
+            backend,
+            db,
+            clock: Arc::new(SystemLlmClock),
+            daily_budget_usd,
+            api_key_for_with_http: String::new(),
+        }
+    }
+
+    /// Test helper — replaces the underlying API HTTP transport.
+    /// Rebuilds `ApiBackend` with the original api key so existing
+    /// tests in `tests.rs` continue to drive the API path through a
+    /// fake `AnthropicHttp` without modification.
     pub fn with_http(mut self, http: Arc<dyn AnthropicHttp>) -> Self {
-        self.http = http;
+        self.backend = Arc::new(ApiBackend::new(http, self.api_key_for_with_http.clone()));
         self
     }
+
     pub fn with_clock(mut self, clock: Arc<dyn LlmClock>) -> Self {
         self.clock = clock;
         self
@@ -182,6 +141,17 @@ impl LlmService {
     /// for read-only consumers (e.g. the MCP `get_llm_budget_status` tool).
     pub fn daily_budget_usd(&self) -> f64 {
         self.daily_budget_usd
+    }
+
+    /// Active backend's identifier (e.g. `"anthropic-api"`,
+    /// `"claude-cli"`). Used by the startup INFO log line.
+    pub fn backend_kind(&self) -> &'static str {
+        self.backend.kind()
+    }
+
+    /// Active backend's version string when it has one (CLI path).
+    pub fn backend_version(&self) -> Option<String> {
+        self.backend.version().map(|s| s.to_string())
     }
 
     /// Returns the sum of `cost_usd` for rows in `llm_calls` whose `called_at`
@@ -203,10 +173,11 @@ impl LlmService {
     }
 
     pub async fn message(&self, req: LlmRequest) -> Result<LlmResponse, LlmError> {
-        if self.api_key.trim().is_empty() {
-            return Err(LlmError::NoApiKey);
-        }
-        // Budget kill-switch: check today's spend BEFORE any HTTP call.
+        // Backend-specific pre-call gate (API path: empty key →
+        // NoApiKey; CLI path: no-op).
+        self.backend.precheck()?;
+
+        // Budget kill-switch: check today's spend BEFORE any backend call.
         let cost_today = self.cost_today_usd().await?;
         if cost_today >= self.daily_budget_usd {
             warn!(
@@ -222,23 +193,26 @@ impl LlmService {
             return Err(LlmError::UnknownModel(req.model.to_string()));
         }
 
-        let body = build_request_body(&req);
-        let resp = self
-            .http
-            .send_messages(&self.api_key, ANTHROPIC_VERSION, &body)
-            .await
-            .map_err(map_http_err)?;
+        // Per-call cap: smaller of remaining-budget and $1.00. Floor at
+        // a tiny positive value so the CLI doesn't reject a 0 cap when
+        // the kill-switch is on the verge of tripping.
+        let max_per_call = (self.daily_budget_usd - cost_today).clamp(0.001, 1.0);
 
-        let parsed = parse_response(&resp)?;
+        let parsed = self.backend.call(&req, max_per_call).await?;
 
-        // Ledger row.
-        let cost = prices::cost_usd(
-            req.model,
-            parsed.usage.input_tokens,
-            parsed.usage.output_tokens,
-            parsed.usage.cache_read_input_tokens,
-        )
-        .ok_or_else(|| LlmError::UnknownModel(req.model.to_string()))?;
+        // Cost: prefer the backend's authoritative figure (CLI path),
+        // fall back to the local pricing table (API path + CLI when
+        // the envelope lacks `total_cost_usd`).
+        let cost = match parsed.cost_usd_override {
+            Some(c) => c,
+            None => prices::cost_usd(
+                req.model,
+                parsed.usage.input_tokens,
+                parsed.usage.output_tokens,
+                parsed.usage.cache_read_input_tokens,
+            )
+            .ok_or_else(|| LlmError::UnknownModel(req.model.to_string()))?,
+        };
         let kind = req.kind.as_str().to_string();
         let model = req.model.to_string();
         let input_tokens = parsed.usage.input_tokens as i64;
@@ -270,14 +244,6 @@ impl LlmService {
             .await?;
 
         Ok(parsed)
-    }
-}
-
-fn map_http_err(e: AnthropicHttpError) -> LlmError {
-    match e {
-        AnthropicHttpError::Auth => LlmError::Auth,
-        AnthropicHttpError::Upstream { status, body } => LlmError::Upstream { status, body },
-        AnthropicHttpError::Network(s) => LlmError::Network(s),
     }
 }
 
@@ -401,5 +367,6 @@ pub fn parse_response(value: &Value) -> Result<LlmResponse, LlmError> {
         text,
         tool_calls,
         usage,
+        cost_usd_override: None,
     })
 }

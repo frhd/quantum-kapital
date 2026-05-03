@@ -203,7 +203,8 @@ fn handle_llm_error(symbol: &str, e: LlmError) -> Option<NewsVerdict> {
         | LlmError::Upstream { .. }
         | LlmError::Network(_)
         | LlmError::Malformed(_)
-        | LlmError::UnknownModel(_) => {
+        | LlmError::UnknownModel(_)
+        | LlmError::Backend { .. } => {
             warn!(symbol, "news interpreter LLM call failed gracefully: {e}");
             None
         }

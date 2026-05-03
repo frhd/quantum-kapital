@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use std::time::Duration;
 
-use config::{AppConfig, SettingsState};
+use config::{settings::LlmBackendKind, AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::{AlphaVantageRateLimiter, HistoricalRateLimiter, IbkrNewsRateLimiter};
 use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketScanner};
@@ -27,7 +27,9 @@ use services::fundamentals_provider::manual::ManualFundamentalsProvider;
 use services::fundamentals_provider::FundamentalsProvider;
 use services::historical_data_service::{HistoricalDataFetcher, HistoricalDataService};
 use services::intraday_scheduler::IntradayScheduler;
-use services::llm_service::LlmService;
+use services::llm_service::{
+    backend::LlmBackend, ApiBackend, ClaudeCliBackend, LlmService, ReqwestAnthropicHttp,
+};
 use services::manual_fundamentals_store::ManualFundamentalsStore;
 use services::news_interpreter::NewsInterpreter;
 use services::news_provider::ibkr::client::IbkrNewsClient;
@@ -77,11 +79,40 @@ pub fn run() {
                 Db::open(&db_path).map_err(|e| format!("open tracker db at {db_path:?}: {e}"))?;
             let db = Arc::new(db);
 
-            // Phase 16: LLM service. API key read from config (which sources
-            // from the ANTHROPIC_API_KEY env var via Default for ApiConfig).
+            // Phase 16 + LLM-backend split: select the transport based
+            // on `QK_LLM_BACKEND` (sourced into `ApiConfig.llm_backend`).
+            // Default `Anthropic` posts to api.anthropic.com using the
+            // configured api key. `ClaudeCli` runs `claude -p` under
+            // the user's Claude Code subscription. Probe runs once at
+            // startup and refuses to construct the service if the
+            // binary is missing — no silent fallback to the API path.
             let anthropic_api_key = config.api.anthropic_api_key.clone().unwrap_or_default();
-            let llm_service = Arc::new(LlmService::new(
-                anthropic_api_key,
+            let llm_backend: Arc<dyn LlmBackend> = match config.api.llm_backend {
+                LlmBackendKind::Anthropic => {
+                    let http = Arc::new(ReqwestAnthropicHttp::new());
+                    Arc::new(ApiBackend::new(http, anthropic_api_key.clone()))
+                }
+                LlmBackendKind::ClaudeCli => {
+                    let binary =
+                        std::env::var("QK_CLAUDE_BINARY").unwrap_or_else(|_| "claude".to_string());
+                    let bin_path = std::path::PathBuf::from(&binary);
+                    let version = ClaudeCliBackend::probe_version(&bin_path).map_err(|e| {
+                        format!("QK_LLM_BACKEND=claude_cli but probe failed for {binary}: {e}")
+                    })?;
+                    Arc::new(ClaudeCliBackend::new(
+                        bin_path,
+                        version,
+                        std::time::Duration::from_secs(60),
+                    ))
+                }
+            };
+            tracing::info!(
+                backend = llm_backend.kind(),
+                version = llm_backend.version().unwrap_or(""),
+                "llm_service: backend ready"
+            );
+            let llm_service = Arc::new(LlmService::new_with_backend(
+                llm_backend,
                 Arc::clone(&db),
                 config.api.daily_llm_budget_usd,
             ));

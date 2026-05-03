@@ -55,6 +55,35 @@ pub struct ApiConfig {
     pub anthropic_api_key: Option<String>, // Anthropic API key
     #[serde(default = "default_daily_llm_budget_usd")]
     pub daily_llm_budget_usd: f64,
+    /// Selects the `LlmService` transport. `Anthropic` (default)
+    /// posts to api.anthropic.com using `anthropic_api_key`.
+    /// `ClaudeCli` spawns `claude -p` and runs inference under the
+    /// user's Claude Code subscription. Sourced from the
+    /// `QK_LLM_BACKEND` env var via `Default for ApiConfig`.
+    #[serde(default)]
+    pub llm_backend: LlmBackendKind,
+}
+
+/// Backend transport for `LlmService`. Default is the historical
+/// API path; opting into `ClaudeCli` flips every Rust LLM call site
+/// onto the user's local subscription via the v2.1+ `claude -p`
+/// flag surface.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LlmBackendKind {
+    #[default]
+    Anthropic,
+    ClaudeCli,
+}
+
+impl LlmBackendKind {
+    pub fn from_env_str(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "anthropic" | "anthropic-api" | "" => Some(Self::Anthropic),
+            "claude_cli" | "claude-cli" => Some(Self::ClaudeCli),
+            _ => None,
+        }
+    }
 }
 
 pub fn default_daily_llm_budget_usd() -> f64 {
@@ -315,10 +344,15 @@ impl Default for UiConfig {
 
 impl Default for ApiConfig {
     fn default() -> Self {
+        let llm_backend = std::env::var("QK_LLM_BACKEND")
+            .ok()
+            .and_then(|v| LlmBackendKind::from_env_str(&v))
+            .unwrap_or_default();
         Self {
             alpha_vantage_api_key: std::env::var("ALPHA_VANTAGE_API_KEY").ok(),
             anthropic_api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
             daily_llm_budget_usd: default_daily_llm_budget_usd(),
+            llm_backend,
         }
     }
 }

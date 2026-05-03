@@ -534,3 +534,343 @@ async fn propagates_5xx_with_retry_disabled() {
     );
     assert_eq!(http.call_count(), 1, "no retries expected");
 }
+
+// ---------------- Phase 1 (CLI backend) ----------------
+
+mod cli_backend_tests {
+    use super::*;
+    use crate::services::llm_service::cli_backend::{ClaudeCliBackend, EMPTY_MCP_CONFIG};
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    fn req_with_force_tool() -> LlmRequest {
+        LlmRequest {
+            kind: LlmKind::News,
+            model: "claude-sonnet-4-6",
+            max_tokens: 1024,
+            system: vec![
+                SystemBlock {
+                    text: "persona-block".to_string(),
+                    cache: true,
+                },
+                SystemBlock {
+                    text: "context-block".to_string(),
+                    cache: false,
+                },
+            ],
+            messages: vec![Message {
+                role: Role::User,
+                content: "the user prompt".to_string(),
+            }],
+            tools: Some(vec![ToolSchema {
+                name: "emit_verdict".to_string(),
+                description: "d".to_string(),
+                input_schema: json!({"type":"object","properties":{"x":{"type":"string"}}}),
+            }]),
+            tool_choice: Some(ToolChoice::ForceTool("emit_verdict".to_string())),
+            setup_id: None,
+            loop_name: None,
+        }
+    }
+
+    fn req_text_only() -> LlmRequest {
+        LlmRequest {
+            kind: LlmKind::News,
+            model: "claude-haiku-4-5",
+            max_tokens: 256,
+            system: vec![],
+            messages: vec![Message {
+                role: Role::User,
+                content: "say hi".to_string(),
+            }],
+            tools: None,
+            tool_choice: None,
+            setup_id: None,
+            loop_name: None,
+        }
+    }
+
+    // ---------------- argv: every always-on surveillance flag is present ----------------
+
+    #[test]
+    fn argv_carries_every_surveillance_flag() {
+        let argv = ClaudeCliBackend::build_argv(&req_with_force_tool(), 0.5).unwrap();
+
+        // `-p`, json, model, max-budget-usd, etc.
+        assert!(argv.iter().any(|a| a == "-p"), "argv missing -p: {argv:?}");
+        let pair = |flag: &str, val: &str| argv.windows(2).any(|w| w[0] == flag && w[1] == val);
+        assert!(pair("--output-format", "json"), "argv: {argv:?}");
+        assert!(pair("--model", "claude-sonnet-4-6"), "argv: {argv:?}");
+        // tools "" — surveillance-only
+        assert!(pair("--tools", ""), "argv missing --tools \"\": {argv:?}");
+        assert!(pair("--permission-mode", "dontAsk"), "argv: {argv:?}");
+        assert!(
+            argv.iter().any(|a| a == "--strict-mcp-config"),
+            "argv: {argv:?}"
+        );
+        assert!(pair("--mcp-config", EMPTY_MCP_CONFIG), "argv: {argv:?}");
+        assert!(
+            argv.iter().any(|a| a == "--no-session-persistence"),
+            "argv: {argv:?}"
+        );
+        // --max-budget-usd is present and non-empty
+        let idx = argv
+            .iter()
+            .position(|a| a == "--max-budget-usd")
+            .expect("--max-budget-usd present");
+        assert!(
+            !argv[idx + 1].is_empty(),
+            "max-budget value empty: {argv:?}"
+        );
+    }
+
+    #[test]
+    fn argv_never_carries_bare_flag() {
+        // `--bare` would force strict ANTHROPIC_API_KEY auth, defeating
+        // the whole point of using the CLI as a subscription transport.
+        let argv = ClaudeCliBackend::build_argv(&req_with_force_tool(), 0.5).unwrap();
+        assert!(
+            !argv.iter().any(|a| a == "--bare"),
+            "argv must not contain --bare: {argv:?}"
+        );
+    }
+
+    #[test]
+    fn argv_includes_json_schema_for_force_tool() {
+        let req = req_with_force_tool();
+        let argv = ClaudeCliBackend::build_argv(&req, 0.5).unwrap();
+
+        let idx = argv
+            .iter()
+            .position(|a| a == "--json-schema")
+            .expect("argv must include --json-schema for forced tool");
+        let schema_str = &argv[idx + 1];
+        let parsed: Value = serde_json::from_str(schema_str).expect("schema JSON parses");
+        assert_eq!(parsed["type"], "object");
+        assert_eq!(parsed["properties"]["x"]["type"], "string");
+    }
+
+    #[test]
+    fn argv_omits_json_schema_for_text_only_request() {
+        let argv = ClaudeCliBackend::build_argv(&req_text_only(), 0.5).unwrap();
+        assert!(
+            !argv.iter().any(|a| a == "--json-schema"),
+            "text-only requests must not pass --json-schema: {argv:?}"
+        );
+        assert!(
+            !argv.iter().any(|a| a == "--system-prompt"),
+            "empty system blocks → no --system-prompt: {argv:?}"
+        );
+    }
+
+    #[test]
+    fn argv_concatenates_system_blocks_dropping_cache_flag() {
+        let argv = ClaudeCliBackend::build_argv(&req_with_force_tool(), 0.5).unwrap();
+        let idx = argv
+            .iter()
+            .position(|a| a == "--system-prompt")
+            .expect("system blocks should produce a --system-prompt");
+        let body = &argv[idx + 1];
+        assert!(body.contains("persona-block"), "system body: {body}");
+        assert!(body.contains("context-block"), "system body: {body}");
+    }
+
+    #[test]
+    fn argv_rejects_zero_or_negative_budget() {
+        let req = req_with_force_tool();
+        let err = ClaudeCliBackend::build_argv(&req, 0.0).unwrap_err();
+        assert!(
+            matches!(err, LlmError::BudgetExhausted),
+            "expected BudgetExhausted, got {err:?}"
+        );
+        let err = ClaudeCliBackend::build_argv(&req, -1.0).unwrap_err();
+        assert!(matches!(err, LlmError::BudgetExhausted));
+    }
+
+    #[test]
+    fn argv_rejects_tool_choice_auto() {
+        let mut req = req_with_force_tool();
+        req.tool_choice = Some(ToolChoice::Auto);
+        let err = ClaudeCliBackend::build_argv(&req, 0.5).unwrap_err();
+        assert!(
+            matches!(err, LlmError::Backend { .. }),
+            "expected Backend error, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn argv_rejects_multi_tool_request() {
+        let mut req = req_with_force_tool();
+        if let Some(tools) = req.tools.as_mut() {
+            tools.push(ToolSchema {
+                name: "second".to_string(),
+                description: "d".to_string(),
+                input_schema: json!({}),
+            });
+        }
+        let err = ClaudeCliBackend::build_argv(&req, 0.5).unwrap_err();
+        assert!(
+            matches!(err, LlmError::Backend { .. }),
+            "expected Backend error, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn argv_rejects_assistant_message_multiturn() {
+        let mut req = req_text_only();
+        req.messages.push(Message {
+            role: Role::Assistant,
+            content: "previous reply".to_string(),
+        });
+        let err = ClaudeCliBackend::build_argv(&req, 0.5).unwrap_err();
+        assert!(
+            matches!(err, LlmError::Backend { .. }),
+            "expected Backend error for multi-turn, got {err:?}"
+        );
+    }
+
+    // ---------------- envelope parsing ----------------
+
+    fn structured_envelope() -> Value {
+        // Recorded from `claude -p --output-format json --json-schema ...`
+        // against v2.1.126. See cli_backend.rs doc comment for fields.
+        json!({
+            "type": "result",
+            "subtype": "success",
+            "is_error": false,
+            "result": "",
+            "usage": {
+                "input_tokens": 6409,
+                "output_tokens": 279,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0
+            },
+            "total_cost_usd": 0.007804,
+            "structured_output": {"reply":"hi"}
+        })
+    }
+
+    #[test]
+    fn envelope_parses_structured_output_into_tool_call() {
+        let parsed =
+            ClaudeCliBackend::parse_envelope(&structured_envelope(), Some("emit_verdict")).unwrap();
+
+        assert!(parsed.text.is_none(), "structured path → no text field");
+        assert_eq!(parsed.tool_calls.len(), 1);
+        assert_eq!(parsed.tool_calls[0].name, "emit_verdict");
+        assert_eq!(parsed.tool_calls[0].input["reply"], "hi");
+        assert_eq!(parsed.usage.input_tokens, 6409);
+        assert_eq!(parsed.usage.output_tokens, 279);
+        assert_eq!(parsed.cost_usd_override, Some(0.007804));
+    }
+
+    #[test]
+    fn envelope_parses_text_result_when_no_schema() {
+        let env = json!({
+            "type": "result",
+            "is_error": false,
+            "result": "hello there",
+            "usage": {
+                "input_tokens": 12,
+                "output_tokens": 7,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0
+            },
+            "total_cost_usd": 0.0001
+        });
+        let parsed = ClaudeCliBackend::parse_envelope(&env, None).unwrap();
+        assert_eq!(parsed.text.as_deref(), Some("hello there"));
+        assert!(parsed.tool_calls.is_empty());
+        assert_eq!(parsed.usage.output_tokens, 7);
+        assert_eq!(parsed.cost_usd_override, Some(0.0001));
+    }
+
+    #[test]
+    fn envelope_with_zero_cost_falls_back_to_token_pricing() {
+        // Subscription-mode envelope sometimes reports total_cost_usd=0.0;
+        // the override stays None so LlmService computes from tokens.
+        let env = json!({
+            "type": "result",
+            "is_error": false,
+            "result": "ok",
+            "usage": {
+                "input_tokens": 50,
+                "output_tokens": 25,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0
+            },
+            "total_cost_usd": 0.0
+        });
+        let parsed = ClaudeCliBackend::parse_envelope(&env, None).unwrap();
+        assert!(parsed.cost_usd_override.is_none());
+        assert_eq!(parsed.usage.input_tokens, 50);
+    }
+
+    #[test]
+    fn envelope_with_is_error_true_returns_backend_error() {
+        let env = json!({
+            "type": "result",
+            "is_error": true,
+            "result": "rate limited",
+            "usage": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+        });
+        let err = ClaudeCliBackend::parse_envelope(&env, None).unwrap_err();
+        assert!(
+            matches!(err, LlmError::Backend { .. }),
+            "expected Backend, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn envelope_missing_usage_defaults_to_zeroes() {
+        let env = json!({"is_error": false, "result": "x"});
+        let parsed = ClaudeCliBackend::parse_envelope(&env, None).unwrap();
+        assert_eq!(parsed.usage.input_tokens, 0);
+        assert_eq!(parsed.usage.output_tokens, 0);
+        assert!(parsed.cost_usd_override.is_none());
+    }
+
+    // ---------------- version probe + no silent fallback ----------------
+
+    #[test]
+    fn probe_version_succeeds_against_real_claude_when_present() {
+        // When `claude` is on PATH (developer machines, CI with the
+        // setup), the probe returns a non-empty version string. Skip
+        // when missing — the no-silent-fallback test covers absence.
+        if std::process::Command::new("claude")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            let v = ClaudeCliBackend::probe_version(&PathBuf::from("claude"))
+                .expect("claude --version should succeed");
+            assert!(!v.is_empty(), "version string empty");
+        }
+    }
+
+    #[test]
+    fn probe_version_errors_for_missing_binary() {
+        // Emulates `QK_LLM_BACKEND=claude_cli` with `claude` not on PATH:
+        // the constructor must return a clear startup error rather than
+        // silently fall through to the API path.
+        let bogus = PathBuf::from("/nonexistent/claude-binary-for-test");
+        let err = ClaudeCliBackend::probe_version(&bogus).unwrap_err();
+        assert!(
+            matches!(err, LlmError::Backend { .. }),
+            "expected LlmError::Backend, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn cli_backend_kind_and_version_surface_for_startup_log() {
+        let backend = ClaudeCliBackend::new(
+            PathBuf::from("/dev/null/claude"),
+            "2.1.126 (Claude Code)".to_string(),
+            Duration::from_secs(60),
+        );
+        use crate::services::llm_service::backend::LlmBackend;
+        assert_eq!(backend.kind(), "claude-cli");
+        assert_eq!(backend.version(), Some("2.1.126 (Claude Code)"));
+    }
+}

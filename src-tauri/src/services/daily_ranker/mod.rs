@@ -322,6 +322,9 @@ fn handle_llm_error(e: LlmError) {
         LlmError::Storage(_) | LlmError::Serde(_) => {
             warn!("ranker LLM internal error; falling back to naive top-N: {e}")
         }
+        LlmError::Backend { .. } => {
+            warn!("ranker LLM backend failure; falling back to naive top-N: {e}")
+        }
     }
 }
 

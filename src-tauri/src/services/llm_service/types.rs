@@ -96,4 +96,10 @@ pub struct LlmResponse {
     pub text: Option<String>,
     pub tool_calls: Vec<ToolCall>,
     pub usage: Usage,
+    /// `Some(c)` when the backend reported an authoritative cost
+    /// (currently only `ClaudeCliBackend` parsing `total_cost_usd`
+    /// from the CLI envelope). The API backend leaves this `None`,
+    /// preserving the byte-identical ledger write path: cost is
+    /// computed from token counts via `prices::cost_usd`.
+    pub cost_usd_override: Option<f64>,
 }

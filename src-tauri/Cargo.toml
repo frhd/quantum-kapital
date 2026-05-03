@@ -43,6 +43,7 @@ refinery = { version = "0.9", default-features = false, features = ["rusqlite"] 
 rmcp = "1.6"
 interprocess = { version = "2", features = ["tokio"] }
 schemars = "1"
+tempfile = "3"
 
 [features]
 # Throwaway IBKR spike binaries (Phase 2 fundamentals + Phase 6 news).
@@ -63,7 +64,6 @@ features = ["formatting", "macros"]
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.14"
-tempfile = "3"
 
 [[bin]]
 name = "mcp-server"
