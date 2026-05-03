@@ -81,6 +81,18 @@ impl McpHandler {
         )
         .await;
 
+        // Ticker-intake Phase 1: spawn the post-add prime chain so the
+        // projection / news panels can warm without blocking the MCP
+        // response. The primer is idempotent on `last_primed_at < 24h`
+        // so a re-add (`was_new = false`) short-circuits inside `prime`
+        // — we still spawn rather than branch here so the `was_new`
+        // semantics belong to the caller, not the primer wiring.
+        let primer = std::sync::Arc::clone(&self.primer);
+        let symbol_for_primer = symbol.clone();
+        tokio::spawn(async move {
+            primer.prime(&symbol_for_primer).await;
+        });
+
         map_tool_result::<_, String>(Ok(json!({
             "symbol": symbol,
             "source": "agent",
@@ -173,5 +185,54 @@ mod tests {
             .await
             .unwrap();
         assert!(audits.is_empty());
+    }
+
+    /// Phase 1 ticker-intake exit criterion: after `add_ticker` returns,
+    /// the spawned primer task must complete and emit
+    /// `AppEvent::TickerPrimingDone` for the same symbol, and the
+    /// watchlist row must carry `last_primed_at`. The test seam wires a
+    /// `FakeFundamentalsProvider` (returns `NotFound` ⇒ NoData step) and
+    /// a `FakeNewsProvider` (returns `Ok(empty)` ⇒ NoData step), so the
+    /// outcome is `(NoData, NoData, NoData)` — but `last_primed_at` is
+    /// still stamped because the fundamentals call itself completed
+    /// (the primer's "what counts as primed?" rule).
+    #[tokio::test]
+    async fn add_ticker_spawns_primer_and_emits_priming_done() {
+        let (_tmp, db) = make_db();
+        let handler = handler_for_db(db);
+
+        let _ = handler
+            .add_ticker(Parameters(AddTickerArgs {
+                symbol: "AAPL".into(),
+                reason: "ticker-intake spawn check".into(),
+            }))
+            .await
+            .expect("ok");
+
+        // Spawned primer runs on the same runtime; poll until the
+        // capture buffer carries the event or the deadline trips.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let primed = loop {
+            let events = handler.emitter.captured().await;
+            if events.iter().any(
+                |e| matches!(e, AppEvent::TickerPrimingDone { symbol, .. } if symbol == "AAPL"),
+            ) {
+                break true;
+            }
+            if std::time::Instant::now() > deadline {
+                break false;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        };
+        assert!(
+            primed,
+            "TickerPrimingDone must be emitted after add_ticker returns"
+        );
+
+        let row = handler.tracker.get("AAPL").await.unwrap().expect("present");
+        assert!(
+            row.last_primed_at.is_some(),
+            "post-add prime must stamp last_primed_at on the watchlist row"
+        );
     }
 }

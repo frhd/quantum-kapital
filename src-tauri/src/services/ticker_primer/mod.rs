@@ -136,7 +136,10 @@ impl TickerPrimerService {
             Some(fd) => {
                 match ProjectionService::generate_projection_results(fd, &self.assumptions) {
                     Ok(results) => {
-                        match self.cache.write(&projection_cache_key(&symbol_norm), &results) {
+                        match self
+                            .cache
+                            .write(&projection_cache_key(&symbol_norm), &results)
+                        {
                             Ok(_) => TickerPrimingStepStatus::Ok,
                             Err(e) => {
                                 warn!(
@@ -157,7 +160,11 @@ impl TickerPrimerService {
         // Step 3: news. Always attempted — the `IbkrNewsProvider` wiring
         // populates `news_cache` and runs the `NewsInterpreter` verdict
         // pass on a successful, non-empty fetch. No new LLM call site.
-        let news_status = match self.news.fetch(&symbol_norm, PRIME_NEWS_LOOKBACK_HOURS).await {
+        let news_status = match self
+            .news
+            .fetch(&symbol_norm, PRIME_NEWS_LOOKBACK_HOURS)
+            .await
+        {
             Ok(items) if items.is_empty() => TickerPrimingStepStatus::NoData,
             Ok(_) => TickerPrimingStepStatus::Ok,
             Err(e) => {
@@ -191,8 +198,10 @@ impl TickerPrimerService {
     async fn is_recently_primed(&self, symbol: &str) -> bool {
         match self.tracker.get(symbol).await {
             Ok(Some(row)) => match row.last_primed_at {
-                Some(last) => Utc::now().signed_duration_since(last)
-                    < ChronoDuration::hours(PRIME_IDEMPOTENCY_HOURS),
+                Some(last) => {
+                    Utc::now().signed_duration_since(last)
+                        < ChronoDuration::hours(PRIME_IDEMPOTENCY_HOURS)
+                }
                 None => false,
             },
             Ok(None) => false,

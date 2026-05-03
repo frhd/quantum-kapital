@@ -33,6 +33,7 @@ use crate::mcp::handler::McpHandler;
 use crate::mcp::ibkr_seam::AccountReader;
 use crate::middleware::HistoricalRateLimiter;
 use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
+use crate::services::cache_service::CacheService;
 use crate::services::candidate_promoter::CandidatePromoter;
 use crate::services::candidate_universe::CandidateUniverseService;
 use crate::services::financial_data_service::FinancialDataService;
@@ -45,6 +46,7 @@ use crate::services::news_provider::test_support::FakeNewsProvider;
 use crate::services::news_provider::NewsProvider;
 use crate::services::quote_service::{QuoteFetcher, QuoteService};
 use crate::services::social_sentiment::SocialSentimentService;
+use crate::services::ticker_primer::TickerPrimerService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
 
@@ -236,6 +238,16 @@ fn build_handler_with_llm(
     // exercise the cache-fast path. Tests that need a hit pre-load via
     // `FakeNewsProvider::insert` and pass an explicit handler.
     let news_provider: Arc<dyn NewsProvider> = Arc::new(FakeNewsProvider::new());
+    let primer = Arc::new(TickerPrimerService::new(
+        Arc::clone(&tracker),
+        Arc::clone(&fundamentals_provider),
+        Arc::clone(&news_provider),
+        // Per-test temp cache dir keeps `add_ticker` tests from
+        // colliding on disk; tempfile cleanup runs when the TempDir
+        // drops at the end of `tempdir()`'s scope.
+        Arc::new(test_cache_service()),
+        Arc::clone(&emitter),
+    ));
     McpHandler::new(
         llm,
         tracker,
@@ -253,8 +265,23 @@ fn build_handler_with_llm(
         social_sentiment,
         candidates,
         promoter,
+        primer,
         "interactive".to_string(),
     )
+}
+
+/// Per-test cache directory rooted in `std::env::temp_dir()` with a
+/// unique suffix. We bypass `tempfile::TempDir` here because the dir
+/// must outlive the handler (drop-on-end-of-test would race the
+/// spawned primer task in `add_ticker` tests). The OS reclaims the
+/// directory on reboot; tests don't care about leakage.
+#[cfg(test)]
+fn test_cache_service() -> CacheService {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static CACHE_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = CACHE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("qk-test-cache-{}-{}", std::process::id(), n));
+    CacheService::new(dir).expect("test cache dir")
 }
 
 /// Construct an `McpHandler` against a fresh on-disk DB at `db_path` with
@@ -337,6 +364,23 @@ pub async fn test_handler_with_seeded_spend(
         Arc::new(FakeFundamentalsProvider::new());
     let manual_fundamentals = Arc::new(ManualFundamentalsStore::new(Arc::clone(&db)));
     let news_provider: Arc<dyn NewsProvider> = Arc::new(FakeNewsProvider::new());
+    // Cache dir lives next to the integration test's temp DB so it
+    // shares the test's TempDir lifetime — no extra cleanup needed.
+    let cache_dir = db_path
+        .parent()
+        .map(|p| p.join("cache"))
+        .unwrap_or_else(|| std::path::PathBuf::from("cache/test"));
+    let cache = Arc::new(
+        CacheService::new(cache_dir)
+            .map_err(|e| std::io::Error::other(format!("init test cache: {e}")))?,
+    );
+    let primer = Arc::new(TickerPrimerService::new(
+        Arc::clone(&tracker),
+        Arc::clone(&fundamentals_provider),
+        Arc::clone(&news_provider),
+        cache,
+        Arc::clone(&emitter),
+    ));
     Ok(McpHandler::new(
         llm,
         tracker,
@@ -354,6 +398,7 @@ pub async fn test_handler_with_seeded_spend(
         social_sentiment,
         candidates,
         promoter,
+        primer,
         "interactive".to_string(),
     ))
 }

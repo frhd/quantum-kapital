@@ -28,6 +28,7 @@ use crate::services::manual_fundamentals_store::ManualFundamentalsStore;
 use crate::services::news_provider::NewsProvider;
 use crate::services::quote_service::QuoteService;
 use crate::services::social_sentiment::SocialSentimentService;
+use crate::services::ticker_primer::TickerPrimerService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
 
@@ -92,6 +93,12 @@ pub struct McpHandler {
     /// Used by `tools::promote_candidate` (Phase 4) to move a
     /// candidate row into the live `tracked_tickers` watchlist.
     pub(crate) candidate_promoter: Arc<CandidatePromoter>,
+    /// Used by `tools::add_ticker` to spawn the post-add prime chain
+    /// (fundamentals → projection cache → news). Fire-and-forget; the
+    /// MCP response returns the moment the row is inserted, and the
+    /// primer emits `AppEvent::TickerPrimingDone` when the chain
+    /// completes.
+    pub(crate) primer: Arc<TickerPrimerService>,
     /// Caller identity stamped into `mcp_audit.caller` and
     /// `research_notes.written_by` for every write tool invocation. v1
     /// uses a single value per server instance — `"interactive"` for
@@ -119,7 +126,7 @@ impl McpHandler {
             .collect()
     }
 
-    #[allow(clippy::too_many_arguments)] // 14 Arcs — see module docs; one
+    #[allow(clippy::too_many_arguments)] // 15 Arcs — see module docs; one
                                          // Arc per service the tools touch.
                                          // Grouping them buys nothing.
     pub fn new(
@@ -139,6 +146,7 @@ impl McpHandler {
         social_sentiment: Arc<SocialSentimentService>,
         candidates: Arc<CandidateUniverseService>,
         candidate_promoter: Arc<CandidatePromoter>,
+        primer: Arc<TickerPrimerService>,
         caller: String,
     ) -> Self {
         // Each per-tool file declares its own `#[tool_router(router = X_router)]`
@@ -188,6 +196,7 @@ impl McpHandler {
             social_sentiment,
             candidates,
             candidate_promoter,
+            primer,
             caller,
             tool_router,
         }

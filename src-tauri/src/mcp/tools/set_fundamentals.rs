@@ -693,6 +693,28 @@ mod tests {
         let news_provider: Arc<dyn crate::services::news_provider::NewsProvider> =
             Arc::new(crate::services::news_provider::test_support::FakeNewsProvider::new());
 
+        // Ticker-intake Phase 1: handler needs a primer. The set_fundamentals
+        // tracer-bullet test never exercises `add_ticker`, so the primer
+        // wiring is satisfied with the same `composite` it stamps into the
+        // handler — `prime` is never called in this path.
+        let primer_cache = Arc::new(
+            crate::services::cache_service::CacheService::new(std::env::temp_dir().join(format!(
+                "qk-set-fundamentals-cache-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            )))
+            .expect("init test cache"),
+        );
+        let primer = Arc::new(crate::services::ticker_primer::TickerPrimerService::new(
+            Arc::clone(&tracker),
+            Arc::clone(&composite),
+            Arc::clone(&news_provider),
+            primer_cache,
+            Arc::clone(&emitter),
+        ));
         let handler = McpHandler::new(
             llm,
             tracker,
@@ -710,6 +732,7 @@ mod tests {
             social,
             candidates,
             promoter,
+            primer,
             "interactive".to_string(),
         );
         (handler, store, calls)

@@ -5,6 +5,7 @@
 //! "no fundamentals" upstream still produces a non-error outcome and
 //! still warms news.
 //!
+//!
 //! Tests use the existing `FakeFundamentalsProvider` / `FakeNewsProvider`
 //! seams plus a `TempDir`-backed `CacheService` so no real IBKR client is
 //! involved (Hard Invariant #5: mock-friendly trait seams unchanged).
@@ -31,8 +32,8 @@ use crate::storage::Db;
 use super::{projection_cache_key, TickerPrimerService};
 
 /// One-stop fixture: temp DB, temp cache dir, programmable fundamentals
-/// + news fakes, and an `EventEmitter` with capture pre-enabled so the
-/// outcome events can be asserted on without standing up Tauri.
+/// and news fakes, and an `EventEmitter` with capture pre-enabled so
+/// the outcome events can be asserted on without standing up Tauri.
 struct Fixture {
     _db_tmp: NamedTempFile,
     _cache_tmp: TempDir,
@@ -157,7 +158,7 @@ async fn prime_fresh_symbol_runs_all_steps_and_stamps_watermark() {
         .cache
         .read(&projection_cache_key("AAPL"))
         .expect("projection cached");
-    assert!(cached.projections.len() >= 1);
+    assert!(!cached.projections.is_empty());
 
     // Outcome event emitted.
     let events = fx.emitter.captured().await;

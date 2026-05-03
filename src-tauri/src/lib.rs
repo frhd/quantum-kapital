@@ -40,6 +40,7 @@ use services::social_sentiment::stocktwits::StocktwitsProvider;
 use services::social_sentiment::SocialSentimentService;
 use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::thesis_generator::ThesisGenerator;
+use services::ticker_primer::TickerPrimerService;
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
 use storage::Db;
 use strategies::registry_from_config;
@@ -213,6 +214,22 @@ pub fn run() {
             let thesis_generator = Arc::new(ThesisGenerator::new(
                 Arc::clone(&llm_service),
                 Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&ibkr_state.event_emitter),
+            ));
+
+            // Ticker-intake Phase 1: post-add fundamentals → projection
+            // → news primer. Fire-and-forget from both add callers
+            // (`add_ticker` MCP tool + `tracker_add` Tauri command).
+            // Reuses the existing AV cache directory so projection JSON
+            // sits next to fundamentals JSON; the cache key is
+            // `{SYMBOL}_projection` which is disjoint from the AV
+            // `{SYMBOL}_overview` / `_income_statement` / `_earnings`
+            // keys.
+            let ticker_primer = Arc::new(TickerPrimerService::new(
+                Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&fundamentals_provider),
+                Arc::clone(&news_provider),
+                Arc::clone(&av_cache_for_guard),
                 Arc::clone(&ibkr_state.event_emitter),
             ));
 
@@ -408,6 +425,7 @@ pub fn run() {
                 Arc::clone(&social_sentiment_service),
                 Arc::clone(&candidate_universe),
                 Arc::clone(&candidate_promoter),
+                Arc::clone(&ticker_primer),
                 // v1: a single in-process MCP server, so every caller is
                 // either Claude Code or the future agent loops talking
                 // through the same `bin/mcp-server` bridge. Pin to
@@ -453,6 +471,7 @@ pub fn run() {
             app.manage(candidate_promoter);
             app.manage(sentiment_surge_scanner);
             app.manage(candidate_scheduler);
+            app.manage(ticker_primer);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

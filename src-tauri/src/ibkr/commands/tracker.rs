@@ -16,6 +16,7 @@ use crate::services::intraday_scheduler::IntradayScheduler;
 #[cfg(debug_assertions)]
 use crate::services::llm_service::{LlmKind, LlmRequest, LlmService, Message, Role};
 use crate::services::news_provider::NewsProvider;
+use crate::services::ticker_primer::TickerPrimerService;
 use crate::services::tracker_runner::{RunResult, TrackerRunner};
 
 #[tauri::command]
@@ -45,6 +46,7 @@ pub async fn tracker_get_news(
 #[tauri::command]
 pub async fn tracker_add(
     state: State<'_, IbkrState>,
+    primer: State<'_, Arc<TickerPrimerService>>,
     symbol: String,
     source: TrackerSource,
     source_meta: Option<serde_json::Value>,
@@ -69,14 +71,31 @@ pub async fn tracker_add(
             tracing::warn!("record_scanner_hit failed for {}: {e}", row.symbol);
         }
         // Re-read the row so the caller sees the post-promotion state.
-        return state
+        let post = state
             .tracker
             .get(&row.symbol)
             .await
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| "tracker row vanished after add".to_string());
+            .ok_or_else(|| "tracker row vanished after add".to_string())?;
+        spawn_prime(&primer, &post.symbol);
+        return Ok(post);
     }
+    spawn_prime(&primer, &row.symbol);
     Ok(row)
+}
+
+/// Ticker-intake Phase 1 — fire-and-forget post-add chain. Idempotent on
+/// `last_primed_at < 24h` inside `TickerPrimerService::prime`, so calling
+/// this on every `tracker_add` (including the scanner-promotion path) is
+/// safe and lets the projection / news panels warm without the user
+/// blocking on TWS. Failures are logged inside `prime` and surfaced via
+/// `AppEvent::TickerPrimingDone`.
+fn spawn_prime(primer: &Arc<TickerPrimerService>, symbol: &str) {
+    let primer = Arc::clone(primer);
+    let symbol = symbol.to_string();
+    tauri::async_runtime::spawn(async move {
+        primer.prime(&symbol).await;
+    });
 }
 
 #[tauri::command]
