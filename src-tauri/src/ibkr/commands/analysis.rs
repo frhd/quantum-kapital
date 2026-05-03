@@ -8,8 +8,18 @@ use crate::services::projection_service::ProjectionService;
 use crate::services::quote_service::QuoteService;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::State;
+use tokio::time::timeout;
 use tracing::{debug, info};
+
+/// Cap on how long the projection command will wait for the live-quote
+/// overlay before giving up. The IBKR snapshot path waits up to 5s per
+/// fetch (no ticks ⇒ channel close); on weekends / disconnected TWS
+/// every projection render would otherwise eat that full window. The
+/// overlay is best-effort by design — fail fast and let the UI render
+/// without the price rather than block 5s on a quote that isn't coming.
+const OVERLAY_QUOTE_DEADLINE: Duration = Duration::from_millis(1500);
 
 /// Stable error-string discriminants returned by the fundamentals
 /// commands. Frontend hooks switch on these to render dedicated empty
@@ -134,15 +144,21 @@ async fn overlay_live_price(
     quote_service: &Arc<QuoteService>,
     symbol: &str,
 ) {
-    match quote_service.fetch_quote(symbol).await {
-        Ok(quote) => {
+    match timeout(OVERLAY_QUOTE_DEADLINE, quote_service.fetch_quote(symbol)).await {
+        Ok(Ok(quote)) => {
             if let Some(price) = quote.last_price.or(quote.prev_close) {
                 fundamentals.current_metrics.price = Some(price);
             }
         }
-        Err(err) => {
+        Ok(Err(err)) => {
             debug!(
                 "overlay_live_price: {symbol} quote fetch failed ({err:?}); leaving fundamentals.price untouched"
+            );
+        }
+        Err(_) => {
+            debug!(
+                "overlay_live_price: {symbol} quote fetch exceeded {}ms deadline; leaving fundamentals.price untouched",
+                OVERLAY_QUOTE_DEADLINE.as_millis()
             );
         }
     }
@@ -264,6 +280,22 @@ mod tests {
                 .unwrap()
                 .take()
                 .expect("StubQuoteFetcher called more than once")
+        }
+    }
+
+    /// `QuoteFetcher` that never resolves. Stand-in for the live IBKR
+    /// snapshot path on weekends / disconnected TWS, where
+    /// `subscription.next()` blocks until the channel closes ~5s
+    /// later — driving the overlay's deadline-skip branch.
+    struct HangingQuoteFetcher;
+
+    #[async_trait]
+    impl QuoteFetcher for HangingQuoteFetcher {
+        async fn get_market_data_snapshot(
+            &self,
+            _symbol: &str,
+        ) -> crate::ibkr::error::Result<MarketDataSnapshot> {
+            std::future::pending().await
         }
     }
 
@@ -431,6 +463,29 @@ mod tests {
         )
         .await
         .expect("quote failure must not abort projections");
+
+        assert_eq!(bundle.results.baseline.share_price_low, 0.0);
+        assert_eq!(bundle.fundamentals.current_metrics.price, None);
+    }
+
+    /// Locks in the overlay deadline: a hanging quote fetcher must not
+    /// stall the projection command past `OVERLAY_QUOTE_DEADLINE`.
+    /// `start_paused = true` lets tokio auto-advance virtual time to the
+    /// deadline timer, so this completes instantly instead of waiting
+    /// the real 1.5s.
+    #[tokio::test(start_paused = true)]
+    async fn projection_results_skips_overlay_when_quote_fetch_exceeds_deadline() {
+        let provider = provider_with("AAPL", fundamentals_without_price("AAPL"));
+        let quote_service = Arc::new(QuoteService::new(Arc::new(HangingQuoteFetcher)));
+
+        let bundle = generate_projection_results_with_quote(
+            &provider,
+            &quote_service,
+            "AAPL",
+            &ProjectionAssumptions::default(),
+        )
+        .await
+        .expect("overlay deadline must not abort projections");
 
         assert_eq!(bundle.results.baseline.share_price_low, 0.0);
         assert_eq!(bundle.fundamentals.current_metrics.price, None);
