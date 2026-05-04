@@ -8,6 +8,7 @@ import {
   type LucideIcon,
   Menu,
   Moon,
+  Receipt,
   Search,
   Settings,
   Sun,
@@ -23,6 +24,7 @@ export type PageId =
   | "research"
   | "eval"
   | "positions"
+  | "trades"
   | "account"
 
 interface NavItem {
@@ -52,6 +54,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Account",
     items: [
       { id: "positions", label: "Positions", icon: BarChart3 },
+      { id: "trades", label: "Trades", icon: Receipt },
       { id: "account", label: "Account Details", icon: Settings },
     ],
   },

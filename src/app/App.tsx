@@ -19,6 +19,7 @@ import { TrackerTab } from "../features/tracker/components/TrackerTab"
 import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerDialog"
 import { ResearchTab } from "../features/research/components/ResearchTab"
 import { EvalTab } from "../features/eval/components/EvalTab"
+import { TradesPage } from "../features/trades/components/TradesPage"
 import { DataTierBanner } from "../shared/components/DataTierBanner"
 import type { AddToTrackerPrefill } from "../features/tracker/types"
 
@@ -165,6 +166,8 @@ export default function App() {
                     )}
                   </>
                 )}
+
+                {currentPage === "trades" && <TradesPage />}
 
                 {currentPage === "account" && (
                   <AccountDetails

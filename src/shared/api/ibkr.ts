@@ -38,6 +38,7 @@ import type {
   CandidatesQuery,
   CandidatesRefreshOutcome,
 } from "../../features/candidates/types"
+import type { ExecutionRow } from "../../features/trades/types"
 
 export const ibkrApi = {
   connect: async (config: ConnectionConfig) => {
@@ -310,6 +311,24 @@ export const ibkrApi = {
     refreshNow: async (symbols?: string[]) => {
       return invoke<number>("social_refresh_now", {
         symbols: symbols ?? null,
+      })
+    },
+  },
+
+  /** Trade history visibility / Phase 3 — per-leg fills for the Trades
+   *  panel. Wraps the same `AccountReader::executions` seam the
+   *  `get_executions` MCP tool uses so the UI and a Claude Code agent
+   *  see byte-identical rows. `account` is optional — the backend
+   *  defaults to the sole managed account; multi-account without an
+   *  explicit choice errors with the available IDs. `date` is
+   *  ISO `YYYY-MM-DD`, ET trading day. IBKR's `reqExecutions` only
+   *  delivers the current TWS-day; older dates render as an empty list
+   *  until Phase 4 persistence ships. */
+  trades: {
+    listForDate: async (date: string, account?: string | null) => {
+      return invoke<ExecutionRow[]>("ibkr_get_executions_for_date", {
+        account: account ?? null,
+        date,
       })
     },
   },
