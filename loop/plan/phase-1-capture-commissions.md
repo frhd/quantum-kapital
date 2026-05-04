@@ -2,7 +2,7 @@
 
 > Part of [Trade history visibility](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-04)
+**Status:** done (commit f35421a, 2026-05-04)
 
 **Depends on:** none (foundation phase)
 
