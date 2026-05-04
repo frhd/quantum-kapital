@@ -8,11 +8,44 @@ use ibapi::market_data::realtime::TickTypes;
 use tracing::{debug, info};
 
 use crate::ibkr::error::{IbkrError, Result};
-use crate::ibkr::types::{DataTier, MarketDataSnapshot};
+use crate::ibkr::types::{DataTier, MarketDataSnapshot, MarketDataType};
 
 use super::IbkrClient;
 
 pub(super) const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Quiet-window after the last received tick before `streaming_drain_blocking`
+/// considers the burst complete and exits early. IBKR delivers an initial
+/// burst of ticks (Bid/Ask/Last/Close/Volume…) within ~500–800ms on streaming
+/// market data; longer than that and we're almost certainly idle.
+const STREAMING_QUIET_WINDOW: Duration = Duration::from_millis(750);
+
+/// Dispatch decision for `get_market_data_snapshot`.
+///
+/// IBKR's `reqMktData(snapshot=True)` requires *real-time* subscription
+/// rights even when the connection is in `Delayed*` mode — TWS replies
+/// with error 354 ("not subscribed") otherwise. Streaming subscriptions
+/// honor `Delayed*`, so the delayed paths take a different code path
+/// that drains ticks for a short window and then exits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SnapshotMode {
+    /// `reqMktData(snapshot=true)` — fast, ends on `SnapshotEnd`. Needs
+    /// a real-time market-data subscription on the account.
+    OneShot,
+    /// `reqMktData(snapshot=false)` — drain the first burst of ticks,
+    /// then exit on quiet-window or hard timeout. Works with delayed /
+    /// delayed-frozen data.
+    StreamingDrain,
+}
+
+impl SnapshotMode {
+    pub(super) fn for_market_data_type(mdt: MarketDataType) -> Self {
+        match mdt {
+            MarketDataType::Live | MarketDataType::Frozen => Self::OneShot,
+            MarketDataType::Delayed | MarketDataType::DelayedFrozen => Self::StreamingDrain,
+        }
+    }
+}
 
 /// Classify a single `TickType` into the data tier it implies.
 ///
@@ -76,131 +109,270 @@ impl IbkrClient {
         .map_err(|e| IbkrError::Unknown(e.to_string()))?
     }
 
-    /// One-shot snapshot of level-1 market data for `symbol`.
+    /// One-shot fetch of level-1 market data for `symbol`.
     ///
-    /// Uses ibapi's `snapshot=true` mode so the server pushes a fixed
-    /// burst of ticks then sends `SnapshotEnd` — we drain those ticks
-    /// and return as soon as `SnapshotEnd` arrives or `SNAPSHOT_TIMEOUT`
-    /// elapses (whichever comes first).
+    /// Dispatches by the configured `MarketDataType` (see [`SnapshotMode`]):
+    /// - `Live` / `Frozen` → ibapi `snapshot=true` (server pushes a fixed
+    ///   burst, ends on `SnapshotEnd`).
+    /// - `Delayed` / `DelayedFrozen` → streaming subscription drained for
+    ///   `STREAMING_QUIET_WINDOW` after the last tick. `snapshot=true`
+    ///   does **not** honor delayed-data permissions; TWS would respond
+    ///   with error 354.
     ///
     /// Errors:
     /// - `IbkrError::NotConnected` if there is no live ibapi client.
-    /// - `IbkrError::MarketDataPermissionDenied` if TWS replies with
-    ///   error code 354 ("Requested market data is not subscribed").
-    /// - `IbkrError::Timeout` if no `SnapshotEnd` arrives within
+    /// - `IbkrError::MarketDataPermissionDenied` on TWS error 354.
+    /// - `IbkrError::Timeout` if no usable ticks arrive in
     ///   `SNAPSHOT_TIMEOUT`.
     /// - `IbkrError::ApiError` for any other ibapi error.
     pub async fn get_market_data_snapshot(&self, symbol: &str) -> Result<MarketDataSnapshot> {
         debug!("get_market_data_snapshot: enter symbol={}", symbol);
         let client_clone = self.ibapi_client().await?;
+        let market_data_type = self.config.read().await.market_data_type;
+        let mode = SnapshotMode::for_market_data_type(market_data_type);
         let symbol_owned = symbol.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<MarketDataSnapshot> {
-            let contract = Contract::stock(&symbol_owned).build();
-            let generic_ticks: Vec<&str> = Vec::new();
-
-            let subscription = client_clone
-                .market_data(&contract)
-                .generic_ticks(&generic_ticks)
-                .snapshot()
-                .subscribe()
-                .map_err(|e| {
-                    info!(
-                        "get_market_data_snapshot({}): subscribe failed: {}",
-                        symbol_owned, e
-                    );
-                    IbkrError::from(e)
-                })?;
-
-            let mut snapshot = MarketDataSnapshot {
-                symbol: symbol_owned.clone(),
-                bid_price: None,
-                bid_size: None,
-                ask_price: None,
-                ask_size: None,
-                last_price: None,
-                last_size: None,
-                high: None,
-                low: None,
-                volume: None,
-                close: None,
-                open: None,
-                timestamp: chrono::Utc::now().timestamp(),
-            };
-
-            let deadline = std::time::Instant::now() + SNAPSHOT_TIMEOUT;
-
-            loop {
-                let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-                if remaining.is_zero() {
-                    info!(
-                        "get_market_data_snapshot({}): -> Timeout ({}ms, deadline reached)",
-                        symbol_owned,
-                        SNAPSHOT_TIMEOUT.as_millis()
-                    );
-                    return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
-                }
-
-                match subscription.next_timeout(remaining) {
-                    Some(TickTypes::Price(tick)) => {
-                        apply_price(&mut snapshot, &tick);
-                    }
-                    Some(TickTypes::Size(tick)) => {
-                        apply_size(&mut snapshot, &tick);
-                    }
-                    Some(TickTypes::PriceSize(tick)) => {
-                        apply_price_size(&mut snapshot, &tick);
-                    }
-                    Some(TickTypes::SnapshotEnd) => {
-                        snapshot.timestamp = chrono::Utc::now().timestamp();
-                        debug!(
-                            "get_market_data_snapshot({}): SnapshotEnd last_price={:?} close={:?}",
-                            symbol_owned, snapshot.last_price, snapshot.close
-                        );
-                        return Ok(snapshot);
-                    }
-                    Some(TickTypes::Notice(notice)) => {
-                        debug!(
-                            "get_market_data_snapshot({}): notice code={} message={:?}",
-                            symbol_owned, notice.code, notice.message
-                        );
-                        // ibapi delivers TWS error codes through Notice.
-                        // 354 = "Requested market data is not subscribed".
-                        if notice.code == 354 {
-                            info!(
-                                "get_market_data_snapshot({}): -> MarketDataPermissionDenied (code 354)",
-                                symbol_owned
-                            );
-                            return Err(IbkrError::MarketDataPermissionDenied);
-                        }
-                        // Other notices (e.g. farm connection messages)
-                        // are informational; keep looping.
-                    }
-                    Some(_) => {
-                        // Other tick types (Generic, String, EFP,
-                        // RequestParameters, etc.) aren't projected
-                        // into MarketDataSnapshot — ignore.
-                    }
-                    None => {
-                        if let Some(err) = subscription.error() {
-                            info!(
-                                "get_market_data_snapshot({}): subscription closed with error: {}",
-                                symbol_owned, err
-                            );
-                            return Err(IbkrError::from(err));
-                        }
-                        info!(
-                            "get_market_data_snapshot({}): -> Timeout ({}ms, channel closed without error)",
-                            symbol_owned,
-                            SNAPSHOT_TIMEOUT.as_millis()
-                        );
-                        return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
-                    }
+            match mode {
+                SnapshotMode::OneShot => snapshot_blocking(client_clone, symbol_owned),
+                SnapshotMode::StreamingDrain => {
+                    streaming_drain_blocking(client_clone, symbol_owned)
                 }
             }
         })
         .await
         .map_err(|e| IbkrError::Unknown(e.to_string()))?
+    }
+}
+
+fn empty_snapshot(symbol: &str) -> MarketDataSnapshot {
+    MarketDataSnapshot {
+        symbol: symbol.to_string(),
+        bid_price: None,
+        bid_size: None,
+        ask_price: None,
+        ask_size: None,
+        last_price: None,
+        last_size: None,
+        high: None,
+        low: None,
+        volume: None,
+        close: None,
+        open: None,
+        timestamp: chrono::Utc::now().timestamp(),
+    }
+}
+
+/// True if `snapshot` carries any usable price (last, close, or open).
+/// Used by the streaming path to decide whether a quiet-window or
+/// channel-close should return `Ok(snapshot)` or `Err(Timeout)`.
+fn snapshot_has_price(snapshot: &MarketDataSnapshot) -> bool {
+    snapshot.last_price.is_some() || snapshot.close.is_some() || snapshot.open.is_some()
+}
+
+/// `reqMktData(snapshot=true)` path. Original behavior — kept verbatim
+/// for accounts on `Live` or `Frozen` market data.
+fn snapshot_blocking(client: Arc<Client>, symbol: String) -> Result<MarketDataSnapshot> {
+    let contract = Contract::stock(&symbol).build();
+    let generic_ticks: Vec<&str> = Vec::new();
+
+    let subscription = client
+        .market_data(&contract)
+        .generic_ticks(&generic_ticks)
+        .snapshot()
+        .subscribe()
+        .map_err(|e| {
+            info!("get_market_data_snapshot({}): subscribe failed: {}", symbol, e);
+            IbkrError::from(e)
+        })?;
+
+    let mut snapshot = empty_snapshot(&symbol);
+    let deadline = std::time::Instant::now() + SNAPSHOT_TIMEOUT;
+
+    loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            info!(
+                "get_market_data_snapshot({}): -> Timeout ({}ms, deadline reached)",
+                symbol,
+                SNAPSHOT_TIMEOUT.as_millis()
+            );
+            return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
+        }
+
+        match subscription.next_timeout(remaining) {
+            Some(TickTypes::Price(tick)) => apply_price(&mut snapshot, &tick),
+            Some(TickTypes::Size(tick)) => apply_size(&mut snapshot, &tick),
+            Some(TickTypes::PriceSize(tick)) => apply_price_size(&mut snapshot, &tick),
+            Some(TickTypes::SnapshotEnd) => {
+                snapshot.timestamp = chrono::Utc::now().timestamp();
+                debug!(
+                    "get_market_data_snapshot({}): SnapshotEnd last_price={:?} close={:?}",
+                    symbol, snapshot.last_price, snapshot.close
+                );
+                return Ok(snapshot);
+            }
+            Some(TickTypes::Notice(notice)) => {
+                debug!(
+                    "get_market_data_snapshot({}): notice code={} message={:?}",
+                    symbol, notice.code, notice.message
+                );
+                if notice.code == 354 {
+                    info!(
+                        "get_market_data_snapshot({}): -> MarketDataPermissionDenied (code 354)",
+                        symbol
+                    );
+                    return Err(IbkrError::MarketDataPermissionDenied);
+                }
+            }
+            Some(_) => {}
+            None => {
+                if let Some(err) = subscription.error() {
+                    info!(
+                        "get_market_data_snapshot({}): subscription closed with error: {}",
+                        symbol, err
+                    );
+                    return Err(IbkrError::from(err));
+                }
+                info!(
+                    "get_market_data_snapshot({}): -> Timeout ({}ms, channel closed without error)",
+                    symbol,
+                    SNAPSHOT_TIMEOUT.as_millis()
+                );
+                return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
+            }
+        }
+    }
+}
+
+/// Streaming `reqMktData(snapshot=false)` path. Drains the initial
+/// burst of ticks until quiet for `STREAMING_QUIET_WINDOW` or the hard
+/// `SNAPSHOT_TIMEOUT` deadline elapses.
+///
+/// Compared to the snapshot path:
+/// - There is no `SnapshotEnd` in streaming mode, so we exit on quiet
+///   window instead.
+/// - A `next_timeout` slice that returns `None` may be either a slice
+///   timeout *or* a closed channel — we disambiguate via
+///   `subscription.error()`. Slice timeouts re-enter the loop.
+/// - On exit, the held `Subscription` drops and ibapi sends
+///   `cancelMktData` automatically.
+fn streaming_drain_blocking(client: Arc<Client>, symbol: String) -> Result<MarketDataSnapshot> {
+    let contract = Contract::stock(&symbol).build();
+    let generic_ticks: Vec<&str> = Vec::new();
+
+    let subscription = client
+        .market_data(&contract)
+        .generic_ticks(&generic_ticks)
+        .subscribe()
+        .map_err(|e| {
+            info!(
+                "get_market_data_snapshot({}, streaming): subscribe failed: {}",
+                symbol, e
+            );
+            IbkrError::from(e)
+        })?;
+
+    let mut snapshot = empty_snapshot(&symbol);
+    let now = std::time::Instant::now();
+    let hard_deadline = now + SNAPSHOT_TIMEOUT;
+    let mut last_tick_at: Option<std::time::Instant> = None;
+
+    loop {
+        let now = std::time::Instant::now();
+
+        // Hard cap: out of time.
+        if now >= hard_deadline {
+            if snapshot_has_price(&snapshot) {
+                snapshot.timestamp = chrono::Utc::now().timestamp();
+                debug!(
+                    "get_market_data_snapshot({}, streaming): -> hard deadline, returning partial last_price={:?} close={:?}",
+                    symbol, snapshot.last_price, snapshot.close
+                );
+                return Ok(snapshot);
+            }
+            info!(
+                "get_market_data_snapshot({}, streaming): -> Timeout ({}ms, no ticks)",
+                symbol,
+                SNAPSHOT_TIMEOUT.as_millis()
+            );
+            return Err(IbkrError::Timeout(SNAPSHOT_TIMEOUT.as_millis() as u64));
+        }
+
+        // Wait at most until the quiet-window expires (if we've seen a
+        // tick) or until the hard deadline (if we haven't). Whichever
+        // is sooner caps the slice — a slice timeout means we re-check.
+        let quiet_deadline =
+            last_tick_at.map(|t| t + STREAMING_QUIET_WINDOW).unwrap_or(hard_deadline);
+        let slice_until = quiet_deadline.min(hard_deadline);
+        let slice = slice_until.saturating_duration_since(now);
+        if slice.is_zero() {
+            // Quiet-window expired with at least one prior tick → exit.
+            if snapshot_has_price(&snapshot) {
+                snapshot.timestamp = chrono::Utc::now().timestamp();
+                debug!(
+                    "get_market_data_snapshot({}, streaming): -> quiet window, last_price={:?} close={:?}",
+                    symbol, snapshot.last_price, snapshot.close
+                );
+                return Ok(snapshot);
+            }
+            // Quiet without price (only sizes / notices) — keep waiting
+            // until the hard deadline.
+            last_tick_at = None;
+            continue;
+        }
+
+        match subscription.next_timeout(slice) {
+            Some(TickTypes::Price(tick)) => {
+                apply_price(&mut snapshot, &tick);
+                last_tick_at = Some(std::time::Instant::now());
+            }
+            Some(TickTypes::Size(tick)) => {
+                apply_size(&mut snapshot, &tick);
+                last_tick_at = Some(std::time::Instant::now());
+            }
+            Some(TickTypes::PriceSize(tick)) => {
+                apply_price_size(&mut snapshot, &tick);
+                last_tick_at = Some(std::time::Instant::now());
+            }
+            Some(TickTypes::SnapshotEnd) => {
+                // Some servers still emit SnapshotEnd on streaming reqs — treat as exit signal.
+                snapshot.timestamp = chrono::Utc::now().timestamp();
+                debug!(
+                    "get_market_data_snapshot({}, streaming): SnapshotEnd last_price={:?} close={:?}",
+                    symbol, snapshot.last_price, snapshot.close
+                );
+                return Ok(snapshot);
+            }
+            Some(TickTypes::Notice(notice)) => {
+                debug!(
+                    "get_market_data_snapshot({}, streaming): notice code={} message={:?}",
+                    symbol, notice.code, notice.message
+                );
+                if notice.code == 354 {
+                    info!(
+                        "get_market_data_snapshot({}, streaming): -> MarketDataPermissionDenied (code 354)",
+                        symbol
+                    );
+                    return Err(IbkrError::MarketDataPermissionDenied);
+                }
+            }
+            Some(_) => {}
+            None => {
+                // Either slice timeout or channel close — disambiguate.
+                if let Some(err) = subscription.error() {
+                    info!(
+                        "get_market_data_snapshot({}, streaming): subscription closed with error: {}",
+                        symbol, err
+                    );
+                    return Err(IbkrError::from(err));
+                }
+                // Slice timeout. If this slice was the quiet-window
+                // (we had a tick and it elapsed), the next loop iter
+                // will compute slice == 0 and exit. Otherwise we keep
+                // waiting toward the hard deadline.
+            }
+        }
     }
 }
 
@@ -441,5 +613,73 @@ mod tests {
         assert_eq!(classify_tick_type(TickType::Unknown), None);
         assert_eq!(classify_tick_type(TickType::RtVolume), None);
         assert_eq!(classify_tick_type(TickType::MarkPrice), None);
+    }
+
+    #[test]
+    fn snapshot_mode_routes_real_time_to_one_shot() {
+        assert_eq!(
+            SnapshotMode::for_market_data_type(MarketDataType::Live),
+            SnapshotMode::OneShot
+        );
+        assert_eq!(
+            SnapshotMode::for_market_data_type(MarketDataType::Frozen),
+            SnapshotMode::OneShot
+        );
+    }
+
+    #[test]
+    fn snapshot_mode_routes_delayed_to_streaming_drain() {
+        // Snapshot=true requests don't honor delayed/delayed-frozen
+        // permissions — TWS returns error 354. Streaming subscriptions
+        // do, so the delayed paths must use the streaming drain.
+        assert_eq!(
+            SnapshotMode::for_market_data_type(MarketDataType::Delayed),
+            SnapshotMode::StreamingDrain
+        );
+        assert_eq!(
+            SnapshotMode::for_market_data_type(MarketDataType::DelayedFrozen),
+            SnapshotMode::StreamingDrain
+        );
+    }
+
+    #[test]
+    fn snapshot_has_price_detects_any_filled_price_field() {
+        let mut snap = empty_snapshot("AMD");
+        assert!(!snapshot_has_price(&snap));
+
+        snap.bid_price = Some(100.0);
+        snap.ask_price = Some(100.5);
+        assert!(
+            !snapshot_has_price(&snap),
+            "bid/ask alone shouldn't count — UI needs last/close/open"
+        );
+
+        snap.last_price = Some(100.25);
+        assert!(snapshot_has_price(&snap));
+
+        let mut snap = empty_snapshot("AMD");
+        snap.close = Some(99.0);
+        assert!(snapshot_has_price(&snap));
+
+        let mut snap = empty_snapshot("AMD");
+        snap.open = Some(98.5);
+        assert!(snapshot_has_price(&snap));
+    }
+
+    #[test]
+    fn empty_snapshot_carries_symbol_and_clears_optionals() {
+        let snap = empty_snapshot("AMD");
+        assert_eq!(snap.symbol, "AMD");
+        assert!(snap.bid_price.is_none());
+        assert!(snap.ask_price.is_none());
+        assert!(snap.last_price.is_none());
+        assert!(snap.close.is_none());
+        assert!(snap.open.is_none());
+        assert!(snap.high.is_none());
+        assert!(snap.low.is_none());
+        assert!(snap.volume.is_none());
+        assert!(snap.bid_size.is_none());
+        assert!(snap.ask_size.is_none());
+        assert!(snap.last_size.is_none());
     }
 }
