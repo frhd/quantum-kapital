@@ -211,6 +211,16 @@ fn sample_execution(
         exec_time,
         order_id: 1001,
         exec_id: exec_id.to_string(),
+        account: "DU123456".to_string(),
+        contract_type: "STK".to_string(),
+        expiry: None,
+        strike: None,
+        right: None,
+        multiplier: None,
+        commission: None,
+        realized_pnl: None,
+        currency: Some("USD".to_string()),
+        commission_currency: None,
     }
 }
 

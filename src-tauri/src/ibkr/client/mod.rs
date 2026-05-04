@@ -1,3 +1,4 @@
+mod executions_merge;
 mod historical;
 mod market_data;
 mod news;
