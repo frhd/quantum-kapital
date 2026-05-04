@@ -115,7 +115,7 @@ Violating the letter of these rules is violating the spirit.
 |---|---|---|---|
 | 1. Capture commissions + extend `IbkrExecution` | [phase-1-capture-commissions.md](phase-1-capture-commissions.md) | — | done (commit f35421a, 2026-05-04) |
 | 2. MCP `get_executions` tool | [phase-2-mcp-get-executions.md](phase-2-mcp-get-executions.md) | 1 | done (commit 540078f, 2026-05-04) |
-| 3. FE Today's Trades panel + Tauri command | [phase-3-trades-panel.md](phase-3-trades-panel.md) | 2 | in-progress (started 2026-05-04) |
+| 3. FE Today's Trades panel + Tauri command | [phase-3-trades-panel.md](phase-3-trades-panel.md) | 2 | done (commit dde1a8f, 2026-05-04) |
 | 4. (optional, deferred) Executions persistence layer | [phase-4-persistence.md](phase-4-persistence.md) | 1 | todo (deferred — schedule when multi-day visibility becomes a real ask) |
 
 > **Status convention:** `todo` | `in-progress (started YYYY-MM-DD)` | `done (commit <sha>, YYYY-MM-DD)`. Update both this table AND the phase file's `**Status:**` header at phase start and exit. Don't start a phase whose dependencies aren't `done`.
