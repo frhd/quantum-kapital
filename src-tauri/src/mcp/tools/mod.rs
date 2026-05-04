@@ -21,6 +21,7 @@ pub mod append_journal_entry;
 pub mod archive_ticker;
 pub mod bars;
 pub mod budget;
+pub mod executions;
 pub mod fundamentals;
 pub mod get_calibration_stats;
 pub mod get_candidates;

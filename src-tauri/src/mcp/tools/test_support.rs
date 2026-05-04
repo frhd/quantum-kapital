@@ -21,6 +21,7 @@ use std::sync::Arc;
 use tempfile::NamedTempFile;
 
 use async_trait::async_trait;
+use chrono::NaiveDate;
 
 use crate::config::settings::AutoScannerConfig;
 use crate::events::EventEmitter;
@@ -31,6 +32,7 @@ use crate::ibkr::types::{
 };
 use crate::mcp::handler::McpHandler;
 use crate::mcp::ibkr_seam::AccountReader;
+use crate::mcp::tools::executions::ExecutionRow;
 use crate::middleware::HistoricalRateLimiter;
 use crate::services::auto_scanner::{AutoScannerService, MarketScanner};
 use crate::services::cache_service::CacheService;
@@ -79,6 +81,9 @@ impl AccountReader for NotConnectedStub {
         Err(IbkrError::NotConnected)
     }
     async fn get_account_summary(&self, _account: &str) -> IbkrResult<Vec<AccountSummary>> {
+        Err(IbkrError::NotConnected)
+    }
+    async fn executions(&self, _account: &str, _date: NaiveDate) -> IbkrResult<Vec<ExecutionRow>> {
         Err(IbkrError::NotConnected)
     }
 }

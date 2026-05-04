@@ -163,6 +163,7 @@ impl McpHandler {
             + Self::quote_router()
             + Self::positions_router()
             + Self::account_summary_router()
+            + Self::executions_router()
             + Self::scanner_router()
             + Self::add_ticker_router()
             + Self::archive_ticker_router()

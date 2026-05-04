@@ -36,6 +36,14 @@ use quantum_kapital_lib::mcp;
 /// reasoning for `cancel_` / `modify_` / `submit_`.
 fn is_blocked(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
+    // Read-only tools whose names happen to share a substring with the
+    // order-placement vocabulary. `get_executions` returns past fills —
+    // a read, not a write — but the noun "executions" trips the
+    // `contains("execute")` guard. Keep the broad guard for everything
+    // else; allowlist by exact name here.
+    if matches!(n.as_str(), "get_executions") {
+        return false;
+    }
     n.starts_with("place_")
         || n.starts_with("cancel_")
         || n.starts_with("modify_")
@@ -66,6 +74,7 @@ fn audit_predicates_block_known_order_names() {
         "get_quote",
         "get_positions",
         "get_account_summary",
+        "get_executions",
         "run_scanner",
         "list_watchlist",
         "get_llm_budget_status",
@@ -105,11 +114,12 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // append_journal_entry) + Phase 8 (3 reads: get_calibration_stats,
     // get_prediction_history, get_cost_attribution) + AV strip-out
     // Phase 4 (1 write: set_fundamentals — operator-curated reference
-    // data, never market actions) = 27.
+    // data, never market actions) + Trade-history Phase 2 (1 read:
+    // get_executions) = 28.
     assert_eq!(
         names.len(),
-        27,
-        "expected 27 registered MCP tools, got {}: {:?}",
+        28,
+        "expected 28 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
@@ -156,6 +166,57 @@ async fn mcp_tool_registry_is_surveillance_only() {
             "SURVEILLANCE-ONLY VIOLATION: MCP tool '{name}' looks like an order-placement primitive.\n\
              Quantum Kapital's MCP surface is surveillance-only — adding order tools requires\n\
              explicit project-level approval and removing this guard. See CLAUDE.md."
+        );
+    }
+}
+
+/// Per master-plan invariant #3 (Trade-history visibility roadmap): the
+/// `get_executions` tool file must never reach into the order-placement
+/// surface. A textual gate is sufficient — it catches the obvious slip
+/// (an `OrderRequest` import, a `place_order` call, anything from
+/// `ibkr/commands/trading.rs`) at build time before the binary ships.
+#[test]
+fn executions_tool_does_not_import_order_placement() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/mcp/tools/executions.rs");
+    let src =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+
+    for needle in [
+        "OrderRequest",
+        "place_order",
+        "ibkr::commands::trading",
+        "ibkr/commands/trading",
+    ] {
+        assert!(
+            !src.contains(needle),
+            "SURVEILLANCE-ONLY VIOLATION: `{}` references `{needle}`. \
+             `get_executions` is read-only by master-plan invariant #3.",
+            path.display()
+        );
+    }
+}
+
+/// Belt-and-braces ripgrep gate: no source file under `mcp/tools/` is
+/// allowed to call `place_order` directly. Catches a future tool file
+/// that bypasses `executions.rs` entirely.
+#[test]
+fn no_mcp_tool_calls_place_order() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/mcp/tools");
+    for entry in
+        std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("read_dir {}: {e}", dir.display()))
+    {
+        let entry = entry.expect("dir entry");
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+            continue;
+        }
+        let src = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        assert!(
+            !src.contains("place_order"),
+            "SURVEILLANCE-ONLY VIOLATION: {} calls `place_order`. \
+             MCP tools must not place orders.",
+            path.display()
         );
     }
 }
