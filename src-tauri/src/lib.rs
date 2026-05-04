@@ -518,6 +518,7 @@ pub fn run() {
             ibkr::commands::ibkr_get_data_tier,
             ibkr::commands::ibkr_place_order,
             ibkr::commands::ibkr_get_executions,
+            ibkr::commands::ibkr_get_executions_for_date,
             ibkr::commands::ibkr_get_fundamental_data,
             ibkr::commands::ibkr_get_quote,
             ibkr::commands::ibkr_generate_projections,

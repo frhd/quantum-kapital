@@ -13,6 +13,7 @@ pub mod research;
 pub mod scanner;
 pub mod sentiment;
 pub mod tracker;
+pub mod trades;
 pub mod trading;
 
 // Re-export all commands at the root level for backward compatibility
@@ -28,4 +29,5 @@ pub use research::*;
 pub use scanner::*;
 pub use sentiment::*;
 pub use tracker::*;
+pub use trades::*;
 pub use trading::*;
