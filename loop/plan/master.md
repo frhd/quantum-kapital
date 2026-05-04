@@ -114,7 +114,7 @@ Violating the letter of these rules is violating the spirit.
 | Phase | File | Depends on | Status |
 |---|---|---|---|
 | 1. Capture commissions + extend `IbkrExecution` | [phase-1-capture-commissions.md](phase-1-capture-commissions.md) | — | done (commit f35421a, 2026-05-04) |
-| 2. MCP `get_executions` tool | [phase-2-mcp-get-executions.md](phase-2-mcp-get-executions.md) | 1 | in-progress (started 2026-05-04) |
+| 2. MCP `get_executions` tool | [phase-2-mcp-get-executions.md](phase-2-mcp-get-executions.md) | 1 | done (commit 540078f, 2026-05-04) |
 | 3. FE Today's Trades panel + Tauri command | [phase-3-trades-panel.md](phase-3-trades-panel.md) | 2 | todo |
 | 4. (optional, deferred) Executions persistence layer | [phase-4-persistence.md](phase-4-persistence.md) | 1 | todo (deferred — schedule when multi-day visibility becomes a real ask) |
 
