@@ -182,7 +182,10 @@ fn snapshot_blocking(client: Arc<Client>, symbol: String) -> Result<MarketDataSn
         .snapshot()
         .subscribe()
         .map_err(|e| {
-            info!("get_market_data_snapshot({}): subscribe failed: {}", symbol, e);
+            info!(
+                "get_market_data_snapshot({}): subscribe failed: {}",
+                symbol, e
+            );
             IbkrError::from(e)
         })?;
 
@@ -302,8 +305,9 @@ fn streaming_drain_blocking(client: Arc<Client>, symbol: String) -> Result<Marke
         // Wait at most until the quiet-window expires (if we've seen a
         // tick) or until the hard deadline (if we haven't). Whichever
         // is sooner caps the slice — a slice timeout means we re-check.
-        let quiet_deadline =
-            last_tick_at.map(|t| t + STREAMING_QUIET_WINDOW).unwrap_or(hard_deadline);
+        let quiet_deadline = last_tick_at
+            .map(|t| t + STREAMING_QUIET_WINDOW)
+            .unwrap_or(hard_deadline);
         let slice_until = quiet_deadline.min(hard_deadline);
         let slice = slice_until.saturating_duration_since(now);
         if slice.is_zero() {
