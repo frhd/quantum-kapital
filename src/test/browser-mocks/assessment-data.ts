@@ -20,6 +20,7 @@ export const tradeReview: TradeReview = {
   account: ACCT,
   prompt_version: 1,
   generated_at: now(),
+  formula_version: "v1",
   grade: "B",
   grade_score: 12.4,
   summary: {

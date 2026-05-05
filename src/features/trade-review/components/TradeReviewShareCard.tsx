@@ -103,7 +103,9 @@ export function TradeReviewShareCard({ review, date }: TradeReviewShareCardProps
             </div>
             <div style={{ fontSize: 14, marginTop: 4, color: "#a1a1aa" }}>{dateLabel}</div>
           </div>
-          <GradeBadge grade={review.grade} score={review.grade_score} />
+          {review.grade && review.grade_score != null && (
+            <GradeBadge grade={review.grade} score={review.grade_score} />
+          )}
         </div>
 
         <div style={{ textAlign: "center" }}>

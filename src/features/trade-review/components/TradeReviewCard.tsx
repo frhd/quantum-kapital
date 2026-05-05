@@ -17,10 +17,52 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/compon
 import { DatePicker } from "../../../shared/components/DatePicker"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 
+import type { TradeReview } from "../types"
 import { useTradeReview } from "../hooks/useTradeReview"
 import { EmptyTradeReview } from "./EmptyTradeReview"
+import { EquityCurve } from "./EquityCurve"
 import { GradeBadge } from "./GradeBadge"
 import { PopulatedReview } from "./PopulatedReview"
+import { RiskMetricsPanel } from "./RiskMetricsPanel"
+
+/** v1 rows surface the legacy GradeBadge with a `v1` chip; v2 rows
+ *  surface `score_v2` and `discipline_v2` as separate numbers (master
+ *  commitment: never sum them for ranking). */
+function ScoreSurface({ review }: { review: TradeReview | null | undefined }) {
+  if (!review) return null
+  if (review.formula_version === "v1" && review.grade) {
+    return (
+      <span className="flex items-center gap-1">
+        <GradeBadge grade={review.grade} score={review.grade_score ?? 0} />
+        <span className="text-muted-foreground rounded border border-border px-1.5 py-0.5 text-[10px] uppercase">
+          v1
+        </span>
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-3 text-xs">
+      <span className="rounded border border-border bg-secondary/40 px-2 py-0.5">
+        <span className="text-muted-foreground mr-1 uppercase">R-edge</span>
+        <span className="font-mono">
+          {review.score_v2 != null ? review.score_v2.toFixed(2) : "—"}
+        </span>
+      </span>
+      <span className="rounded border border-border bg-secondary/40 px-2 py-0.5">
+        <span className="text-muted-foreground mr-1 uppercase">Discipline</span>
+        <span
+          className={`font-mono ${
+            (review.discipline_v2 ?? 0) >= 0 ? "text-green-500" : "text-red-500"
+          }`}
+        >
+          {review.discipline_v2 != null
+            ? (review.discipline_v2 >= 0 ? "+" : "") + review.discipline_v2.toFixed(0)
+            : "—"}
+        </span>
+      </span>
+    </span>
+  )
+}
 
 const ET_DATE_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" })
 
@@ -62,7 +104,7 @@ export function TradeReviewCard({ date: dateProp, account }: TradeReviewCardProp
         <div>
           <CardTitle className="flex items-center gap-3 text-base font-semibold">
             <span>Trade Review</span>
-            {review && <GradeBadge grade={review.grade} score={review.grade_score} />}
+            <ScoreSurface review={review} />
           </CardTitle>
           <p className="text-muted-foreground mt-1 text-xs">
             Deterministic grade + LLM narrative for {date} (ET).
@@ -106,6 +148,17 @@ export function TradeReviewCard({ date: dateProp, account }: TradeReviewCardProp
               <p className="text-destructive text-sm" role="alert">
                 Failed to regenerate: {regenerateError}
               </p>
+            )}
+            {review.formula_version === "v2" && (
+              <>
+                <RiskMetricsPanel metrics={review.risk_metrics ?? null} />
+                {review.equity_curve && review.equity_curve.length > 0 && (
+                  <EquityCurve
+                    points={review.equity_curve}
+                    caption="Daily equity (trade flow)"
+                  />
+                )}
+              </>
             )}
             <PopulatedReview review={review} />
           </div>

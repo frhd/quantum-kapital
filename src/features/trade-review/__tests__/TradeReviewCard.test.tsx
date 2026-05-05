@@ -20,6 +20,7 @@ const review: TradeReview = {
   account: "U1",
   prompt_version: 1,
   generated_at: "2026-05-04T21:00:00Z",
+  formula_version: "v1",
   grade: "B",
   grade_score: 12.4,
   summary: {

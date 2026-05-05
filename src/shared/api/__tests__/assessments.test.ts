@@ -13,6 +13,7 @@ const fakeReview: TradeReview = {
   account: "U1",
   prompt_version: 1,
   generated_at: "2026-05-04T22:00:00Z",
+  formula_version: "v1",
   grade: "B",
   grade_score: 5,
   summary: {
