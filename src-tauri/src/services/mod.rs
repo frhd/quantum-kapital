@@ -31,6 +31,7 @@ pub mod risk_engine;
 pub mod sentiment_surge_scanner;
 pub mod social_sentiment;
 pub mod social_sentiment_scheduler;
+pub mod tca;
 pub mod thesis_generator;
 pub mod ticker_primer;
 pub mod tracker_runner;
