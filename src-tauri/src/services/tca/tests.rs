@@ -51,8 +51,7 @@ async fn seed_setup(db: &Db, strategy: &str, symbol: &str) -> i64 {
                  ) VALUES (?1, ?2, 'long', strftime('%s','now'), 100.0, 99.0, '[]', '{}')",
                 rusqlite::params![symbol, strategy],
             )?;
-            let id: i64 =
-                conn.query_row("SELECT last_insert_rowid()", [], |r| r.get(0))?;
+            let id: i64 = conn.query_row("SELECT last_insert_rowid()", [], |r| r.get(0))?;
             Ok(id)
         }
     })
@@ -90,6 +89,7 @@ fn fill_at(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // test fixture; one big fn beats N small ones
 fn new_intent(
     intent_id: &str,
     setup_id: Option<i64>,
@@ -122,7 +122,13 @@ fn new_intent(
 async fn fetch_exec_linkage(
     db: &Db,
     exec_id: &str,
-) -> (Option<i64>, Option<String>, Option<i64>, Option<i64>, Option<i64>) {
+) -> (
+    Option<i64>,
+    Option<String>,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+) {
     let exec_id = exec_id.to_string();
     db.with_conn(move |conn| {
         let row = conn.query_row(
@@ -157,7 +163,7 @@ async fn clean_fill_stamps_setup_id_intent_id_and_slippage() {
         "AAPL",
         IntentSide::Buy,
         100.0,
-        100_00,
+        10_000,
         posted,
         60,
     ))
@@ -178,7 +184,7 @@ async fn clean_fill_stamps_setup_id_intent_id_and_slippage() {
     let (s_id, i_id, intended, bps, signed) = fetch_exec_linkage(&db, "e_1").await;
     assert_eq!(s_id, Some(setup_id));
     assert_eq!(i_id, Some("i_1".to_string()));
-    assert_eq!(intended, Some(100_00));
+    assert_eq!(intended, Some(10_000));
     assert_eq!(bps, Some(50));
     assert_eq!(signed, Some(50));
     let intent = svc.intents().get("i_1").await.unwrap().unwrap();
@@ -198,14 +204,22 @@ async fn partial_fills_keep_intent_open_until_cumulative_qty_met() {
         "AAPL",
         IntentSide::Buy,
         100.0,
-        100_00,
+        10_000,
         posted,
         60,
     ))
     .await
     .unwrap();
     let now = Utc::now();
-    let f1 = fill_at("e_a", "DU1", "AAPL", ExecutionSide::Bought, 60.0, 100.10, now);
+    let f1 = fill_at(
+        "e_a",
+        "DU1",
+        "AAPL",
+        ExecutionSide::Bought,
+        60.0,
+        100.10,
+        now,
+    );
     store.record(&[f1]).await.unwrap();
     let n1 = svc.attach_fills_for_account_today("DU1").await.unwrap();
     assert_eq!(n1, 1);
@@ -271,7 +285,7 @@ async fn expired_intent_does_not_match_subsequent_fill() {
         "AAPL",
         IntentSide::Buy,
         100.0,
-        100_00,
+        10_000,
         posted,
         60, // expires 60m after posted ⇒ expired 60m ago.
     ))
@@ -311,7 +325,7 @@ async fn long_pays_positive_bps_short_pays_positive_bps() {
         "AAPL",
         IntentSide::Buy,
         10.0,
-        100_00,
+        10_000,
         posted,
         60,
     ))
@@ -324,22 +338,41 @@ async fn long_pays_positive_bps_short_pays_positive_bps() {
         "TSLA",
         IntentSide::Sell,
         10.0,
-        200_00,
+        20_000,
         posted,
         60,
     ))
     .await
     .unwrap();
     // Long fills 50bps worse: paid $100.50 vs intended $100.00.
-    let f_long = fill_at("e_l", "DU1", "AAPL", ExecutionSide::Bought, 10.0, 100.50, Utc::now());
+    let f_long = fill_at(
+        "e_l",
+        "DU1",
+        "AAPL",
+        ExecutionSide::Bought,
+        10.0,
+        100.50,
+        Utc::now(),
+    );
     // Short fills 50bps worse: received $199.00 vs intended $200.00.
-    let f_short = fill_at("e_s", "DU1", "TSLA", ExecutionSide::Sold, 10.0, 199.00, Utc::now());
+    let f_short = fill_at(
+        "e_s",
+        "DU1",
+        "TSLA",
+        ExecutionSide::Sold,
+        10.0,
+        199.00,
+        Utc::now(),
+    );
     store.record(&[f_long, f_short]).await.unwrap();
     svc.attach_fills_for_account_today("DU1").await.unwrap();
     let (_, _, _, bps_l, signed_l) = fetch_exec_linkage(&db, "e_l").await;
     let (_, _, _, bps_s, signed_s) = fetch_exec_linkage(&db, "e_s").await;
     assert_eq!(bps_l, Some(50));
-    assert!(signed_l.unwrap() > 0, "long signed slippage should be positive");
+    assert!(
+        signed_l.unwrap() > 0,
+        "long signed slippage should be positive"
+    );
     assert_eq!(bps_s, Some(50));
     assert!(
         signed_s.unwrap() > 0,
@@ -360,7 +393,7 @@ async fn attribution_rollup_returns_one_row_per_strategy_plus_unattributed() {
         "AAPL",
         IntentSide::Buy,
         10.0,
-        100_00,
+        10_000,
         posted,
         60,
     ))
@@ -373,7 +406,7 @@ async fn attribution_rollup_returns_one_row_per_strategy_plus_unattributed() {
         "MSFT",
         IntentSide::Buy,
         20.0,
-        300_00,
+        30_000,
         posted,
         60,
     ))
@@ -381,9 +414,33 @@ async fn attribution_rollup_returns_one_row_per_strategy_plus_unattributed() {
     .unwrap();
     let now = Utc::now();
     let fills = vec![
-        fill_at("e_b", "DU1", "AAPL", ExecutionSide::Bought, 10.0, 100.5, now),
-        fill_at("e_p", "DU1", "MSFT", ExecutionSide::Bought, 20.0, 300.0, now),
-        fill_at("e_oob", "DU1", "GOOG", ExecutionSide::Bought, 5.0, 150.0, now),
+        fill_at(
+            "e_b",
+            "DU1",
+            "AAPL",
+            ExecutionSide::Bought,
+            10.0,
+            100.5,
+            now,
+        ),
+        fill_at(
+            "e_p",
+            "DU1",
+            "MSFT",
+            ExecutionSide::Bought,
+            20.0,
+            300.0,
+            now,
+        ),
+        fill_at(
+            "e_oob",
+            "DU1",
+            "GOOG",
+            ExecutionSide::Bought,
+            5.0,
+            150.0,
+            now,
+        ),
     ];
     store.record(&fills).await.unwrap();
     svc.attach_fills_for_account_today("DU1").await.unwrap();
@@ -430,7 +487,11 @@ async fn slippage_distribution_buckets_by_strategy() {
     let posted = Utc::now() - Duration::minutes(1);
     // Three intents → three fills landing in three different buckets:
     // 0bps (perfect), ~25bps, ~150bps.
-    let prices = [(100.00, "i_a", "e_a"), (100.25, "i_b", "e_b"), (101.50, "i_c", "e_c")];
+    let prices = [
+        (100.00, "i_a", "e_a"),
+        (100.25, "i_b", "e_b"),
+        (101.50, "i_c", "e_c"),
+    ];
     let mut fills = Vec::new();
     for (price, intent_id, exec_id) in prices {
         svc.record_intent(new_intent(
@@ -440,7 +501,7 @@ async fn slippage_distribution_buckets_by_strategy() {
             "AAPL",
             IntentSide::Buy,
             10.0,
-            100_00,
+            10_000,
             posted,
             60,
         ))
@@ -482,10 +543,6 @@ async fn slippage_distribution_buckets_by_strategy() {
         .find(|b| b.lower_bps == 25 && b.upper_bps == 50)
         .unwrap();
     assert_eq!(twenty_five.n, 1);
-    let one_fifty = row
-        .buckets
-        .iter()
-        .find(|b| b.lower_bps == 100)
-        .unwrap();
+    let one_fifty = row.buckets.iter().find(|b| b.lower_bps == 100).unwrap();
     assert_eq!(one_fifty.n, 1);
 }

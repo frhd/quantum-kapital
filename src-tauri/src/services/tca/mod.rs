@@ -38,10 +38,18 @@ use crate::storage::Db;
 
 pub use attribution::AttributionService;
 pub use intent::{NewOrderIntent, OrderIntentStore};
-pub use matcher::{compute_slippage, execution_side_to_intent_side, match_fill};
+pub use matcher::{execution_side_to_intent_side, match_fill};
 pub use types::{
-    default_histogram_edges, AttributionRow, IntendedPriceSource, IntentSide, IntentStatus,
-    LinkageDecision, MatchWindow, OrderIntent, SlippageBucket, SlippageDistributionRow,
+    AttributionRow, IntendedPriceSource, IntentSide, MatchWindow, SlippageDistributionRow,
+};
+// Re-exports kept available for downstream consumers (P3 brackets,
+// MCP read tools) that need the full type set even when the lib's
+// internal call sites currently use a subset.
+#[allow(unused_imports)]
+pub use matcher::compute_slippage;
+#[allow(unused_imports)]
+pub use types::{
+    default_histogram_edges, IntentStatus, LinkageDecision, OrderIntent, SlippageBucket,
     SlippageRecord,
 };
 
@@ -62,6 +70,10 @@ pub struct TcaService {
     intents: Arc<OrderIntentStore>,
     attribution: Arc<AttributionService>,
     executions: Arc<ExecutionsStore>,
+    /// Reserved for P3 — bracket-attach uses a tighter window than
+    /// the parent intent. Default value is the same MatchWindow the
+    /// matcher reads internally.
+    #[allow(dead_code)]
     window: MatchWindow,
 }
 
@@ -75,14 +87,7 @@ impl TcaService {
         }
     }
 
-    /// Override the default match window. Used by tests; production
-    /// callers stick with `MatchWindow::default()`.
-    #[cfg(test)]
-    pub fn with_window(mut self, window: MatchWindow) -> Self {
-        self.window = window;
-        self
-    }
-
+    #[allow(dead_code)] // exercised by tests + reserved for P3 commands
     pub fn intents(&self) -> &OrderIntentStore {
         &self.intents
     }
@@ -91,13 +96,9 @@ impl TcaService {
         &self.attribution
     }
 
-    pub fn match_window(&self) -> MatchWindow {
-        self.window
-    }
-
     /// Record a new intent. Validates that price > 0 and qty > 0.
     pub async fn record_intent(&self, intent: NewOrderIntent) -> Result<()> {
-        if !(intent.qty > 0.0) {
+        if !intent.qty.is_finite() || intent.qty <= 0.0 {
             return Err(TcaError::Invalid("qty must be > 0".to_string()));
         }
         if intent.intended_price_cents <= 0 {

@@ -21,9 +21,7 @@ use tauri::State;
 
 use crate::ibkr::state::IbkrState;
 use crate::ibkr::types::{IbkrExecution, OrderAction, OrderRequest, OrderType};
-use crate::services::tca::{
-    IntendedPriceSource, IntentSide, NewOrderIntent, TcaService,
-};
+use crate::services::tca::{IntendedPriceSource, IntentSide, NewOrderIntent, TcaService};
 
 #[tauri::command]
 pub async fn ibkr_place_order(
@@ -157,49 +155,95 @@ mod tests {
 
     #[test]
     fn build_intent_market_order_uses_short_window() {
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Market), None, 100.0);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Market),
+            None,
+            100.0,
+        );
         let window = (intent.expires_at - intent.posted_at).num_minutes();
         assert!(window <= 5);
     }
 
     #[test]
     fn build_intent_limit_order_uses_long_window() {
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Limit), None, 100.0);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Limit),
+            None,
+            100.0,
+        );
         let window = (intent.expires_at - intent.posted_at).num_minutes();
         assert!(window >= 60);
     }
 
     #[test]
     fn build_intent_setup_linked_uses_trigger_price_source() {
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Limit), Some(42), 100.0);
-        assert_eq!(intent.intended_price_source, IntendedPriceSource::TriggerPrice);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Limit),
+            Some(42),
+            100.0,
+        );
+        assert_eq!(
+            intent.intended_price_source,
+            IntendedPriceSource::TriggerPrice
+        );
         assert_eq!(intent.setup_id, Some(42));
     }
 
     #[test]
     fn build_intent_no_setup_limit_falls_to_limit_price_source() {
-        let intent = build_intent("DU1", &order(OrderAction::Sell, OrderType::Limit), None, 100.0);
-        assert_eq!(intent.intended_price_source, IntendedPriceSource::LimitPrice);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Sell, OrderType::Limit),
+            None,
+            100.0,
+        );
+        assert_eq!(
+            intent.intended_price_source,
+            IntendedPriceSource::LimitPrice
+        );
         assert_eq!(intent.side, IntentSide::Sell);
     }
 
     #[test]
     fn build_intent_no_setup_market_falls_to_live_quote_source() {
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Market), None, 100.0);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Market),
+            None,
+            100.0,
+        );
         assert_eq!(intent.intended_price_source, IntendedPriceSource::LiveQuote);
     }
 
     #[test]
     fn build_intent_rounds_intended_price_to_cents() {
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Limit), None, 100.504);
-        assert_eq!(intent.intended_price_cents, 100_50);
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Limit), None, 100.506);
-        assert_eq!(intent.intended_price_cents, 100_51);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Limit),
+            None,
+            100.504,
+        );
+        assert_eq!(intent.intended_price_cents, 10_050);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Limit),
+            None,
+            100.506,
+        );
+        assert_eq!(intent.intended_price_cents, 10_051);
     }
 
     #[test]
     fn build_intent_clamps_negative_price_to_zero() {
-        let intent = build_intent("DU1", &order(OrderAction::Buy, OrderType::Limit), None, -5.0);
+        let intent = build_intent(
+            "DU1",
+            &order(OrderAction::Buy, OrderType::Limit),
+            None,
+            -5.0,
+        );
         assert_eq!(intent.intended_price_cents, 0);
     }
 

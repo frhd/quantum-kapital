@@ -44,13 +44,13 @@ use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
-use services::tca::TcaService;
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
 use services::social_sentiment::reddit::RedditWsbProvider;
 use services::social_sentiment::stocktwits::StocktwitsProvider;
 use services::social_sentiment::SocialSentimentService;
 use services::social_sentiment_scheduler::SocialSentimentScheduler;
+use services::tca::TcaService;
 use services::thesis_generator::ThesisGenerator;
 use services::ticker_primer::TickerPrimerService;
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
@@ -484,11 +484,8 @@ pub fn run() {
             let executions_ingestor_fetcher: Arc<dyn LiveExecutionsFetcher> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn LiveExecutionsFetcher>;
             let executions_ingestor = Arc::new(
-                ExecutionsIngestor::new(
-                    Arc::clone(&executions_store),
-                    executions_ingestor_fetcher,
-                )
-                .with_tca(Arc::clone(&tca_service)),
+                ExecutionsIngestor::new(Arc::clone(&executions_store), executions_ingestor_fetcher)
+                    .with_tca(Arc::clone(&tca_service)),
             );
             {
                 let ingestor = Arc::clone(&executions_ingestor);
@@ -660,6 +657,9 @@ pub fn run() {
             ibkr::commands::risk_set_config,
             ibkr::commands::risk_recompute_setup,
             ibkr::commands::risk_refresh_equity,
+            ibkr::commands::tca_get_attribution,
+            ibkr::commands::tca_get_slippage_distribution,
+            ibkr::commands::tca_record_manual_intent,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

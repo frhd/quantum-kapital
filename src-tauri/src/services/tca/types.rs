@@ -130,6 +130,7 @@ pub struct OrderIntent {
 }
 
 impl OrderIntent {
+    #[allow(dead_code)] // surfaced by future read APIs (P3, attribution UI)
     pub fn intended_price(&self) -> f64 {
         self.intended_price_cents as f64 / 100.0
     }
@@ -160,6 +161,7 @@ impl Default for MatchWindow {
 }
 
 impl MatchWindow {
+    #[allow(dead_code)] // tests + future P3 bracket window
     pub fn duration_for(&self, is_market: bool) -> Duration {
         let m = if is_market {
             self.market_minutes

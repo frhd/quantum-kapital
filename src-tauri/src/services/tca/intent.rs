@@ -13,9 +13,7 @@ use rusqlite::{params, OptionalExtension};
 use crate::storage::error::Result as StorageResult;
 use crate::storage::Db;
 
-use super::types::{
-    IntendedPriceSource, IntentSide, IntentStatus, LinkageDecision, OrderIntent,
-};
+use super::types::{IntendedPriceSource, IntentSide, IntentStatus, LinkageDecision, OrderIntent};
 
 /// Builder for a new intent. Fields validated at insert time.
 #[derive(Debug, Clone)]
@@ -75,6 +73,7 @@ impl OrderIntentStore {
     }
 
     /// Fetch a single intent by id.
+    #[allow(dead_code)] // exercised by tests + reserved for P3 commands
     pub async fn get(&self, intent_id: &str) -> StorageResult<Option<OrderIntent>> {
         let id = intent_id.to_string();
         self.db
@@ -271,6 +270,7 @@ fn parse_rfc3339(s: &str, col_idx: usize) -> rusqlite::Result<DateTime<Utc>> {
 /// market window vs the 60-min limit window. Mirrors
 /// `MatchWindow::default()` so callers that don't override end up
 /// in the same place.
+#[allow(dead_code)] // reserved for P3 bracket-attach path
 pub fn default_expiry(now: DateTime<Utc>, is_market: bool) -> DateTime<Utc> {
     let minutes = if is_market { 5 } else { 60 };
     now + Duration::minutes(minutes)
@@ -307,7 +307,7 @@ mod tests {
             symbol: "AAPL".to_string(),
             side: IntentSide::Buy,
             qty,
-            intended_price_cents: 100_00,
+            intended_price_cents: 10_000,
             intended_price_source: IntendedPriceSource::TriggerPrice,
             posted_at: now,
             expires_at: now + Duration::minutes(60),
@@ -358,7 +358,10 @@ mod tests {
         let mut ancient = make_new_intent("i_ancient", 100.0);
         ancient.expires_at = Utc::now() - Duration::minutes(1);
         store.insert(ancient).await.unwrap();
-        store.insert(make_new_intent("i_fresh", 100.0)).await.unwrap();
+        store
+            .insert(make_new_intent("i_fresh", 100.0))
+            .await
+            .unwrap();
         let n = store.expire_stale(Utc::now()).await.unwrap();
         assert_eq!(n, 1);
         let ancient = store.get("i_ancient").await.unwrap().unwrap();

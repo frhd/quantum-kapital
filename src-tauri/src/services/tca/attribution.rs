@@ -7,10 +7,11 @@
 //!    detector class plus an "unattributed" bucket. Numbers come
 //!    from `executions` joined to `setups` for `strategy`. NULL
 //!    `setup_id` ⇒ unattributed.
+//!
 //! 2. `slippage_distribution(date_from, date_to, account, edges)` —
 //!    histogram bucketed by user-supplied edges, keyed by strategy
-//!    + a coarse symbol-liquidity bucket (placeholder = "all" until
-//!    a real classifier lands).
+//!    plus a coarse symbol-liquidity bucket (placeholder = "all"
+//!    until a real classifier lands).
 //!
 //! All money is integer cents on read, no f64 round-trip drift.
 
