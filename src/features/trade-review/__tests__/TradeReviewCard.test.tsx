@@ -40,7 +40,8 @@ const review: TradeReview = {
       tag: "discipline_on_loser",
     },
   ],
-  narrative_md: "Net positive day driven by TSLA scalps.",
+  narrative_md:
+    "Net positive day driven by TSLA scalps. Disciplined exits, no chasing. Watch for cleaner setups tomorrow.",
   llm_call_id: null,
 }
 
@@ -56,29 +57,28 @@ describe("TradeReviewCard", () => {
     expect(await screen.findByText(/No trade review for 2026-05-04 yet/i)).toBeInTheDocument()
   })
 
-  it("renders the grade, P&L summary, tags, and narrative when populated", async () => {
+  it("renders the grade, share card, and narrative when populated", async () => {
     vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(review)
     render(<TradeReviewCard date="2026-05-04" />)
 
+    // GradeBadge appears in the card header and inside the share card.
     await waitFor(() => {
-      expect(screen.getByTestId("grade-badge")).toBeInTheDocument()
+      expect(screen.getAllByTestId("grade-badge").length).toBeGreaterThan(0)
     })
-    const badge = screen.getByTestId("grade-badge")
-    expect(badge.textContent).toContain("B")
-    expect(badge.textContent).toContain("+12.4")
+    const headerBadge = screen.getAllByTestId("grade-badge")[0]
+    expect(headerBadge.textContent).toContain("B")
+    expect(headerBadge.textContent).toContain("+12.4")
 
-    const summary = screen.getByTestId("review-summary")
-    expect(summary.textContent).toContain("$380.00")
-    expect(summary.textContent).toContain("$401.10")
-    expect(summary.textContent).toContain("$21.10")
-    expect(summary.textContent).toContain("67%")
+    const card = screen.getByTestId("share-card")
+    expect(card.textContent).toContain("$380.00")
+    expect(card.textContent).toContain("3 round trips")
+    expect(card.textContent).toContain("67% win rate")
+    expect(card.textContent).toContain("flat_close")
+    expect(card.textContent).toContain("chase_own_exit")
+    expect(card.textContent).toContain("discipline_on_loser")
 
-    const tags = screen.getByTestId("review-tags")
-    expect(tags.textContent).toContain("flat_close")
-    expect(tags.textContent).toContain("chase_own_exit")
-    expect(tags.textContent).toContain("discipline_on_loser")
-
-    expect(screen.getByText(/Net positive day driven by TSLA scalps/)).toBeInTheDocument()
+    // Full narrative still renders below the share card.
+    expect(screen.getByText(/Disciplined exits, no chasing/)).toBeInTheDocument()
   })
 
   it("surfaces backend errors", async () => {
@@ -124,5 +124,69 @@ describe("TradeReviewCard", () => {
     const button = await screen.findByRole("button", { name: /generate review/i })
     fireEvent.click(button)
     expect(await screen.findByText(/daily budget exhausted/i)).toBeInTheDocument()
+  })
+
+  it("shows a 'Regenerate' button only when a review is populated", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(review)
+    render(<TradeReviewCard date="2026-05-04" />)
+    expect(await screen.findByRole("button", { name: /regenerate/i })).toBeInTheDocument()
+  })
+
+  it("does not show 'Regenerate' in the empty state", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(null)
+    render(<TradeReviewCard date="2026-05-04" />)
+    await screen.findByRole("button", { name: /generate review/i })
+    expect(screen.queryByRole("button", { name: /^regenerate$/i })).not.toBeInTheDocument()
+  })
+
+  it("clicking 'Regenerate' confirms then re-runs the generator and refreshes", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(review)
+    vi.mocked(assessmentsApi.generateTradeReview).mockResolvedValue(review)
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /regenerate/i })
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalled()
+    })
+    await waitFor(() => {
+      expect(assessmentsApi.generateTradeReview).toHaveBeenCalledWith("2026-05-04", {
+        account: null,
+      })
+    })
+    confirmSpy.mockRestore()
+  })
+
+  it("clicking 'Regenerate' and dismissing the confirm does NOT call the generator", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(review)
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false)
+
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /regenerate/i })
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalled()
+    })
+    expect(assessmentsApi.generateTradeReview).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
+  it("surfaces a regenerate error without clobbering the existing review", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(review)
+    vi.mocked(assessmentsApi.generateTradeReview).mockRejectedValueOnce("daily budget exhausted")
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /regenerate/i })
+    fireEvent.click(button)
+
+    expect(await screen.findByText(/daily budget exhausted/i)).toBeInTheDocument()
+    // Existing review still rendered below the error banner — assert via the
+    // narrative body, which is unique to the populated content.
+    expect(screen.getByText(/Disciplined exits, no chasing/)).toBeInTheDocument()
+    confirmSpy.mockRestore()
   })
 })

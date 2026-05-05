@@ -91,7 +91,7 @@ pub fn format_prompt(date: NaiveDate, legs: &[TradeLeg], summary: &LegSummary) -
     }
     buf.push('\n');
     buf.push_str(
-        "Call `submit_trade_review` with `behavioral_tags`, `leg_observations` (1–3 most consequential legs), and `narrative_md` (200–400 words). DO NOT pick a grade — the server computes it from the summary + your tags.\n",
+        "Call `submit_trade_review` with `behavioral_tags`, `leg_observations` (1–3 most consequential legs), and `narrative_md` (3–4 sentences, ~60–75 words). DO NOT pick a grade — the server computes it from the summary + your tags.\n",
     );
 
     buf

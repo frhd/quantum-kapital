@@ -65,6 +65,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Load configuration from disk or use defaults
             let config = AppConfig::load_sync().unwrap_or_default();
@@ -109,7 +110,7 @@ pub fn run() {
                     Arc::new(ClaudeCliBackend::new(
                         bin_path,
                         version,
-                        std::time::Duration::from_secs(60),
+                        crate::services::llm_service::cli_backend::DEFAULT_TIMEOUT,
                     ))
                 }
             };
@@ -615,6 +616,7 @@ pub fn run() {
             ibkr::commands::candidates_scheduler_status,
             ibkr::commands::get_trade_review,
             ibkr::commands::generate_trade_review,
+            ibkr::commands::save_share_image_png,
             ibkr::commands::get_today_playbook,
             ibkr::commands::get_trader_profile,
             #[cfg(debug_assertions)]

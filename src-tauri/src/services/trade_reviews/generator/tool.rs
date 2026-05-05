@@ -71,7 +71,7 @@ pub fn submit_trade_review_schema() -> ToolSchema {
                 },
                 "narrative_md": {
                     "type": "string",
-                    "description": "200–400 words of markdown commentary. No front-matter, no fenced wrappers, no headers above ###."
+                    "description": "3–4 sentences (~60–75 words) of markdown commentary. Cut every word that isn't load-bearing. No front-matter, no fenced wrappers, no headers above ###."
                 },
             },
             "required": ["behavioral_tags", "narrative_md"],
