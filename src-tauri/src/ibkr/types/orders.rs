@@ -83,6 +83,35 @@ pub enum OrderType {
     StopLimit,
 }
 
+/// Phase 3 — request shape for `IbkrClient::place_bracket`. Wraps the
+/// parent + stop + per-target rungs the OrderTicket service hands to
+/// the IBKR adapter. `entry` is always a LIMIT (the trader picks a
+/// price; setups never fire MKT in the bracket path); `stop` is a
+/// STOP order; `targets` are LIMITs whose qty sums to `qty`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BracketRequest {
+    pub symbol: String,
+    /// Entry side. Long brackets buy → sell; short brackets sell →
+    /// buy. The stop + targets always use the *opposite* action.
+    pub entry_action: OrderAction,
+    pub qty: f64,
+    pub entry_limit_price: f64,
+    pub stop_price: f64,
+    /// One LIMIT per rung. `(price, qty)`. Sum of qty must equal the
+    /// parent qty; the placer trusts this and doesn't re-check.
+    pub target_rungs: Vec<(f64, f64)>,
+}
+
+/// IBKR ids returned by `place_bracket`. Order of `target_order_ids`
+/// matches the input `target_rungs` 1:1 so the OrderTicket service
+/// can join back to its `TargetSpec` ladder.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BracketReceipt {
+    pub parent_order_id: i32,
+    pub stop_order_id: i32,
+    pub target_order_ids: Vec<i32>,
+}
+
 #[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {

@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::ibkr::types::tracker::{Setup, TickerPrimingOutcome, TrackerStatus};
 use crate::ibkr::types::{DataTier, ScannerData};
+use crate::services::order_ticket::BracketStatus;
 use crate::services::risk_engine::Sizing;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +70,23 @@ pub enum AppEvent {
     OrderError {
         order_id: Option<i32>,
         error: String,
+    },
+    /// Phase 3 — emitted after `OrderTicket::with_brackets` persists a
+    /// successful submission. Lets the watchlist + setup card flip to
+    /// "bracket live" without polling `bracket_groups`.
+    BracketPlaced {
+        parent_order_id: i32,
+        setup_id: i64,
+        symbol: String,
+        qty: u32,
+    },
+    /// Phase 3 — emitted on `BracketGroupRecord.last_status` flips
+    /// (cancel-by-trader, future fill-status reconciler). Carries the
+    /// new status so listeners can update their row state.
+    BracketStatusChanged {
+        parent_order_id: i32,
+        setup_id: i64,
+        status: BracketStatus,
     },
 
     // Position events
@@ -229,6 +247,8 @@ impl AppEvent {
             AppEvent::OrderFilled { .. } => "order-filled",
             AppEvent::OrderCancelled { .. } => "order-cancelled",
             AppEvent::OrderError { .. } => "order-error",
+            AppEvent::BracketPlaced { .. } => "bracket-placed",
+            AppEvent::BracketStatusChanged { .. } => "bracket-status-changed",
             AppEvent::PositionUpdate { .. } => "position-update",
             AppEvent::PositionsRefreshed => "positions-refreshed",
             AppEvent::ScannerUpdate { .. } => "scanner-update",

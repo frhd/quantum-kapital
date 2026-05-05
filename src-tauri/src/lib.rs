@@ -43,6 +43,7 @@ use services::news_interpreter::NewsInterpreter;
 use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
+use services::order_ticket::{AccountResolver, BracketGroupStore, BracketPlacer, OrderTicket};
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -552,6 +553,29 @@ pub fn run() {
                 }
             });
 
+            // Quant-decisions Phase 3 — bracket-on-activation.
+            // Single chokepoint for setup-linked order submission.
+            // Reuses `tca_service` for intent recording and shares the
+            // P1 equity_snapshot service for the staleness gate.
+            // `IbkrClient` impls `BracketPlacer` (via the
+            // `place_bracket` extension on `ibkr/client/orders.rs`)
+            // and `AccountResolver` (matches RiskEngine's first-account
+            // policy).
+            let bracket_placer: Arc<dyn BracketPlacer> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn BracketPlacer>;
+            let bracket_account_resolver: Arc<dyn AccountResolver> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn AccountResolver>;
+            let bracket_store = Arc::new(BracketGroupStore::new(Arc::clone(&db)));
+            let order_ticket = Arc::new(OrderTicket::new(
+                Arc::clone(&ibkr_state.tracker),
+                Arc::clone(&tca_service),
+                Arc::clone(&equity_snapshot_svc),
+                bracket_placer,
+                bracket_store,
+                Arc::clone(&ibkr_state.event_emitter),
+                bracket_account_resolver,
+            ));
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
@@ -586,6 +610,7 @@ pub fn run() {
             app.manage(risk_engine);
             app.manage(equity_snapshot_svc);
             app.manage(tca_service);
+            app.manage(order_ticket);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -660,6 +685,9 @@ pub fn run() {
             ibkr::commands::tca_get_attribution,
             ibkr::commands::tca_get_slippage_distribution,
             ibkr::commands::tca_record_manual_intent,
+            ibkr::commands::order_ticket_take_setup,
+            ibkr::commands::order_ticket_status,
+            ibkr::commands::order_ticket_cancel_bracket,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

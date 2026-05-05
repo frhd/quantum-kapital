@@ -21,6 +21,7 @@ pub mod mcp_audit;
 pub mod news_cache;
 pub mod news_interpreter;
 pub mod news_provider;
+pub mod order_ticket;
 pub mod outcome_extractor;
 pub mod playbooks;
 pub mod predictions;
