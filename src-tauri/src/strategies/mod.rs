@@ -12,6 +12,7 @@ mod trait_def;
 
 pub mod breakout;
 pub mod episodic_pivot;
+pub mod exits;
 pub mod parabolic_short;
 
 #[cfg(test)]
