@@ -1,0 +1,22 @@
+{
+  "_comment": "FOMC meeting dates pulled from federalreserve.gov/monetarypolicy/fomccalendars.htm. Each entry is the *second* (decision) day of the meeting — the day the rate statement is released at 14:00 ET. The blackout is anchored to this date. Update when the Fed publishes a new annual schedule (typically each summer). Phase 5: see master.md hard invariant 6 — schedulers must honor this list.",
+  "_updated_at": "2026-05-06",
+  "meetings": [
+    "2026-01-28",
+    "2026-03-18",
+    "2026-04-29",
+    "2026-06-17",
+    "2026-07-29",
+    "2026-09-16",
+    "2026-10-28",
+    "2026-12-16",
+    "2027-01-27",
+    "2027-03-17",
+    "2027-04-28",
+    "2027-06-16",
+    "2027-07-28",
+    "2027-09-22",
+    "2027-11-03",
+    "2027-12-15"
+  ]
+}

@@ -128,6 +128,19 @@ pub enum AppEvent {
         symbol: String,
         reason: String,
     },
+    /// Quant-decisions Phase 5 — emitted by `TrackerRunner` when a
+    /// detector hit was gated before sizing (earnings or FOMC
+    /// blackout). The setup row is persisted with `skipped_reason`
+    /// set so the trader can see the skip in the SkippedSetupsPanel
+    /// and override per-setup with a recorded reason. `kind` is
+    /// the short tag like `"earnings_blackout"`.
+    SetupSkipped {
+        setup_id: i64,
+        symbol: String,
+        strategy: String,
+        kind: String,
+        reason: String,
+    },
     /// Emitted whenever a tracker row's status changes. Lets the
     /// frontend update the watchlist row badge without a full
     /// re-fetch.
@@ -258,6 +271,7 @@ impl AppEvent {
             AppEvent::SetupDetected { .. } => "setup-detected",
             AppEvent::SetupSized { .. } => "setup-sized",
             AppEvent::SetupInvalidated { .. } => "setup-invalidated",
+            AppEvent::SetupSkipped { .. } => "setup-skipped",
             AppEvent::TickerStatusChanged { .. } => "ticker-status-changed",
             AppEvent::MorningPackReady { .. } => "morning-pack-ready",
             AppEvent::ResearchNoteWritten { .. } => "research-note-written",

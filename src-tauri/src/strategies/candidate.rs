@@ -16,6 +16,39 @@ pub struct TargetLevel {
     pub price: f64,
 }
 
+/// Phase 5 — short tag identifying *why* a setup was skipped (rather
+/// than fired). Persisted on the `setups` row as `skipped_reason` and
+/// surfaced to the UI so the trader can review skipped detector hits in
+/// the SkippedSetupsPanel. Distinct from
+/// [`crate::services::risk_engine::SizingSkippedReason`], which tracks
+/// risk-engine sizing failures on a fired setup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkipReason {
+    /// Detector hit fell inside an earnings blackout window for this
+    /// detector's per-strategy policy.
+    EarningsBlackout,
+    /// Detector hit fell inside the FOMC day-of blackout window.
+    FomcBlackout,
+}
+
+impl SkipReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SkipReason::EarningsBlackout => "earnings_blackout",
+            SkipReason::FomcBlackout => "fomc_blackout",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "earnings_blackout" => Some(SkipReason::EarningsBlackout),
+            "fomc_blackout" => Some(SkipReason::FomcBlackout),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetupCandidate {
     pub strategy: &'static str,

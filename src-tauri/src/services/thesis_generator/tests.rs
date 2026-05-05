@@ -111,6 +111,8 @@ fn sample_setup() -> Setup {
         invalidation_reason: None,
         archived_at: None,
         sizing: None,
+        skipped_reason: None,
+        skip_window_json: None,
     }
 }
 

@@ -17,7 +17,7 @@ use rusqlite::OptionalExtension;
 use crate::ibkr::types::tracker::{Setup, SetupStatus};
 use crate::services::risk_engine::{ConvictionGrade, Sizing, SizingSkippedReason};
 use crate::storage::error::StorageError;
-use crate::strategies::{Direction, SetupCandidate, TargetLevel};
+use crate::strategies::{Direction, SetupCandidate, SkipReason, TargetLevel};
 use crate::utils::helpers::unix_to_utc;
 
 use super::{Result, TrackerError, TrackerService};
@@ -85,7 +85,130 @@ impl TrackerService {
             invalidation_reason: None,
             archived_at: None,
             sizing: None,
+            skipped_reason: None,
+            skip_window_json: None,
         })
+    }
+
+    /// Phase 5 — persist a setup that the runner gated before sizing.
+    /// `skipped_reason` is the short tag (e.g. `EarningsBlackout`);
+    /// `skip_window_json` carries the full blackout descriptor so the
+    /// UI can show "skipped: earnings in 3 BD" without a second query.
+    /// The row lands with `status = 'active'` so it's still visible
+    /// alongside fired setups; the runner just doesn't size it or
+    /// drive the state machine. Risk-engine, alerts, thesis paths are
+    /// all bypassed for skipped rows.
+    pub async fn insert_skipped_setup(
+        &self,
+        symbol: &str,
+        candidate: &SetupCandidate,
+        skipped_reason: SkipReason,
+        skip_window_json: serde_json::Value,
+    ) -> Result<Setup> {
+        let symbol_norm = symbol.to_uppercase();
+        let strategy = candidate.strategy.to_string();
+        let direction = candidate.direction;
+        let direction_str = direction_as_str(direction).to_string();
+        let detected_at = candidate.detected_at;
+        let detected_at_unix = detected_at.timestamp();
+        let trigger_price = candidate.trigger_price;
+        let stop_price = candidate.stop_price;
+        let targets = candidate.targets.clone();
+        let targets_json = serde_json::to_string(&targets)?;
+        let raw_signals = candidate.raw_signals.clone();
+        let raw_signals_json = serde_json::to_string(&raw_signals)?;
+        let skipped_reason_str = skipped_reason.as_str().to_string();
+        let skip_window_str = serde_json::to_string(&skip_window_json)?;
+
+        let symbol_for_db = symbol_norm.clone();
+        let strategy_for_db = strategy.clone();
+
+        let id = self
+            .db
+            .with_conn(move |conn| {
+                conn.execute(
+                    "INSERT INTO setups \
+                     (symbol, strategy, direction, detected_at, trigger_price, stop_price, \
+                      targets, raw_signals, thesis, thesis_json, status, invalidated_at, \
+                      invalidation_reason, skipped_reason, skip_window_json) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, 'active', NULL, NULL, ?9, ?10)",
+                    rusqlite::params![
+                        symbol_for_db,
+                        strategy_for_db,
+                        direction_str,
+                        detected_at_unix,
+                        trigger_price,
+                        stop_price,
+                        targets_json,
+                        raw_signals_json,
+                        skipped_reason_str,
+                        skip_window_str,
+                    ],
+                )?;
+                Ok(conn.last_insert_rowid())
+            })
+            .await?;
+
+        Ok(Setup {
+            id,
+            symbol: symbol_norm,
+            strategy,
+            direction,
+            detected_at,
+            trigger_price,
+            stop_price,
+            targets,
+            raw_signals,
+            thesis: None,
+            thesis_json: None,
+            status: SetupStatus::Active,
+            invalidated_at: None,
+            invalidation_reason: None,
+            archived_at: None,
+            sizing: None,
+            skipped_reason: Some(skipped_reason),
+            skip_window_json: Some(skip_window_json),
+        })
+    }
+
+    /// Phase 5 — list `setups` rows where `skipped_reason IS NOT NULL`,
+    /// optionally filtered by trading day (rows with `detected_at >=
+    /// since`). Newest-first. Used by the SkippedSetupsPanel to surface
+    /// today's blackout-gated hits to the trader.
+    pub async fn list_skipped_setups(&self, since: Option<DateTime<Utc>>) -> Result<Vec<Setup>> {
+        let since_unix = since.map(|d| d.timestamp());
+        let raws = self
+            .db
+            .with_conn(move |conn| {
+                let mut sql = String::from(
+                    "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
+                            stop_price, targets, raw_signals, thesis, thesis_json, status, \
+                            invalidated_at, invalidation_reason, archived_at, \
+                            qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
+                            sizing_version, sizing_skipped_reason, conviction_grade, \
+                            conviction_multiplier_bps, sizing_cap_applied, \
+                            skipped_reason, skip_window_json \
+                     FROM setups \
+                     WHERE archived_at IS NULL AND skipped_reason IS NOT NULL",
+                );
+                if since_unix.is_some() {
+                    sql.push_str(" AND detected_at >= ?1");
+                }
+                sql.push_str(" ORDER BY detected_at DESC, id DESC");
+
+                let mut stmt = conn.prepare(&sql)?;
+                let rows = match since_unix {
+                    Some(u) => stmt
+                        .query_map(rusqlite::params![u], setup_row_to_raw)?
+                        .collect::<rusqlite::Result<Vec<_>>>()?,
+                    None => stmt
+                        .query_map([], setup_row_to_raw)?
+                        .collect::<rusqlite::Result<Vec<_>>>()?,
+                };
+                Ok(rows)
+            })
+            .await?;
+        raws.into_iter().map(decode_setup_raw).collect()
     }
 
     /// Quant-decisions Phase 1 — persist the risk-engine `Sizing` for
@@ -192,7 +315,8 @@ impl TrackerService {
                             invalidated_at, invalidation_reason, archived_at, \
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
-                            conviction_multiplier_bps, sizing_cap_applied \
+                            conviction_multiplier_bps, sizing_cap_applied, \
+                            skipped_reason, skip_window_json \
                      FROM setups WHERE archived_at IS NULL",
                 );
                 if symbol.is_some() {
@@ -240,7 +364,8 @@ impl TrackerService {
                             invalidated_at, invalidation_reason, archived_at, \
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
-                            conviction_multiplier_bps, sizing_cap_applied \
+                            conviction_multiplier_bps, sizing_cap_applied, \
+                            skipped_reason, skip_window_json \
                      FROM setups WHERE id = ?1 AND archived_at IS NULL",
                     rusqlite::params![id],
                     setup_row_to_raw,
@@ -348,9 +473,10 @@ impl TrackerService {
 
 // ---------------- setup row helpers ----------------
 
-// allow-large-tuple: 24 fields parallels the `setups` SELECT order
-// 1:1 so the row reader stays a single positional decode. Splitting
-// would require a struct shim that adds nothing the comment doesn't.
+// allow-large-tuple: 26 fields parallel the `setups` SELECT order 1:1
+// so the row reader stays a single positional decode. Splitting would
+// require a struct shim that adds nothing the comment doesn't. Phase 5
+// appends `skipped_reason` + `skip_window_json` at the tail.
 #[allow(clippy::type_complexity)]
 type SetupRawRow = (
     i64,            // id
@@ -377,6 +503,8 @@ type SetupRawRow = (
     Option<String>, // conviction_grade
     Option<i64>,    // conviction_multiplier_bps
     Option<i64>,    // sizing_cap_applied
+    Option<String>, // skipped_reason (Phase 5)
+    Option<String>, // skip_window_json (Phase 5)
 );
 
 fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
@@ -405,6 +533,8 @@ fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
         row.get(21)?,
         row.get(22)?,
         row.get(23)?,
+        row.get(24)?,
+        row.get(25)?,
     ))
 }
 
@@ -434,6 +564,8 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         conviction_grade_s,
         conviction_multiplier_bps,
         sizing_cap_applied,
+        skipped_reason_s,
+        skip_window_json_s,
     ) = r;
     let direction = parse_direction(&direction_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -463,6 +595,18 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         conviction_multiplier_bps,
         sizing_cap_applied,
     )?;
+    let skipped_reason = match skipped_reason_s.as_deref() {
+        Some(s) => Some(SkipReason::parse(s).ok_or_else(|| {
+            TrackerError::Storage(StorageError::Migration(format!(
+                "unknown skipped_reason '{s}' on setup {id}"
+            )))
+        })?),
+        None => None,
+    };
+    let skip_window_json = match skip_window_json_s {
+        Some(s) if !s.is_empty() => Some(serde_json::from_str::<serde_json::Value>(&s)?),
+        _ => None,
+    };
     Ok(Setup {
         id,
         symbol,
@@ -480,6 +624,8 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         invalidation_reason,
         archived_at: archived_at.map(unix_to_utc),
         sizing,
+        skipped_reason,
+        skip_window_json,
     })
 }
 

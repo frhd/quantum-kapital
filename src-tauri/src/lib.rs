@@ -54,6 +54,10 @@ use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::tca::TcaService;
 use services::thesis_generator::ThesisGenerator;
 use services::ticker_primer::TickerPrimerService;
+use services::event_calendar::{
+    CompositeEarningsCalendar, EarningsCacheStore, EarningsCalendar, EarningsOverridesStore,
+    EventCalendarService, FomcCalendar, NoOpUpstream,
+};
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
 use strategies::registry_from_config;
 use tauri::Manager;
@@ -294,6 +298,36 @@ pub fn run() {
                 config.risk_engine.clone(),
             ));
 
+            // Quant-decisions Phase 5 — event-blackout gate. Composite
+            // earnings calendar = manual overrides > cache > upstream
+            // (NoOp stub in P5 — AV wiring deferred per the
+            // QUESTIONS.md audit). FOMC calendar is loaded from the
+            // embedded `data/fomc_dates.json`.
+            let earnings_overrides =
+                Arc::new(EarningsOverridesStore::new(Arc::clone(&db)));
+            let earnings_cache = Arc::new(EarningsCacheStore::new(Arc::clone(&db)));
+            let upstream_earnings: Arc<dyn services::event_calendar::UpstreamEarningsFetcher> =
+                Arc::new(NoOpUpstream);
+            let composite_earnings: Arc<dyn EarningsCalendar> =
+                Arc::new(CompositeEarningsCalendar::new(
+                    Arc::clone(&earnings_overrides),
+                    Arc::clone(&earnings_cache),
+                    upstream_earnings,
+                ));
+            let fomc_calendar = match FomcCalendar::from_embedded() {
+                Ok(c) => Arc::new(c),
+                Err(e) => {
+                    tracing::error!(
+                        "fomc dataset failed to parse: {e} — defaulting to empty calendar"
+                    );
+                    Arc::new(FomcCalendar::from_dates(Vec::new()))
+                }
+            };
+            let event_calendar = Arc::new(
+                EventCalendarService::new(composite_earnings, fomc_calendar)
+                    .with_cache(Arc::clone(&earnings_cache)),
+            );
+
             let tracker_runner = Arc::new(
                 TrackerRunner::new(
                     Arc::clone(&db),
@@ -306,7 +340,8 @@ pub fn run() {
                 )
                 .with_thesis_generator(Arc::clone(&thesis_generator))
                 .with_data_tier(Arc::clone(&ibkr_state.data_tier))
-                .with_risk_engine(Arc::clone(&risk_engine)),
+                .with_risk_engine(Arc::clone(&risk_engine))
+                .with_event_calendar(Arc::clone(&event_calendar), config.detectors.clone()),
             );
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
@@ -611,6 +646,9 @@ pub fn run() {
             app.manage(equity_snapshot_svc);
             app.manage(tca_service);
             app.manage(order_ticket);
+            app.manage(event_calendar);
+            app.manage(earnings_overrides);
+            app.manage(earnings_cache);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -691,6 +729,10 @@ pub fn run() {
             ibkr::commands::order_ticket_take_setup,
             ibkr::commands::order_ticket_status,
             ibkr::commands::order_ticket_cancel_bracket,
+            ibkr::commands::event_calendar_lookup,
+            ibkr::commands::event_calendar_force_refresh,
+            ibkr::commands::setup_override_blackout,
+            ibkr::commands::tracker_get_skipped_setups,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

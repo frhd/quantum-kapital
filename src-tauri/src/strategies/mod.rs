@@ -20,7 +20,7 @@ mod config_tests;
 mod tests;
 
 pub use breakout::BreakoutDetector;
-pub use candidate::{targets_for_risk_profile, Direction, SetupCandidate, TargetLevel};
+pub use candidate::{targets_for_risk_profile, Direction, SetupCandidate, SkipReason, TargetLevel};
 pub use config::{BreakoutCfg, DetectorsConfig, EpisodicPivotCfg, ParabolicShortCfg};
 pub use context::MarketContext;
 pub use episodic_pivot::EpisodicPivotDetector;

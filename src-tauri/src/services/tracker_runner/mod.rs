@@ -23,6 +23,7 @@ use crate::ibkr::types::historical::{BarSize, HistoricalBar};
 use crate::ibkr::types::news::{NewsItem, NewsVerdict};
 use crate::ibkr::types::tracker::{AlertKind, Setup, TrackerStatus};
 use crate::services::alerts::record_alert;
+use crate::services::event_calendar::{Blackout, EventCalendarService};
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::news_provider::NewsProvider;
 use crate::services::risk_engine::RiskEngine;
@@ -30,7 +31,7 @@ use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
-use crate::strategies::{DetectorRegistry, MarketContext};
+use crate::strategies::{DetectorRegistry, DetectorsConfig, MarketContext, SkipReason};
 
 #[cfg(test)]
 mod tests;
@@ -154,6 +155,17 @@ pub struct TrackerRunner {
     /// `SetupDetected`. When `None`, the runner is sizing-blind
     /// (back-compat for tests).
     risk_engine: Option<Arc<RiskEngine>>,
+    /// Quant-decisions Phase 5 — optional event-blackout gate. When
+    /// wired, every detector hit is checked against the per-detector
+    /// blackout policy before persistence. Hits inside an event window
+    /// land as `setups` rows with `skipped_reason` set, fire
+    /// `SetupSkipped`, and bypass the sizing / state-machine / thesis
+    /// paths. When `None`, the runner is gate-blind (back-compat).
+    event_calendar: Option<Arc<EventCalendarService>>,
+    /// Phase 5 — detector-config snapshot used to look up the blackout
+    /// policy for the candidate's `strategy`. Held alongside the gate
+    /// so a single `with_event_calendar` call wires both pieces.
+    detectors_config: Option<DetectorsConfig>,
 }
 
 impl TrackerRunner {
@@ -177,6 +189,8 @@ impl TrackerRunner {
             thesis_generator: None,
             data_tier: None,
             risk_engine: None,
+            event_calendar: None,
+            detectors_config: None,
         }
     }
 
@@ -185,6 +199,21 @@ impl TrackerRunner {
     /// `SetupSized` fires before `SetupDetected`.
     pub fn with_risk_engine(mut self, engine: Arc<RiskEngine>) -> Self {
         self.risk_engine = Some(engine);
+        self
+    }
+
+    /// Phase 5 — attach the event-blackout gate. Detector hits inside
+    /// an earnings or FOMC window get persisted as skipped setups
+    /// (`skipped_reason` set, `SetupSkipped` fired) and bypass sizing /
+    /// state-machine / thesis. `cfg` is the detector-config snapshot
+    /// used to look up the per-strategy blackout policy.
+    pub fn with_event_calendar(
+        mut self,
+        gate: Arc<EventCalendarService>,
+        cfg: DetectorsConfig,
+    ) -> Self {
+        self.event_calendar = Some(gate);
+        self.detectors_config = Some(cfg);
         self
     }
 
@@ -275,6 +304,60 @@ impl TrackerRunner {
         for outcome in outcomes {
             match outcome.result {
                 Ok(Some(candidate)) => {
+                    // Phase 5 — event-blackout gate. Run before
+                    // persistence so the gate can divert the hit into
+                    // a `skipped` row instead of a sized one. The
+                    // dedup window still applies to skipped rows so
+                    // we don't spam the SkippedSetupsPanel with the
+                    // same blackout for one symbol every tick.
+                    let gate_outcome = self
+                        .check_blackout(&ctx_owned.symbol, &candidate, ctx_owned.now)
+                        .await;
+                    match gate_outcome {
+                        Ok(Some(blackout)) => {
+                            match self
+                                .persist_skipped_with_dedup(
+                                    &ctx_owned.symbol,
+                                    &candidate,
+                                    &blackout,
+                                )
+                                .await
+                            {
+                                Ok(Some(skipped)) => {
+                                    let kind = blackout.kind.as_str().to_string();
+                                    let _ = self
+                                        .emitter
+                                        .emit(AppEvent::SetupSkipped {
+                                            setup_id: skipped.id,
+                                            symbol: skipped.symbol.clone(),
+                                            strategy: skipped.strategy.clone(),
+                                            kind,
+                                            reason: blackout.reason.clone(),
+                                        })
+                                        .await;
+                                }
+                                Ok(None) => {
+                                    // Recent duplicate skipped row — silent.
+                                }
+                                Err(e) => warn!(
+                                    "failed to persist skipped setup for {} ({}): {e}",
+                                    ctx_owned.symbol, outcome.detector
+                                ),
+                            }
+                            continue;
+                        }
+                        Ok(None) => {
+                            // No blackout — fall through to the normal
+                            // sized-and-persisted path.
+                        }
+                        Err(e) => {
+                            warn!(
+                                "event_calendar lookup failed for {} ({}): {e} — \
+                                 proceeding without gate (fail-open)",
+                                ctx_owned.symbol, outcome.detector
+                            );
+                        }
+                    }
                     match self.persist_with_dedup(&ctx_owned.symbol, &candidate).await {
                         Ok(Some(mut setup)) => {
                             // Quant-decisions Phase 1 — size the setup
@@ -465,6 +548,62 @@ impl TrackerRunner {
             return Ok(None);
         }
         let row = self.tracker.insert_setup(symbol, candidate).await?;
+        Ok(Some(row))
+    }
+
+    /// Phase 5 — `Some(Blackout)` if the configured gate refuses this
+    /// candidate; `None` if the gate is unwired, the strategy has no
+    /// blackout policy, or the policy lets the candidate through.
+    async fn check_blackout(
+        &self,
+        symbol: &str,
+        candidate: &crate::strategies::SetupCandidate,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<Blackout>, crate::services::event_calendar::EventCalendarError> {
+        let gate = match &self.event_calendar {
+            Some(g) => g,
+            None => return Ok(None),
+        };
+        let cfg = match &self.detectors_config {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+        let policy = cfg.blackout_policy_for(candidate.strategy);
+        gate.is_blackout(symbol, now, &policy).await
+    }
+
+    /// Phase 5 — write a skipped setup row. Same dedup window as
+    /// fired setups so the panel doesn't accumulate identical skips.
+    async fn persist_skipped_with_dedup(
+        &self,
+        symbol: &str,
+        candidate: &crate::strategies::SetupCandidate,
+        blackout: &Blackout,
+    ) -> TrackerResult<Option<Setup>> {
+        let existing = self
+            .tracker
+            .recent_duplicate(
+                symbol,
+                candidate.strategy,
+                candidate.direction,
+                DUPLICATE_WINDOW,
+            )
+            .await?;
+        if existing.is_some() {
+            return Ok(None);
+        }
+        let reason = match blackout.kind {
+            crate::services::event_calendar::BlackoutKind::Earnings => {
+                SkipReason::EarningsBlackout
+            }
+            crate::services::event_calendar::BlackoutKind::Fomc => SkipReason::FomcBlackout,
+        };
+        let window_json = serde_json::to_value(blackout)
+            .unwrap_or_else(|_| serde_json::json!({ "kind": blackout.kind.as_str() }));
+        let row = self
+            .tracker
+            .insert_skipped_setup(symbol, candidate, reason, window_json)
+            .await?;
         Ok(Some(row))
     }
 }

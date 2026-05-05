@@ -290,6 +290,18 @@ pub struct Setup {
     /// R-per-share without a separate query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sizing: Option<crate::services::risk_engine::Sizing>,
+    /// Phase 5 — non-NULL when the runner gated this setup before sizing
+    /// (e.g. earnings or FOMC blackout). The row is persisted so the
+    /// trader can review skipped hits and override per-setup; the
+    /// risk-engine and state-machine paths are skipped for these rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skipped_reason: Option<crate::strategies::SkipReason>,
+    /// Phase 5 — JSON describing the blackout window the setup tripped
+    /// (`{ kind, start, end, reason, source, confidence }`). Always
+    /// `Some` when `skipped_reason` is `Some`; `None` otherwise. Stored
+    /// as `serde_json::Value` so the UI can read it without re-parsing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skip_window_json: Option<serde_json::Value>,
 }
 
 #[cfg(test)]

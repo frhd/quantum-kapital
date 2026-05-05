@@ -22,8 +22,18 @@ const RTH_OPEN: (u32, u32) = (9, 30);
 const RTH_CLOSE: (u32, u32) = (16, 0);
 const EOD_SWEEP: (u32, u32) = (16, 5);
 
-fn et_offset() -> FixedOffset {
+/// Eastern Time offset (UTC-5, EST). Exposed so callers (event-calendar
+/// gate, schedulers) can convert a `DateTime<Utc>` to its ET date
+/// without re-deriving the offset constant.
+pub fn et_offset() -> FixedOffset {
     FixedOffset::west_opt(5 * 3600).expect("ET offset is valid")
+}
+
+/// Convert a UTC instant to its ET-local `NaiveDate`. Convenience
+/// wrapper around `now.with_timezone(&et_offset()).date_naive()` used
+/// by the event-blackout gate.
+pub fn et_date(now: DateTime<Utc>) -> NaiveDate {
+    now.with_timezone(&et_offset()).date_naive()
 }
 
 fn et_local_to_utc(date: NaiveDate, h: u32, m: u32) -> DateTime<Utc> {
@@ -115,6 +125,41 @@ pub fn trading_days_after(date: NaiveDate, n: u32) -> NaiveDate {
         }
     }
     d
+}
+
+/// Walk *backward* `n` business days from `date` (skipping weekends +
+/// holidays) and return the resulting `NaiveDate`. `n = 0` returns
+/// `date` unchanged. Used by the earnings-blackout gate to compute the
+/// "5 BD before next earnings" window-start.
+pub fn trading_days_before(date: NaiveDate, n: u32) -> NaiveDate {
+    let mut d = date;
+    let mut remaining = n;
+    while remaining > 0 {
+        d = d.pred_opt().expect("date arithmetic does not overflow");
+        if is_business_day(d) {
+            remaining -= 1;
+        }
+    }
+    d
+}
+
+/// Count of business days strictly between `from` and `to` (inclusive
+/// of `to`, exclusive of `from`). Returns `0` when `to <= from`. Used
+/// by the lookup command to surface "earnings in N BD" copy on the UI
+/// without re-deriving the window math.
+pub fn trading_days_between(from: NaiveDate, to: NaiveDate) -> u32 {
+    if to <= from {
+        return 0;
+    }
+    let mut d = from;
+    let mut count = 0u32;
+    while d < to {
+        d = d.succ_opt().expect("date arithmetic does not overflow");
+        if is_business_day(d) {
+            count += 1;
+        }
+    }
+    count
 }
 
 /// Convenience wrapper used by the tracker state machine — anchored to

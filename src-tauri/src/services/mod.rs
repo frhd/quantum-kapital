@@ -9,6 +9,7 @@ pub mod daily_ranker;
 pub mod decay_watcher;
 pub mod eod_scheduler;
 pub mod eval_harness;
+pub mod event_calendar;
 pub mod executions;
 pub mod financial_data_service;
 pub mod fundamentals_provider;
