@@ -455,12 +455,12 @@ pub fn run() {
             // `IbkrState` if explicit start/stop is needed.
 
             let mcp_socket_path = db_dir.join("mcp.sock");
-            let account_reader: Arc<dyn crate::mcp::ibkr_seam::AccountReader> = Arc::new(
-                crate::mcp::ibkr_seam::ProdAccountReader::new(
-                    Arc::clone(&ibkr_state.client) as Arc<dyn crate::mcp::ibkr_seam::LiveAccountClient>,
+            let account_reader: Arc<dyn crate::mcp::ibkr_seam::AccountReader> =
+                Arc::new(crate::mcp::ibkr_seam::ProdAccountReader::new(
+                    Arc::clone(&ibkr_state.client)
+                        as Arc<dyn crate::mcp::ibkr_seam::LiveAccountClient>,
                     Arc::clone(&executions_store),
-                ),
-            );
+                ));
             let mcp_ibkr_client: Arc<dyn crate::mcp::ibkr_seam::AccountReader> =
                 Arc::clone(&account_reader);
             let mcp_market_scanner: Arc<dyn MarketScanner> =

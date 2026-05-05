@@ -135,10 +135,7 @@ async fn store_query_isolates_accounts() {
     let (_tmp, db) = make_db();
     let store = ExecutionsStore::new(Arc::clone(&db));
     store
-        .record(&[
-            stk("U1A", "U1", 1.0, 1.0),
-            stk("U2A", "U2", 1.0, 1.0),
-        ])
+        .record(&[stk("U1A", "U1", 1.0, 1.0), stk("U2A", "U2", 1.0, 1.0)])
         .await
         .unwrap();
 

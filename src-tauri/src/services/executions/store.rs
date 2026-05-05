@@ -213,11 +213,7 @@ fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<IbkrExecution> {
     let exec_time_str: String = row.get(12)?;
     let exec_time = DateTime::parse_from_rfc3339(&exec_time_str)
         .map_err(|e| {
-            rusqlite::Error::FromSqlConversionFailure(
-                12,
-                rusqlite::types::Type::Text,
-                Box::new(e),
-            )
+            rusqlite::Error::FromSqlConversionFailure(12, rusqlite::types::Type::Text, Box::new(e))
         })?
         .with_timezone(&Utc);
     Ok(IbkrExecution {
