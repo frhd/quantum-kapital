@@ -68,7 +68,7 @@ Locked once so phases don't re-debate. Overridable per-phase with a written just
 | 1 | [phase-1-risk-engine.md](phase-1-risk-engine.md) | none (foundation) | done (commit 7d9251b, 2026-05-05) |
 | 2 | [phase-2-tca-linkage.md](phase-2-tca-linkage.md) | none (foundation) | done (commit 1f9036b, 2026-05-05) |
 | 3 | [phase-3-bracket-on-activation.md](phase-3-bracket-on-activation.md) | 1, 2 | done (commit b3da8de, 2026-05-06) |
-| 4 | [phase-4-r-grading.md](phase-4-r-grading.md) | 1, 2 | in-progress (started 2026-05-06) |
+| 4 | [phase-4-r-grading.md](phase-4-r-grading.md) | 1, 2 | done (commit 47eb50f, 2026-05-06) |
 | 5 | [phase-5-event-blackouts.md](phase-5-event-blackouts.md) | none (foundation) | todo |
 | 6 | [phase-6-backtester.md](phase-6-backtester.md) | 2 | todo |
 | 7 | [phase-7-vol-adjusted-exits.md](phase-7-vol-adjusted-exits.md) | 6 | todo |
