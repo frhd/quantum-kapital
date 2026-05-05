@@ -69,7 +69,7 @@ Both halves of that copy are misleading: the auto-write isn't running, and `qk-e
 | 3 | [phase-3-tool-schema-and-parser.md](phase-3-tool-schema-and-parser.md) | done (commit 704f80f, 2026-05-05) |
 | 4 | [phase-4-summary-builder.md](phase-4-summary-builder.md) | done (commit 79a6f2b, 2026-05-05) |
 | 5 | [phase-5-generator-orchestrator.md](phase-5-generator-orchestrator.md) | done (commit 67f71a7, 2026-05-05) |
-| 6 | [phase-6-tauri-command-and-wiring.md](phase-6-tauri-command-and-wiring.md) | todo |
+| 6 | [phase-6-tauri-command-and-wiring.md](phase-6-tauri-command-and-wiring.md) | in-progress (started 2026-05-05) |
 | 7 | [phase-7-fe-wrapper.md](phase-7-fe-wrapper.md) | todo |
 | 8 | [phase-8-ui-button-and-empty-state.md](phase-8-ui-button-and-empty-state.md) | todo |
 
