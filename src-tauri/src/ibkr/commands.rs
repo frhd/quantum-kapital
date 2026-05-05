@@ -18,6 +18,7 @@ pub mod sentiment;
 pub mod share;
 pub mod tca;
 pub mod tracker;
+pub mod trade_review_metrics;
 pub mod trades;
 pub mod trading;
 
@@ -39,5 +40,6 @@ pub use sentiment::*;
 pub use share::*;
 pub use tca::*;
 pub use tracker::*;
+pub use trade_review_metrics::*;
 pub use trades::*;
 pub use trading::*;
