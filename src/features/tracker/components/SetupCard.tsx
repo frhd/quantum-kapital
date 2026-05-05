@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import {
   formatDollarRisk,
@@ -6,9 +7,11 @@ import {
   SIZING_SKIPPED_LABELS,
   type Sizing,
 } from "../../../shared/api/riskEngine"
+import { Button } from "../../../shared/components/ui/button"
 import { cn } from "../../../shared/lib/utils"
 import type { Setup } from "../types"
 import { SetupBadge } from "./SetupBadge"
+import { TakeSetupModal } from "./TakeSetupModal"
 
 interface SetupCardProps {
   setup: Setup
@@ -85,7 +88,10 @@ function SizingRow({ sizing }: { sizing: Sizing }) {
  * pill so the trader knows the engine didn't touch the row.
  */
 export function SetupCard({ setup, equityFetchedAt }: SetupCardProps) {
+  const [modalOpen, setModalOpen] = useState(false)
   const stale = isStale(equityFetchedAt)
+  const sizingMissing = !setup.sizing || !!setup.sizing.skipped_reason
+  const takeDisabled = sizingMissing || stale
   return (
     <div
       className="border-border bg-card/50 flex flex-col gap-1.5 rounded-md border p-2"
@@ -111,6 +117,25 @@ export function SetupCard({ setup, equityFetchedAt }: SetupCardProps) {
           ungated — sizing not run
         </span>
       )}
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-xs"
+          disabled={takeDisabled}
+          onClick={() => setModalOpen(true)}
+          data-testid="take-setup-button"
+        >
+          Take Setup
+        </Button>
+      </div>
+      <TakeSetupModal
+        open={modalOpen}
+        setup={setup}
+        equityFetchedAt={equityFetchedAt}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   )
 }

@@ -637,6 +637,113 @@ fn build_ladder_rejects_zero_qty() {
     assert!(err.contains("parent_qty"));
 }
 
+// ---------------- tracer-bullet ----------------
+//
+// Master plan exit criterion: setup detection → P1 sizing → P2
+// intent → P3 bracket placement → mock fill → P2 slippage capture →
+// executions row with `setup_id` populated. The tracer below stitches
+// every stage against the same in-memory DB so a refactor that
+// breaks any link surfaces here.
+
+#[tokio::test]
+async fn tracer_bullet_setup_to_executions_row_with_setup_id_populated() {
+    use crate::ibkr::types::{ExecutionSide, IbkrExecution};
+    use chrono::TimeZone;
+
+    let h = Harness::new().await;
+    let setup_id = h.seed_setup("AAPL", Direction::Long, 150.0, 148.0, 100).await;
+
+    // P3: place the bracket. This records the P2 intent + writes a
+    // bracket_groups row.
+    let receipt = h
+        .ticket
+        .with_brackets(TakeSetupArgs {
+            setup_id,
+            override_qty: None,
+            override_stop_price: None,
+            override_reason: None,
+        })
+        .await
+        .unwrap();
+
+    // Simulate IBKR returning a fill against the parent. The fill
+    // lands at the trigger price (zero slippage) so the matcher's
+    // `compute_slippage` lights up cleanly.
+    let posted_at = Utc::now();
+    let exec = IbkrExecution {
+        symbol: "AAPL".to_string(),
+        side: ExecutionSide::Bought,
+        qty: 100.0,
+        avg_price: 150.0,
+        exec_time: posted_at,
+        order_id: receipt.parent_order_id,
+        exec_id: format!("EXEC-{}", receipt.parent_order_id),
+        account: "DU1".to_string(),
+        contract_type: "STK".to_string(),
+        expiry: None,
+        strike: None,
+        right: None,
+        multiplier: None,
+        commission: Some(0.50),
+        realized_pnl: None,
+        currency: Some("USD".to_string()),
+        commission_currency: Some("USD".to_string()),
+    };
+
+    // The shared executions store is what the TcaService.attach_fill
+    // pipeline reads against; record the fill so attach_fills_for_*
+    // sees it.
+    let executions_store = Arc::new(ExecutionsStore::new(Arc::clone(&h.db)));
+    executions_store
+        .record(std::slice::from_ref(&exec))
+        .await
+        .unwrap();
+
+    // P2: run the linkage pass. The matcher pairs the open intent
+    // recorded above with the fresh fill.
+    let decision = h.tca.attach_fill(&exec).await.unwrap();
+    let decision = decision.expect("matcher matched the parent fill");
+    assert_eq!(decision.setup_id, Some(setup_id));
+    assert_eq!(decision.exec_id, exec.exec_id);
+
+    // executions row carries setup_id. Read directly so the test
+    // doesn't depend on the higher-level query helpers.
+    let exec_id = exec.exec_id.clone();
+    let setup_on_row: Option<i64> = h
+        .db
+        .with_conn(move |conn| {
+            let id: Option<i64> = conn
+                .query_row(
+                    "SELECT setup_id FROM executions WHERE exec_id = ?1",
+                    rusqlite::params![exec_id],
+                    |r| r.get(0),
+                )
+                .ok();
+            Ok(id)
+        })
+        .await
+        .unwrap();
+    assert_eq!(setup_on_row, Some(setup_id));
+
+    // Belt-and-braces: the bracket group row keys the right setup,
+    // and the intent on the receipt resolves back to that setup too.
+    let group = h.store.get(receipt.parent_order_id).await.unwrap().unwrap();
+    assert_eq!(group.setup_id, setup_id);
+    let intent = h
+        .tca
+        .intents()
+        .get(&receipt.intent_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(intent.setup_id, Some(setup_id));
+
+    // Suppress "TimeZone import never used" — the import keeps
+    // datetime-construction ergonomics close to the executions tests
+    // even when this tracer doesn't synthesize a custom moment.
+    let _ = chrono::Utc.timestamp_opt(0, 0).unwrap();
+}
+
 // ---------------- staleness helper ----------------
 
 #[test]
