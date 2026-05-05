@@ -2,7 +2,7 @@
 
 > Part of [Quantum Kapital → Quant-Decisions-In-Code](master.md). See index for invariants.
 
-**Status:** in-progress (started 2026-05-05)
+**Status:** done (commit b3da8de, 2026-05-06)
 
 **Depends on:** 1, 2
 
