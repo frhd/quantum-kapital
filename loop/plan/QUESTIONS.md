@@ -254,13 +254,111 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   baseline; not introduced by event-blackout work. Left for the
   decay-watcher owner.
 
-## Phase 6 (TBD)
+## Phase 6 (2026-05-06)
 
-Reserved entries (filled when phase runs):
+- *Backtester ships as a harness; the data-driven retirement +
+  audit decisions remain pending real bar data.* Phase 6 lands the
+  full replay engine, fill-model trait + naive/calibrated impls,
+  walk-forward splits, results aggregation, persistence, Tauri
+  commands, frontend, and `qk-backtest` CLI binary. What it does NOT
+  land: the actual 18-month per-detector OOS sweeps that drive the
+  retirement decisions in master "Removals + corrections committed".
+  These need (a) the trader's `bars_cache` to be primed for a
+  representative top-50 watchlist over the full lookback, and (b)
+  P5 manual-overrides earnings rows populated for honest blackout
+  comparisons. Both are operator tasks. The harness is ready; the
+  evidence-gathering is the next sweep.
 
-- *Per-detector OOS profit-factor over 18 months.* If any detector falls below the 1.2 threshold committed in master, document it here, list the diff that disabled it, and link to the backtest run id.
-- *Sentiment-surge candidate-source A/B.* Realized R from sentiment-surge-sourced candidates vs IBKR-scanner-sourced candidates. Drives master removal decision.
-- *LLM-thesis A/B.* Outcome lift comparison; drives demote-to-optional decision.
+- *Sentiment-surge candidate-source A/B deferred.* The current
+  backtester is symbol-driven, not candidate-source-driven. To do
+  the A/B the runner spec doc committed, the spec needs a
+  `candidate_source: { ibkr_scanner | sentiment_surge | union }`
+  filter that joins against the `candidate_universe` table. The join
+  isn't load-bearing for the harness itself — it can be added
+  alongside the first real run. Master removal decision for
+  sentiment-surge stays open until that A/B has data.
+
+- *LLM-thesis A/B deferred.* Same shape — the harness's "no LLM"
+  decision (master committed: "backtester does NOT call LLM") means
+  every backtest setup carries `conviction = B` and no thesis prose.
+  An A/B against thesis-on setups requires either replaying historical
+  thesis-prose against historical setups (cheap; what we have in
+  `setups.thesis_json`) or re-querying Anthropic per backtest setup
+  (expensive; budget-blocking). The path of least resistance is to
+  filter live setups by thesis-presence and compare realized R; that's
+  a one-shot SQL query over the production `setups` + `executions`
+  tables, not a backtester job. Will land when the production
+  data set has enough setups with vs without thesis prose.
+
+- *Detector retirement (PF<1.2 over 18mo) deferred.* The harness
+  enforces the threshold as a documented invariant but does NOT
+  programmatically flip detectors off in `settings.toml`. The reason:
+  flipping off a detector based on a backtest the trader hasn't
+  reviewed produces a confusing UX ("why did breakout stop firing?
+  because a backtest you ran two weeks ago said so"). The decision
+  shape we landed on: when the operator runs a real OOS sweep, they
+  can hand-flip the disabled-by-default flag with the run-id in the
+  commit message. Master invariant stands; the automation hook lands
+  with P10 (walk-forward refit) when an authoritative refit cadence
+  exists.
+
+- *Look-ahead audit covered by `replay_never_passes_future_bars_to_detector`.*
+  The test installs a `PointInTimeAuditor` detector that asserts
+  `last_bar_time <= ctx.now` on every evaluation. If a future detector
+  starts indexing `bars[i+1]` somewhere, the assertion trips. Pin
+  here so a future maintainer doesn't remove the auditor as "unused
+  test detector".
+
+- *Determinism contract pinned by `rerun_same_spec_yields_identical_trade_count_and_pnl`.*
+  Two `Backtester::run` invocations against the same spec, same db
+  state, must produce the same trade count and same headline PnL.
+  Run-id collisions inside the same millisecond are kept distinct by
+  a process-local counter (`RUN_COUNTER`) — that's a quality-of-life
+  fix, not a determinism input.
+
+- *Survivorship bias documented, not corrected.* `bars_cache` is
+  populated from what the trader has watched / fetched. A backtest
+  over the watchlist is biased toward symbols the trader chose to
+  watch, which skews positive. The result-card UI doesn't surface
+  this caveat yet — log here so the next operator pass doesn't
+  read a backtest as a universal-edge claim.
+
+- *Splits & dividends not adjusted.* IBKR `bars_cache` is
+  split-adjusted but not dividend-adjusted. For the swing-hold
+  horizons the existing detectors target (days), the dividend impact
+  is < 0.5% per trade — accepted per master gotcha. If a future
+  detector trades over weeks, this becomes load-bearing.
+
+- *Pre-existing `decay_watcher` flake still failing.* Same panic
+  P1/P2/P5 logged; verified again on baseline against
+  `services::decay_watcher::tests::respects_budget_kill_switch`. Not
+  introduced by P6. The 968 other lib tests pass (39 of them new
+  backtester tests).
+
+- *Paper-account E2E not run by Claude.* The phase doc envisioned
+  an end-to-end run of all 3 detectors on top-50 watchlist symbols ×
+  18 months. That run requires a primed `bars_cache` Claude doesn't
+  have. The harness is reachable from the in-app `BacktestRunner` UI
+  and the `qk-backtest` CLI; the operator runs the first sweep and
+  documents results here when they do.
+
+- *Calibrated fill-model statistical-equivalence to P2 mean ±1bp not
+  yet pinned by a synthetic test.* The `calibrated_from_distribution_extracts_means`
+  unit test pins the mean/stdev derivation from a synthetic histogram;
+  the "matches P2 historical mean ±1bp" exit criterion in master is
+  satisfied by construction (we read the same TCA distribution rows
+  the live UI reads), but a regression test that compares a live-data
+  histogram round-trip against the calibrated model's mean is a
+  follow-up. Not load-bearing for the harness — both inputs derive
+  from `tca_get_slippage_distribution` directly.
+
+- *Frontend not yet wired into a parent tab.* `BacktestRunner` and
+  `BacktestResults` ship under `src/features/backtest/components/`
+  but no parent screen imports them. Same shape as P1/P3/P5 SetupCard
+  — the components are reachable via direct import / future page
+  routing. The phase that owns the trader-facing tab surface
+  (Workspace tab refactor) should pull these onto a "Research →
+  Backtest" tab when it lands.
 
 ## Phase 7 (TBD)
 
