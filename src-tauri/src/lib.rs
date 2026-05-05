@@ -54,7 +54,10 @@ use services::news_interpreter::NewsInterpreter;
 use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
-use services::order_ticket::{AccountResolver, BracketGroupStore, BracketPlacer, OrderTicket};
+use services::bracket_reviser::{BracketReviser, QuoteSource as ReviserQuoteSource};
+use services::order_ticket::{
+    AccountResolver, BracketGroupStore, BracketModifier, BracketPlacer, OrderTicket,
+};
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -346,7 +349,14 @@ pub fn run() {
                 .with_thesis_generator(Arc::clone(&thesis_generator))
                 .with_data_tier(Arc::clone(&ibkr_state.data_tier))
                 .with_risk_engine(Arc::clone(&risk_engine))
-                .with_event_calendar(Arc::clone(&event_calendar), config.detectors.clone()),
+                .with_event_calendar(Arc::clone(&event_calendar), config.detectors.clone())
+                // Quant-decisions Phase 7 — per-detector exit policies.
+                // The default registry maps breakout/episodic/parabolic
+                // to ATR-scaled with the master-committed time-stop
+                // horizons; everything else falls through to v1_static.
+                .with_exit_policies(
+                    crate::strategies::exits::ExitPolicyRegistry::default_for_phase_7(),
+                ),
             );
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
@@ -611,10 +621,37 @@ pub fn run() {
                 Arc::clone(&tca_service),
                 Arc::clone(&equity_snapshot_svc),
                 bracket_placer,
-                bracket_store,
+                Arc::clone(&bracket_store),
                 Arc::clone(&ibkr_state.event_emitter),
                 bracket_account_resolver,
             ));
+
+            // Quant-decisions Phase 7 — BracketReviser. Polls every
+            // open / partial bracket once a minute during RTH, steps
+            // chandelier stops, and submits modify_stop calls. The
+            // reviser never touches parent orders — it only modifies
+            // child stops on already-confirmed brackets, preserving
+            // master Hard Invariant 1 (surveillance + confirmed
+            // execution).
+            let bracket_modifier: Arc<dyn BracketModifier> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn BracketModifier>;
+            let reviser_quote_source: Arc<dyn ReviserQuoteSource> = Arc::new(
+                services::bracket_reviser::IbkrQuoteSource::new(Arc::clone(&quote_service)),
+            );
+            let bracket_reviser = Arc::new(BracketReviser::new(
+                Arc::clone(&bracket_store),
+                Arc::clone(&ibkr_state.tracker),
+                bracket_modifier,
+                reviser_quote_source,
+            ));
+            {
+                let reviser = Arc::clone(&bracket_reviser);
+                let handle = reviser.spawn();
+                let state_handle = Arc::clone(&ibkr_state.bracket_reviser_handle);
+                tauri::async_runtime::spawn(async move {
+                    *state_handle.write().await = Some(handle);
+                });
+            }
 
             // Quant-decisions Phase 6 — backtester. Read-only over the
             // shared bars_cache; reuses the live `DetectorRegistry` so
@@ -670,6 +707,7 @@ pub fn run() {
             app.manage(equity_snapshot_svc);
             app.manage(tca_service);
             app.manage(order_ticket);
+            app.manage(bracket_reviser);
             app.manage(event_calendar);
             app.manage(earnings_overrides);
             app.manage(earnings_cache);
@@ -754,6 +792,10 @@ pub fn run() {
             ibkr::commands::order_ticket_take_setup,
             ibkr::commands::order_ticket_status,
             ibkr::commands::order_ticket_cancel_bracket,
+            ibkr::commands::exits_get_policy,
+            ibkr::commands::exits_set_policy,
+            ibkr::commands::bracket_reviser_status,
+            ibkr::commands::bracket_revert_to_static,
             ibkr::commands::backtest_run,
             ibkr::commands::backtest_get_run,
             ibkr::commands::backtest_list_runs,

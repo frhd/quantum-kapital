@@ -40,6 +40,7 @@ use crate::strategies::exits::{
     TrailKind,
 };
 use crate::strategies::Direction;
+use crate::services::quote_service::QuoteService;
 use crate::utils::market_calendar;
 
 #[cfg(test)]
@@ -127,6 +128,34 @@ pub trait QuoteSource: Send + Sync {
     async fn observe(&self, symbol: &str) -> std::result::Result<PriceObservation, IbkrError>;
 }
 
+/// Production `QuoteSource` that pulls a live snapshot via the shared
+/// `QuoteService`. Both `extreme_price` and `current_price` come from
+/// `Quote.last_price`; the reviser's running high-water-mark
+/// accumulates the intraday extreme across polls. Master gotcha:
+/// gap-throughs are accepted (the chandelier can't move a stop the
+/// market has already crossed).
+pub struct IbkrQuoteSource {
+    quotes: Arc<QuoteService>,
+}
+
+impl IbkrQuoteSource {
+    pub fn new(quotes: Arc<QuoteService>) -> Self {
+        Self { quotes }
+    }
+}
+
+#[async_trait::async_trait]
+impl QuoteSource for IbkrQuoteSource {
+    async fn observe(&self, symbol: &str) -> std::result::Result<PriceObservation, IbkrError> {
+        let q = self.quotes.fetch_quote(symbol).await?;
+        let last = q.last_price.unwrap_or(f64::NAN);
+        Ok(PriceObservation {
+            extreme_price: last,
+            current_price: last,
+        })
+    }
+}
+
 /// The service. Cheap to clone — internal state is `Arc`s.
 #[derive(Clone)]
 pub struct BracketReviser {
@@ -160,11 +189,13 @@ impl BracketReviser {
         }
     }
 
+    #[allow(dead_code)] // builder reserved for tests + a future settings knob
     pub fn with_rth_interval(mut self, d: Duration) -> Self {
         self.rth_interval = d;
         self
     }
 
+    #[allow(dead_code)] // builder reserved for tests + a future settings knob
     pub fn with_non_rth_interval(mut self, d: Duration) -> Self {
         self.non_rth_interval = d;
         self

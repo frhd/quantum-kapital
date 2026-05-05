@@ -25,6 +25,10 @@ pub struct IbkrState {
     /// the handle here so the accept loop stays alive for the app's
     /// lifetime. Stopped implicitly when `IbkrState` is dropped.
     pub mcp_handle: Arc<RwLock<Option<StreamHandle>>>,
+    /// Quant-decisions Phase 7 — `BracketReviser` poll loop handle.
+    /// `lib.rs::run` spawns the reviser once `OrderTicket` is wired
+    /// and stores the handle here. Stopped implicitly on drop.
+    pub bracket_reviser_handle: Arc<RwLock<Option<StreamHandle>>>,
     pub tracker: Arc<TrackerService>,
     pub state_machine: Arc<TrackerStateMachine>,
     /// Empirically detected market-data tier for the active connection.
@@ -57,6 +61,7 @@ impl IbkrState {
             intraday_handle: Arc::new(RwLock::new(None)),
             auto_scanner_handle: Arc::new(RwLock::new(None)),
             mcp_handle: Arc::new(RwLock::new(None)),
+            bracket_reviser_handle: Arc::new(RwLock::new(None)),
             tracker,
             state_machine,
             data_tier,
