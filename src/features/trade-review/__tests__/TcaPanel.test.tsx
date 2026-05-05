@@ -44,7 +44,10 @@ const DISTRIBUTION_ROWS: SlippageDistributionRow[] = [
       { lower_bps: 0, upper_bps: 1, n: 1 },
       { lower_bps: 1, upper_bps: 5, n: 1 },
       { lower_bps: 25, upper_bps: 50, n: 1 },
-      { lower_bps: 100, upper_bps: 9223372036854775807, n: 1 },
+      // i64::MAX serialised loses precision in JS, but the formatter
+      // only checks `> 1e10` so any large value past the JS safe-int
+      // line works as the top-bucket sentinel.
+      { lower_bps: 100, upper_bps: Number.MAX_SAFE_INTEGER, n: 1 },
     ],
   },
 ]

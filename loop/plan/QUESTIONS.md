@@ -29,6 +29,37 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   detector signal is not stored on the row, so this is a one-way
   mapping. Acceptable for P1 since recompute is a niche path.
 
+## Phase 2 (2026-05-05)
+
+- *trade_legs schema item interpreted as struct fields, not a SQL
+  table.* The phase doc lists "trade_legs adds strategy TEXT, setup_id
+  INTEGER (nullable, NULL for pre-P2 legs)" under Migrations, but the
+  service is in-memory (no `trade_legs` table exists today). P2 added
+  the fields to the `TradeLeg` struct + carries them from
+  `ExecutionRow` into the FIFO matcher's `OpenSlice`. If a future phase
+  persists trade legs to SQLite the same column names land naturally.
+
+- *Pre-existing `decay_watcher` flake still failing.* P1 logged this in
+  the Phase 1 entry; P2 confirms the same `MockHttp queue exhausted`
+  panic in `services::decay_watcher::tests::respects_budget_kill_switch`
+  on baseline. Unrelated to TCA work; left for the decay-watcher owner.
+
+- *Manual intent matching window pinned at 60 min.* The
+  `tca_record_manual_intent` command always uses the limit-side window
+  even when the trader is recording for an out-of-band MARKET fill. In
+  practice manual intents are recorded after the fill arrives, so the
+  window only needs to cover "I confirmed and clicked record within
+  60m" — tighter values would make the path noisier without buying
+  attribution accuracy. Revisit if dogfooding shows otherwise.
+
+- *Out-of-band fill match is best-effort: the matcher doesn't
+  back-link a previously-stored unattached fill when a manual intent
+  arrives later.* The next ingestor tick (or any future
+  `attach_fills_for_account_today` call) will pick it up because
+  `attach_fills_for_account_date` queries all of the day's fills. So
+  the linkage eventually arrives without an explicit retry path —
+  documented here so a future maintainer doesn't add one.
+
 ## Phase 5 (TBD)
 
 - *Reserved for AV fundamentals retirement audit result.* P5 inspects whether AV fundamentals (revenue/EPS/sector) are load-bearing for any consumer beyond earnings-date lookup. If not, AV fundamentals fallback retires in this phase's diff.
