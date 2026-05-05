@@ -246,6 +246,40 @@ class McpClient:
             args["llm_call_id"] = llm_call_id
         return await self.call_tool("write_trade_review", args)
 
+    async def get_today_playbook(
+        self,
+        *,
+        date_iso: str,
+        account: str | None = None,
+        generation_id: int | None = None,
+    ) -> Any:
+        args: dict[str, Any] = {"date": date_iso}
+        if account is not None:
+            args["account"] = account
+        if generation_id is not None:
+            args["generation_id"] = generation_id
+        return await self.call_tool("get_today_playbook", args)
+
+    async def write_playbook(
+        self,
+        *,
+        date_iso: str,
+        ranked_setups: Sequence[Mapping[str, Any]],
+        skip_list: Sequence[Mapping[str, Any]],
+        account: str | None = None,
+        llm_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        args: dict[str, Any] = {
+            "date": date_iso,
+            "ranked_setups": [dict(s) for s in ranked_setups],
+            "skip_list": [dict(s) for s in skip_list],
+        }
+        if account is not None:
+            args["account"] = account
+        if llm_call_id is not None:
+            args["llm_call_id"] = llm_call_id
+        return await self.call_tool("write_playbook", args)
+
 
 class McpToolError(RuntimeError):
     """Raised when an MCP tool call returns an error result."""

@@ -120,6 +120,7 @@ async def test_happy_path_writes_morning_pack(fake_mcp: FakeMcpClient, fake_llm:
         cfg=_cfg(),
         today=date(2026, 5, 4),  # Monday — explicit trading day
         system_prompt="SYSTEM",
+        skip_playbook=True,
     )
 
     assert result.ideas_written == 3
@@ -213,6 +214,7 @@ async def test_dry_run_does_not_write(fake_mcp: FakeMcpClient, fake_llm: FakeLlm
         today=date(2026, 5, 4),
         dry_run=True,
         system_prompt="SYSTEM",
+        skip_playbook=True,
     )
 
     # Loop reports an idea but didn't persist.
@@ -257,6 +259,7 @@ async def test_shadow_mode_passes_flag_into_synthesis(fake_mcp: FakeMcpClient, f
         today=date(2026, 5, 4),
         shadow=True,
         system_prompt="SYSTEM",
+        skip_playbook=True,
     )
 
     # The synthesis-step user message should contain a shadow-mode instruction.

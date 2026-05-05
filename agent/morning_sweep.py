@@ -18,18 +18,31 @@ import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 import budget_guard as bg
 import data_summary as ds
+import playbook as pb
 from config import AgentConfig, load as load_config
 from llm import LlmClient, make_llm_client
-from mcp_client import McpClient, hours_ago_unix
+from mcp_client import McpClient, McpToolError, hours_ago_unix
 from ranker import rank_candidates
 from synthesizer import synthesize_pack
 
 
 log = logging.getLogger("morning_sweep")
+
+
+@dataclass
+class PlaybookOutcome:
+    """Result of the structured-playbook extension."""
+
+    pack_date: str
+    n_setups: int = 0
+    n_skip: int = 0
+    generation_id: int | None = None
+    skipped_reason: str | None = None
+    spent_usd: float = 0.0
 
 
 @dataclass
@@ -40,6 +53,7 @@ class SweepResult:
     spent_usd: float
     skipped_reason: str | None = None
     shadow: bool = False
+    playbook: PlaybookOutcome | None = None
 
 
 # ---- Loop ---------------------------------------------------------------------
@@ -54,6 +68,8 @@ async def run_sweep(
     shadow: bool = False,
     dry_run: bool = False,
     system_prompt: str | None = None,
+    skip_playbook: bool = False,
+    playbook_system_prompt: str | None = None,
 ) -> SweepResult:
     """Drive one sweep against an already-connected MCP client and LLM seam.
 
@@ -171,10 +187,12 @@ async def run_sweep(
         )
 
     # 6. Persist.
+    morning_pack_written = False
     if dry_run:
         log.info("dry-run: would write %d ideas to morning pack %s", len(ideas), iso_today)
     elif ideas:
         await mcp.write_morning_pack(date=iso_today, ranked_ideas=ideas)
+        morning_pack_written = True
         log.info("wrote morning pack %s with %d ideas", iso_today, len(ideas))
 
         # 7. Optional: promote any non-watchlist symbol into the watchlist.
@@ -189,16 +207,160 @@ async def run_sweep(
     else:
         log.info("no ideas met the bar; not writing pack for %s", iso_today)
 
-    # 8. Final budget log.
+    # 8. Playbook extension — second LLM call, structured tool output.
+    # Independent of the morning_pack so a playbook can ship even if the
+    # pack is empty (no high-conviction ideas != no setups to skip).
+    playbook_outcome: PlaybookOutcome | None = None
+    if not skip_playbook and bundles:
+        playbook_outcome = await _run_playbook(
+            mcp=mcp,
+            llm=llm,
+            cfg=cfg,
+            guard=guard,
+            iso_today=iso_today,
+            bundles=bundles,
+            system_prompt=playbook_system_prompt,
+            dry_run=dry_run,
+        )
+    elif skip_playbook:
+        log.info("playbook step skipped (--no-playbook)")
+
+    # 9. Final budget log.
     final = await mcp.get_llm_budget_status()
     log.info("final spend: loop=$%.4f global=%s", guard.spent_usd, final)
 
+    _ = morning_pack_written  # currently unused but documents intent
     return SweepResult(
         date=iso_today,
         candidates_considered=len(bundles),
         ideas_written=len(ideas),
         spent_usd=guard.spent_usd,
         shadow=shadow,
+        playbook=playbook_outcome,
+    )
+
+
+async def _run_playbook(
+    *,
+    mcp: McpClient,
+    llm: LlmClient,
+    cfg: AgentConfig,
+    guard: bg.BudgetGuard,
+    iso_today: str,
+    bundles: list[ds.CandidateBundle],
+    system_prompt: str | None,
+    dry_run: bool,
+) -> PlaybookOutcome:
+    """Generate + persist the structured pre-market playbook.
+
+    Sibling to the morning_pack write above. v1 passes
+    `trader_profile = None`; Phase 6 wires in the real profile fetched
+    from `get_trader_profile`. The prompt template already includes a
+    placeholder, so wiring the profile is a one-line change here."""
+    try:
+        guard.ensure_can_spend()
+    except bg.BudgetExceeded as e:
+        return PlaybookOutcome(
+            pack_date=iso_today,
+            skipped_reason=f"per-loop budget: {e}",
+        )
+
+    sys_prompt = system_prompt or _read_playbook_system_prompt()
+    user_msg = pb.format_playbook_prompt(
+        pack_date=iso_today,
+        bundles=bundles,
+        trader_profile=None,  # Phase 6 wires the real one.
+    )
+
+    try:
+        resp = await llm.call(
+            model=cfg.models.smart,
+            system=sys_prompt,
+            messages=[{"role": "user", "content": user_msg}],
+            tools=[pb.RANKED_SETUPS_TOOL_SCHEMA],
+            tool_choice={"type": "tool", "name": pb.PLAYBOOK_TOOL_NAME},
+            max_tokens=3000,
+        )
+    except Exception as e:  # noqa: BLE001
+        log.exception("playbook LLM call failed")
+        return PlaybookOutcome(
+            pack_date=iso_today,
+            skipped_reason=f"llm error: {e}",
+        )
+
+    cost = guard.record(
+        cfg.models.smart,
+        resp.input_tokens,
+        resp.output_tokens,
+        envelope_cost_usd=resp.cost_usd,
+    )
+
+    tool_use = next(
+        (u for u in resp.tool_uses if u.name == pb.PLAYBOOK_TOOL_NAME),
+        None,
+    )
+    if tool_use is None:
+        return PlaybookOutcome(
+            pack_date=iso_today,
+            skipped_reason="LLM did not call submit_playbook",
+            spent_usd=cost,
+        )
+
+    parsed = pb.parse_tool_response(tool_use.input)
+    n_setups = len(parsed["ranked_setups"])
+    n_skip = len(parsed["skip_list"])
+
+    if dry_run:
+        log.info(
+            "dry-run: would write playbook for %s (%d setups, %d skip)",
+            iso_today,
+            n_setups,
+            n_skip,
+        )
+        return PlaybookOutcome(
+            pack_date=iso_today,
+            n_setups=n_setups,
+            n_skip=n_skip,
+            skipped_reason="dry-run",
+            spent_usd=cost,
+        )
+
+    try:
+        result = await mcp.write_playbook(
+            date_iso=iso_today,
+            ranked_setups=parsed["ranked_setups"],
+            skip_list=parsed["skip_list"],
+        )
+    except McpToolError as e:
+        log.exception("write_playbook failed")
+        return PlaybookOutcome(
+            pack_date=iso_today,
+            n_setups=n_setups,
+            n_skip=n_skip,
+            skipped_reason=f"write_playbook failed: {e}",
+            spent_usd=cost,
+        )
+
+    generation_id: int | None = None
+    if isinstance(result, Mapping):
+        g = result.get("generation_id")
+        if isinstance(g, int):
+            generation_id = g
+
+    log.info(
+        "wrote playbook %s gen=%s setups=%d skip=%d ($%.4f)",
+        iso_today,
+        generation_id,
+        n_setups,
+        n_skip,
+        cost,
+    )
+    return PlaybookOutcome(
+        pack_date=iso_today,
+        n_setups=n_setups,
+        n_skip=n_skip,
+        generation_id=generation_id,
+        spent_usd=cost,
     )
 
 
@@ -279,6 +441,17 @@ def _read_system_prompt() -> str:
     return p.read_text(encoding="utf-8")
 
 
+def _read_playbook_system_prompt() -> str:
+    p = Path(__file__).resolve().parent / "prompts" / "playbook.md"
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+    return (
+        "You are an equity desk strategist writing a tight, actionable "
+        "pre-market playbook. Always call `submit_playbook` with "
+        "`ranked_setups` and `skip_list` — never reply with bare text."
+    )
+
+
 def _resolve_server_bin(cfg: AgentConfig) -> str:
     raw = cfg.mcp.server_bin
     if os.path.isabs(raw):
@@ -306,6 +479,7 @@ async def _async_main(args: argparse.Namespace) -> int:
             today=today,
             shadow=args.shadow,
             dry_run=args.dry_run,
+            skip_playbook=args.no_playbook,
         )
     log.info("sweep result: %s", result)
     if result.skipped_reason:
@@ -320,6 +494,11 @@ def main() -> int:
     parser.add_argument("--date", help="Override today's date (YYYY-MM-DD)")
     parser.add_argument("--shadow", action="store_true", help="Tag pack as shadow output")
     parser.add_argument("--dry-run", action="store_true", help="Run loop without writing morning pack")
+    parser.add_argument(
+        "--no-playbook",
+        action="store_true",
+        help="Skip the structured playbook LLM call (smoke tests only).",
+    )
     parser.add_argument("--force", action="store_true", help="Run even on weekends/holidays")
     parser.add_argument("--log-level", default=os.environ.get("LOG_LEVEL", "INFO"))
     args = parser.parse_args()

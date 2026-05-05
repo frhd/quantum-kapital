@@ -80,6 +80,39 @@ class FakeMcpClient:
         self.calls.append(("add_ticker", {"symbol": symbol, "reason": reason}))
         return {"symbol": symbol, "added": True}
 
+    async def write_playbook(
+        self,
+        *,
+        date_iso: str,
+        ranked_setups: list[dict[str, Any]],
+        skip_list: list[dict[str, Any]],
+        account: str | None = None,
+        llm_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append(
+            (
+                "write_playbook",
+                {
+                    "date": date_iso,
+                    "account": account,
+                    "ranked_setups": [dict(s) for s in ranked_setups],
+                    "skip_list": [dict(s) for s in skip_list],
+                    "llm_call_id": llm_call_id,
+                },
+            )
+        )
+        return self._get(
+            "write_playbook",
+            {
+                "date": date_iso,
+                "account": account or "U-test",
+                "generation_id": 1,
+                "n_setups": len(ranked_setups),
+                "n_skip": len(skip_list),
+                "generated_at": "2026-05-05T11:00:00Z",
+            },
+        )
+
 
 @dataclass
 class FakeLlmClient:

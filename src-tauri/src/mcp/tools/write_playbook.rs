@@ -25,8 +25,11 @@ use crate::services::playbooks::{
 pub struct WritePlaybookArgs {
     /// `YYYY-MM-DD` ET trading day the playbook covers.
     pub date: String,
-    /// Account the playbook applies to.
-    pub account: String,
+    /// Optional account the playbook applies to. Defaults to the sole
+    /// managed account when omitted; errors if multiple accounts are
+    /// connected and none is specified.
+    #[serde(default)]
+    pub account: Option<String>,
     /// Ranked, actionable setups. Empty list is allowed (a no-trade day);
     /// in that case `skip_list` should explain why.
     #[serde(default)]
@@ -43,7 +46,7 @@ pub struct WritePlaybookArgs {
 impl McpHandler {
     #[tool(
         name = "write_playbook",
-        description = "Persist a structured pre-market playbook for `date` (`YYYY-MM-DD`, ET) + `account`. The server assigns a monotonic `generation_id` per `(date, account)` — never pass one. Each `ranked_setups` entry MUST carry `symbol`, `bias` (`long`|`short`), `trigger`, `entry`, `invalidation`, `target_1`, `conviction` (A|B|C), `rationale_md`; `target_2` and `evidence_refs` are optional. `skip_list` entries carry `{symbol, reason}`. Either list may be empty. Returns `{ date, account, generation_id, n_setups, n_skip, generated_at }`."
+        description = "Persist a structured pre-market playbook for `date` (`YYYY-MM-DD`, ET). Optional `account` defaults to the sole managed account. The server assigns a monotonic `generation_id` per `(date, account)` — never pass one. Each `ranked_setups` entry MUST carry `symbol`, `bias` (`long`|`short`), `trigger`, `entry`, `invalidation`, `target_1`, `conviction` (A|B|C), `rationale_md`; `target_2` and `evidence_refs` are optional. `skip_list` entries carry `{symbol, reason}`. Either list may be empty. Returns `{ date, account, generation_id, n_setups, n_skip, generated_at }`."
     )]
     pub async fn write_playbook(
         &self,
@@ -55,13 +58,20 @@ impl McpHandler {
                 return map_tool_result::<(), String>(Err(format!("date must be YYYY-MM-DD: {e}")));
             }
         };
-        if args.account.trim().is_empty() {
-            return map_tool_result::<(), String>(Err("account must be non-empty".into()));
-        }
+
+        let account = match crate::mcp::tools::resolve_account(
+            self.ibkr_client.as_ref(),
+            args.account.as_deref(),
+        )
+        .await
+        {
+            Ok(a) => a,
+            Err(e) => return map_tool_result::<(), String>(Err(e)),
+        };
 
         let input_for_audit = json!({
             "date": args.date,
-            "account": args.account,
+            "account": account,
             "n_setups": args.ranked_setups.len(),
             "n_skip": args.skip_list.len(),
         });
@@ -80,7 +90,7 @@ impl McpHandler {
         let store = PlaybookStore::new(self.db.clone());
         let req = WritePlaybookRequest {
             date,
-            account: args.account.clone(),
+            account: account.clone(),
             ranked_setups: args.ranked_setups,
             skip_list: args.skip_list,
             llm_call_id: args.llm_call_id,
@@ -131,10 +141,22 @@ impl McpHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::tools::test_support::{handler_for_db, make_db};
+    use crate::ibkr::mocks::MockIbkrClient;
+    use crate::mcp::tools::test_support::{handler_for_mock_ibkr, make_db};
     use crate::services::playbooks::{
         Conviction, EvidenceRef, PlaybookStore, RankedSetup, SetupBias, SkipEntry,
     };
+    use std::sync::Arc;
+
+    async fn handler_with_account(
+        account: &str,
+    ) -> (tempfile::NamedTempFile, crate::mcp::handler::McpHandler) {
+        let (tmp, db) = make_db();
+        let mock = Arc::new(MockIbkrClient::new());
+        mock.set_accounts(vec![account.to_string()]).await;
+        let handler = handler_for_mock_ibkr(db, mock).await;
+        (tmp, handler)
+    }
 
     fn sample_setup(symbol: &str) -> RankedSetup {
         RankedSetup {
@@ -154,10 +176,10 @@ mod tests {
         }
     }
 
-    fn good_args() -> WritePlaybookArgs {
+    fn good_args(account: Option<&str>) -> WritePlaybookArgs {
         WritePlaybookArgs {
             date: "2026-05-05".into(),
-            account: "U1234567".into(),
+            account: account.map(str::to_string),
             ranked_setups: vec![sample_setup("TSLA"), sample_setup("NVDA")],
             skip_list: vec![SkipEntry {
                 symbol: "AAPL".into(),
@@ -169,10 +191,9 @@ mod tests {
 
     #[tokio::test]
     async fn write_playbook_persists_with_audit_and_event() {
-        let (_tmp, db) = make_db();
-        let handler = handler_for_db(db);
+        let (_tmp, handler) = handler_with_account("U1234567").await;
         let r = handler
-            .write_playbook(Parameters(good_args()))
+            .write_playbook(Parameters(good_args(Some("U1234567"))))
             .await
             .expect("ok");
         assert_eq!(r.is_error, Some(false));
@@ -205,12 +226,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_playbook_resolves_account_when_omitted() {
+        let (_tmp, handler) = handler_with_account("U1234567").await;
+        let r = handler
+            .write_playbook(Parameters(good_args(None)))
+            .await
+            .expect("ok");
+        assert_eq!(r.is_error, Some(false));
+        let body = r.structured_content.expect("structured");
+        assert_eq!(body["account"], "U1234567");
+    }
+
+    #[tokio::test]
     async fn write_playbook_assigns_monotonic_generation_id() {
-        let (_tmp, db) = make_db();
-        let handler = handler_for_db(db);
+        let (_tmp, handler) = handler_with_account("U1234567").await;
         for expected in 1..=3 {
             let r = handler
-                .write_playbook(Parameters(good_args()))
+                .write_playbook(Parameters(good_args(Some("U1234567"))))
                 .await
                 .expect("ok");
             assert_eq!(r.is_error, Some(false));
@@ -230,9 +262,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_playbook_invalid_date_errors() {
-        let (_tmp, db) = make_db();
-        let handler = handler_for_db(db);
-        let mut args = good_args();
+        let (_tmp, handler) = handler_with_account("U1234567").await;
+        let mut args = good_args(Some("U1234567"));
         args.date = "garbage".into();
         let r = handler
             .write_playbook(Parameters(args))
@@ -242,11 +273,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_playbook_empty_account_errors() {
-        let (_tmp, db) = make_db();
-        let handler = handler_for_db(db);
-        let mut args = good_args();
-        args.account = "  ".into();
+    async fn write_playbook_unknown_account_errors() {
+        let (_tmp, handler) = handler_with_account("U1234567").await;
+        let mut args = good_args(Some("UWRONG"));
+        args.account = Some("UWRONG".into());
         let r = handler
             .write_playbook(Parameters(args))
             .await
@@ -256,11 +286,10 @@ mod tests {
 
     #[tokio::test]
     async fn write_playbook_allows_empty_setups_and_skip() {
-        let (_tmp, db) = make_db();
-        let handler = handler_for_db(db);
+        let (_tmp, handler) = handler_with_account("U1234567").await;
         let args = WritePlaybookArgs {
             date: "2026-05-05".into(),
-            account: "U1234567".into(),
+            account: Some("U1234567".into()),
             ranked_setups: vec![],
             skip_list: vec![],
             llm_call_id: None,
