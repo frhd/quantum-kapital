@@ -13,6 +13,7 @@ import { useState } from "react"
 
 import { Button } from "../../../shared/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card"
+import { DatePicker } from "../../../shared/components/DatePicker"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 
 import { usePlaybook } from "../hooks/usePlaybook"
@@ -81,13 +82,7 @@ export function TodaysPlaybook({ date: dateProp, account }: TodaysPlaybookProps 
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value || todayEt())}
-            className="border-border bg-background h-8 rounded-md border px-2 text-xs"
-            aria-label="Trading day"
-          />
+          <DatePicker value={date} onChange={setDate} ariaLabel="Trading day" />
           <Button
             size="sm"
             variant="ghost"

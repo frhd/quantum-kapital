@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/compon
 import { Button } from "../../../shared/components/ui/button"
 import { Skeleton } from "../../../shared/components/ui/skeleton"
 import { Badge } from "../../../shared/components/ui/badge"
+import { DatePicker } from "../../../shared/components/DatePicker"
 import { useTrades } from "../hooks/useTrades"
 import { groupExecutions, summariseGroups } from "../groupExecutions"
 import { TradesGroup } from "./TradesGroup"
@@ -123,13 +124,7 @@ export function TradesPage({ onOpenReview }: TradesPageProps = {}) {
               Review →
             </Button>
           )}
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value || todayEt())}
-            className="border-border bg-background h-8 rounded-md border px-2 text-xs"
-            aria-label="Trading day"
-          />
+          <DatePicker value={date} onChange={setDate} ariaLabel="Trading day" />
           <Button
             size="sm"
             variant="ghost"
@@ -157,8 +152,8 @@ export function TradesPage({ onOpenReview }: TradesPageProps = {}) {
             <p>No fills for {date}.</p>
             {!isToday && (
               <p className="text-xs">
-                IBKR's executions endpoint only returns the current trading day. Prior days will
-                populate once the executions store ships.
+                Fills are captured opportunistically while the app is running. IBKR doesn't return
+                prior trading days, so any day the app wasn't open during market hours stays empty.
               </p>
             )}
           </div>
