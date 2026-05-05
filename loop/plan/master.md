@@ -78,7 +78,7 @@ Violating the letter of these rules is violating the spirit.
 | Phase | File | Depends on | Status |
 |---|---|---|---|
 | 1. Persist executions to SQLite | [phase-1-persist-executions.md](phase-1-persist-executions.md) | — | done (commit d0e0c7a, 2026-05-05) |
-| 2. `get_trade_legs` MCP aggregator (FIFO leg-matching) | [phase-2-trade-legs-tool.md](phase-2-trade-legs-tool.md) | 1 | in-progress (started 2026-05-05) |
+| 2. `get_trade_legs` MCP aggregator (FIFO leg-matching) | [phase-2-trade-legs-tool.md](phase-2-trade-legs-tool.md) | 1 | done (commit c75c2f5, 2026-05-05) |
 | 3. `get_watchlist_briefing` MCP fan-out aggregator | [phase-3-watchlist-briefing.md](phase-3-watchlist-briefing.md) | — (parallel-able with 2) | todo |
 | 4. `day_reviews` schema + extended `eod_review.py` + `get_trade_review` / `write_trade_review` MCP tools | [phase-4-trade-review.md](phase-4-trade-review.md) | 2 | todo |
 | 5. `playbooks` schema + extended `morning_sweep.py` + `get_today_playbook` / `write_playbook` MCP tools | [phase-5-playbook.md](phase-5-playbook.md) | 3 | todo |
