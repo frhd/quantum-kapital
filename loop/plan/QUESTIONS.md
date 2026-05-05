@@ -60,6 +60,71 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   the linkage eventually arrives without an explicit retry path —
   documented here so a future maintainer doesn't add one.
 
+## Phase 3 (2026-05-06)
+
+- *Outside-RTH deferred-ticket queue not implemented.* Master phase
+  doc committed: "brackets only submit during RTH; pre-RTH 'Take
+  Setup' queues a deferred ticket that fires at the open or expires
+  at 09:35 ET if conditions changed." P3 ships the simpler half —
+  the bracket placer routes through `IbkrClient::place_bracket` only
+  when called, with no RTH gate or queueing scheduler. In practice
+  the trader sees an IBKR rejection if they hit Send pre-RTH on a
+  symbol where RTH-only orders are required. A dedicated deferred
+  queue (storage-backed table + open-time scheduler + condition
+  re-check) is its own subsystem and was de-scoped to keep P3 inside
+  one calendar week. Re-open when pre-market trading is a
+  load-bearing flow; until then the manual "wait for the open" path
+  is the workaround.
+
+- *Paper-account E2E not run by Claude.* The phase doc requires:
+  "Paper-account E2E (manual run, documented): take a real setup on
+  IBKR paper, observe parent + 3 children visible in TWS as one OCA
+  group, fill leg by leg, observe stop qty reducing." Claude can't
+  drive a paper-account session — the maintainer who first runs the
+  TakeSetupModal against their paper account should append the
+  observed behaviour here (parent/stop/3 targets visible, fills
+  reducing each other, OCA semantics on partial fills). Until that
+  happens the exit criterion is satisfied by the unit-test bracket
+  simulation + the tracer-bullet test, not by a live IBKR
+  observation.
+
+- *SetupCard still not wired into a user-facing screen.* P1 already
+  flagged this; P3 added the "Take Setup" button to `SetupCard.tsx`
+  and the `TakeSetupModal` portal, but no parent component imports
+  `SetupCard` yet (only `RankedSetupCard.tsx` references it without
+  rendering it). The modal is reachable via tests and via direct
+  import; the user-facing tracker tab will pick it up when the
+  watchlist-row refactor lands. Phase that owns the tracker UI
+  surface should pull SetupCard onto the visible Tracker tab.
+
+- *Static 50/30/20 ladder hardcoded — runner pinned at 3R.* P3 ships
+  the ladder as a const (`STATIC_TARGET_LADDER_PCT` /
+  `STATIC_TARGET_R_MULTIPLES`). Master decision committed: "ship
+  with 50/30/20 fixed; ATR-trail logic is P7." When P7 lands, the
+  runner stops pinning at 3R and starts trailing on ATR — the
+  `bracket_groups.targets_json` column carries the spec at submit
+  time, so older rows stay readable under the static ladder while
+  new rows pick up ATR-driven prices.
+
+- *No fill-status reconciler yet.* `bracket_groups.last_status`
+  defaults to `open` and only flips to `canceled` when the trader
+  hits Cancel via `order_ticket_cancel_bracket`. A future reconciler
+  will subscribe to IBKR `orderStatus` events and flip the row to
+  `partial` / `filled` / `stopped` based on the OCA-group fills.
+  Phase that owns the post-fill stream picks this up; P4 grading is
+  resilient to stale status rows because attribution reads through
+  `executions.setup_id` (always populated by P2 attach), not through
+  `bracket_groups.last_status`.
+
+- *Override-stop reason not separately persisted.* The modal accepts
+  an override stop and a free-text reason, but `bracket_groups`
+  stores the reason in `qty_override_reason`, shared between qty and
+  stop overrides. Master plan only mandated `qty_override_reason`;
+  since the column is free-text and the trader's note can describe
+  whichever override they used, we kept the schema minimal. If
+  per-channel override tracking is needed (qty vs stop independently),
+  add a sibling column.
+
 ## Phase 5 (TBD)
 
 - *Reserved for AV fundamentals retirement audit result.* P5 inspects whether AV fundamentals (revenue/EPS/sector) are load-bearing for any consumer beyond earnings-date lookup. If not, AV fundamentals fallback retires in this phase's diff.

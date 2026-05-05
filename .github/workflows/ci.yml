@@ -21,6 +21,14 @@ jobs:
       - name: Check formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 
+  invariants:
+    name: 'Master plan invariants'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'place_order chokepoint (Phase 3, Hard Invariant 9)'
+        run: bash scripts/ci/check-place-order-chokepoint.sh
+
   clippy:
     runs-on: ubuntu-latest
     steps:
