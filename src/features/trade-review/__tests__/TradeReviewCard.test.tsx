@@ -126,6 +126,15 @@ describe("TradeReviewCard", () => {
     expect(await screen.findByText(/daily budget exhausted/i)).toBeInTheDocument()
   })
 
+  it("shows a 'no fills' message when generate_trade_review resolves to null", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(null)
+    vi.mocked(assessmentsApi.generateTradeReview).mockResolvedValueOnce(null)
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /generate review/i })
+    fireEvent.click(button)
+    expect(await screen.findByText(/No fills found for 2026-05-04/i)).toBeInTheDocument()
+  })
+
   it("shows a 'Regenerate' button only when a review is populated", async () => {
     vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(review)
     render(<TradeReviewCard date="2026-05-04" />)

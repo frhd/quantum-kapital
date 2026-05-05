@@ -104,9 +104,11 @@ impl LiveAccountClient for crate::ibkr::mocks::MockIbkrClient {
 ///
 /// Wraps the IBKR client and the persistent `ExecutionsStore` so that
 /// `executions(account, date)`:
-/// - past day (`date < today_et`): served from the store. IBKR's
-///   `reqExecutions` only returns the current TWS-day, so without the
-///   store yesterday's fills are unreachable.
+/// - past day (`date < today_et`): served from the store. If the store
+///   has no rows for that day (e.g. the app wasn't running when the
+///   trades happened), falls back to a live IBKR drain via the
+///   `specific_dates` filter — IBKR retains executions for ~7 trading
+///   days — and records what comes back so the next read is local.
 /// - today (`date == today_et`): drained live from IBKR; the full
 ///   batch (all managed accounts) is recorded into the store, then
 ///   the store is queried so the response is consistent with what a
@@ -151,7 +153,34 @@ impl AccountReader for ProdAccountReader {
                 .query(account, date, None)
                 .await
                 .map_err(|e| IbkrError::Unknown(format!("executions store: {e}")))?;
-            return Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect());
+            if !rows.is_empty() {
+                return Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect());
+            }
+            // Store has nothing for this day. Try a live drain — IBKR's
+            // `specific_dates` filter retains the last ~7 trading days,
+            // so a back-fill is usually possible. On rows, record into
+            // the store and re-query so the result mirrors today's
+            // shape; on empty/error, mirror today's branch (empty/Err).
+            return match self.client.fetch_executions(date).await {
+                Ok(live) if live.is_empty() => Ok(Vec::new()),
+                Ok(live) => {
+                    if let Err(e) = self.store.record(&live).await {
+                        tracing::warn!(error = %e, "executions store record failed; serving live");
+                        return Ok(live
+                            .into_iter()
+                            .filter(|r| r.account == account)
+                            .map(ExecutionRow::from_ibkr)
+                            .collect());
+                    }
+                    let rows = self
+                        .store
+                        .query(account, date, None)
+                        .await
+                        .map_err(|e| IbkrError::Unknown(format!("executions store: {e}")))?;
+                    Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect())
+                }
+                Err(e) => Err(e),
+            };
         }
         // Today: drain live IBKR for **all** managed accounts (IBKR's
         // server-side filter is date-only), record the full batch into

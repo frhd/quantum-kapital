@@ -113,7 +113,14 @@ export function TradeReviewCard({ date: dateProp, account }: TradeReviewCardProp
           <EmptyTradeReview
             date={date}
             onGenerate={async () => {
-              await assessmentsApi.generateTradeReview(date, { account: account ?? null })
+              const generated = await assessmentsApi.generateTradeReview(date, {
+                account: account ?? null,
+              })
+              if (generated === null) {
+                throw new Error(
+                  `No fills found for ${date} on this account — nothing to review.`,
+                )
+              }
               await refresh()
             }}
           />

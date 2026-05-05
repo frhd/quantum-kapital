@@ -29,9 +29,8 @@ export function EmptyTradeReview({ date, onGenerate }: EmptyTradeReviewProps) {
       <CardContent className="text-muted-foreground space-y-3 py-12 text-center text-sm">
         <p>No trade review for {date} yet.</p>
         <p className="text-muted-foreground/70 text-xs">
-          Reviews aren't written automatically — generate one now, or run the{" "}
-          <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">/eod-review</code> slash
-          command from another Claude Code session.
+          Reviews aren't written automatically — generate one now to pull the day's fills, FIFO-match
+          them, and burn an LLM call for the narrative.
         </p>
         <div className="flex justify-center">
           <Button size="sm" onClick={() => void handleClick()} disabled={generating}>

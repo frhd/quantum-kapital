@@ -59,12 +59,12 @@ impl IbkrClient {
 
     /// Returns the day's executions filtered to the requested ET trading date.
     ///
-    /// IBKR's `reqExecutions` only delivers fills from the current TWS-day, so
-    /// querying a past date returns an empty list. The drain reads the entire
-    /// subscription before returning, then merges `ExecutionData` and
-    /// `CommissionReport` events by `execution_id` so each returned row
-    /// carries its commission and (for closing legs) realized P&L. See
-    /// [`merge_commission_reports`] for the merge semantics.
+    /// Uses IBKR's `specific_dates` filter on `ExecutionFilter`, which retains
+    /// roughly the last 7 trading days — anything older comes back empty. The
+    /// drain reads the entire subscription before returning, then merges
+    /// `ExecutionData` and `CommissionReport` events by `execution_id` so each
+    /// returned row carries its commission and (for closing legs) realized
+    /// P&L. See [`merge_commission_reports`] for the merge semantics.
     pub async fn executions(&self, date: chrono::NaiveDate) -> Result<Vec<IbkrExecution>> {
         use ibapi::orders::ExecutionFilter;
 

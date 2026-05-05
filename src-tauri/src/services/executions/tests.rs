@@ -216,3 +216,119 @@ async fn account_reader_serves_past_days_from_store() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].exec_id, "PRIOR");
 }
+
+#[tokio::test]
+async fn account_reader_back_fills_past_day_from_live_when_store_empty() {
+    use crate::mcp::ibkr_seam::{AccountReader, LiveAccountClient, ProdAccountReader};
+    use chrono_tz::America::New_York;
+
+    let (_tmp, db) = make_db();
+    let store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+
+    let yesterday_et = Utc::now()
+        .with_timezone(&New_York)
+        .date_naive()
+        .pred_opt()
+        .unwrap();
+    let yesterday_et_noon = New_York
+        .from_local_datetime(&yesterday_et.and_hms_opt(12, 0, 0).unwrap())
+        .single()
+        .unwrap()
+        .with_timezone(&Utc);
+
+    // Store starts empty. Live IBKR has the fill — simulating the
+    // "app wasn't running yesterday, but TWS still has the executions"
+    // path that the trade-review generator depends on.
+    let mut live = stk("BACKFILL", "DU123", 100.0, 250.0);
+    live.exec_time = yesterday_et_noon;
+    let mock = Arc::new(MockIbkrClient::new());
+    mock.set_accounts(vec!["DU123".into()]).await;
+    mock.set_connected(true).await;
+    mock.set_executions(vec![live]).await;
+
+    let reader = ProdAccountReader::new(
+        Arc::clone(&mock) as Arc<dyn LiveAccountClient>,
+        Arc::clone(&store),
+    );
+
+    let rows = reader
+        .executions("DU123", yesterday_et)
+        .await
+        .expect("reader ok");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].exec_id, "BACKFILL");
+
+    // The fallback should have persisted the fill so the next read is
+    // served from the store without re-hitting IBKR.
+    let stored = store
+        .query("DU123", yesterday_et, None)
+        .await
+        .expect("store ok");
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].exec_id, "BACKFILL");
+}
+
+#[tokio::test]
+async fn account_reader_returns_empty_when_store_and_live_both_empty_for_past_day() {
+    use crate::mcp::ibkr_seam::{AccountReader, LiveAccountClient, ProdAccountReader};
+    use chrono_tz::America::New_York;
+
+    let (_tmp, db) = make_db();
+    let store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+
+    let yesterday_et = Utc::now()
+        .with_timezone(&New_York)
+        .date_naive()
+        .pred_opt()
+        .unwrap();
+
+    let mock = Arc::new(MockIbkrClient::new());
+    mock.set_accounts(vec!["DU123".into()]).await;
+    mock.set_connected(true).await;
+    // No fills loaded — store empty + live empty.
+
+    let reader = ProdAccountReader::new(
+        Arc::clone(&mock) as Arc<dyn LiveAccountClient>,
+        Arc::clone(&store),
+    );
+
+    let rows = reader
+        .executions("DU123", yesterday_et)
+        .await
+        .expect("reader ok");
+    assert!(rows.is_empty());
+}
+
+#[tokio::test]
+async fn account_reader_propagates_live_error_when_store_empty_for_past_day() {
+    use crate::ibkr::error::IbkrError;
+    use crate::mcp::ibkr_seam::{AccountReader, LiveAccountClient, ProdAccountReader};
+    use chrono_tz::America::New_York;
+
+    let (_tmp, db) = make_db();
+    let store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+
+    let yesterday_et = Utc::now()
+        .with_timezone(&New_York)
+        .date_naive()
+        .pred_opt()
+        .unwrap();
+
+    let mock = Arc::new(MockIbkrClient::new());
+    mock.set_accounts(vec!["DU123".into()]).await;
+    // Disconnected → live drain returns NotConnected. The wrapper
+    // should propagate so the UI can surface the real cause instead of
+    // pretending the day had no fills.
+    mock.set_connected(false).await;
+
+    let reader = ProdAccountReader::new(
+        Arc::clone(&mock) as Arc<dyn LiveAccountClient>,
+        Arc::clone(&store),
+    );
+
+    let err = reader
+        .executions("DU123", yesterday_et)
+        .await
+        .expect_err("expected NotConnected");
+    assert!(matches!(err, IbkrError::NotConnected), "got: {err:?}");
+}
