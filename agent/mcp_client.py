@@ -193,6 +193,59 @@ class McpClient:
             {"date": date_iso, "section": section, "body_md": body_md},
         )
 
+    async def get_trade_legs(
+        self,
+        *,
+        date_iso: str,
+        account: str | None = None,
+        symbol: str | None = None,
+    ) -> Any:
+        args: dict[str, Any] = {"date": date_iso}
+        if account is not None:
+            args["account"] = account
+        if symbol is not None:
+            args["symbol"] = symbol
+        return await self.call_tool("get_trade_legs", args)
+
+    async def get_trade_review(
+        self,
+        *,
+        date_iso: str,
+        account: str | None = None,
+        prompt_version: int | None = None,
+    ) -> Any:
+        args: dict[str, Any] = {"date": date_iso}
+        if account is not None:
+            args["account"] = account
+        if prompt_version is not None:
+            args["prompt_version"] = prompt_version
+        return await self.call_tool("get_trade_review", args)
+
+    async def write_trade_review(
+        self,
+        *,
+        date_iso: str,
+        account: str,
+        prompt_version: int,
+        summary: Mapping[str, Any],
+        behavioral_tags: Sequence[str],
+        leg_observations: Sequence[Mapping[str, Any]],
+        narrative_md: str,
+        llm_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        args: dict[str, Any] = {
+            "date": date_iso,
+            "account": account,
+            "prompt_version": prompt_version,
+            "summary": dict(summary),
+            "behavioral_tags": list(behavioral_tags),
+            "leg_observations": [dict(o) for o in leg_observations],
+            "narrative_md": narrative_md,
+        }
+        if llm_call_id is not None:
+            args["llm_call_id"] = llm_call_id
+        return await self.call_tool("write_trade_review", args)
+
 
 class McpToolError(RuntimeError):
     """Raised when an MCP tool call returns an error result."""

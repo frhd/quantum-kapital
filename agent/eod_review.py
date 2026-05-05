@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import budget_guard as bg
+import trade_review as tr
 from config import AgentConfig, load as load_config
 from llm import LlmClient, make_llm_client
 from mcp_client import McpClient, McpToolError
@@ -39,6 +40,18 @@ DEFAULT_PER_LOOP_USD = 0.10
 
 
 @dataclass
+class TradeReviewOutcome:
+    """Result of the structured-trade-review extension."""
+
+    pack_date: str
+    legs_considered: int
+    skipped_reason: str | None = None
+    grade: str | None = None
+    score: float | None = None
+    spent_usd: float = 0.0
+
+
+@dataclass
 class EodReviewResult:
     journal_date: str
     pack_date: str | None
@@ -47,6 +60,7 @@ class EodReviewResult:
     body_len: int
     skipped_reason: str | None = None
     spent_usd: float = 0.0
+    trade_review: TradeReviewOutcome | None = None
 
 
 # ---- Public entry point ------------------------------------------------------
@@ -63,11 +77,18 @@ async def run_eod_review(
     per_loop_usd: float = DEFAULT_PER_LOOP_USD,
     dry_run: bool = False,
     system_prompt: str | None = None,
+    trade_review_system_prompt: str | None = None,
+    skip_trade_review: bool = False,
 ) -> EodReviewResult:
     """Drive one EOD review against an already-connected MCP client.
 
     Pure orchestration — no I/O setup. Tests inject fakes for `mcp`
     and `llm` and call this directly.
+
+    After the existing journal entry is appended, the loop ALSO produces
+    a structured `day_reviews` row scoring yesterday's actual fills via
+    `get_trade_legs` + `write_trade_review`. Set `skip_trade_review=True`
+    to bypass the second LLM call (smoke tests, dogfooding).
     """
     journal_iso = today.isoformat()
     pack_date = previous_trading_day(today)
@@ -190,40 +211,42 @@ async def run_eod_review(
             journal_iso,
             len(body_md),
         )
-        return EodReviewResult(
-            journal_date=journal_iso,
-            pack_date=pack_iso,
-            predictions_considered=len(pack_ideas),
-            outcomes_scored=len(same_day_outcomes),
-            body_len=len(body_md),
-            spent_usd=cost,
+        journal_skipped_reason: str | None = None
+    else:
+        try:
+            await mcp.append_journal_entry(
+                date_iso=journal_iso,
+                section=section,
+                body_md=body_md,
+            )
+            journal_skipped_reason = None
+            log.info(
+                "eod_review wrote %s/%s (%d ideas, %d outcomes, $%.4f)",
+                journal_iso,
+                section,
+                len(pack_ideas),
+                len(same_day_outcomes),
+                cost,
+            )
+        except McpToolError as e:
+            log.exception("append_journal_entry failed")
+            journal_skipped_reason = f"append_journal_entry failed: {e}"
+
+    trade_review_outcome: TradeReviewOutcome | None = None
+    if not skip_trade_review and journal_skipped_reason is None:
+        trade_review_outcome = await _run_trade_review(
+            mcp=mcp,
+            llm=llm,
+            cfg=cfg,
+            guard=guard,
+            pack_iso=pack_iso,
+            pack_ideas=pack_ideas,
+            system_prompt=trade_review_system_prompt,
+            dry_run=dry_run,
         )
 
-    try:
-        await mcp.append_journal_entry(
-            date_iso=journal_iso,
-            section=section,
-            body_md=body_md,
-        )
-    except McpToolError as e:
-        log.exception("append_journal_entry failed")
-        return EodReviewResult(
-            journal_date=journal_iso,
-            pack_date=pack_iso,
-            predictions_considered=len(pack_ideas),
-            outcomes_scored=len(same_day_outcomes),
-            body_len=len(body_md),
-            skipped_reason=f"append_journal_entry failed: {e}",
-            spent_usd=cost,
-        )
-
-    log.info(
-        "eod_review wrote %s/%s (%d ideas, %d outcomes, $%.4f)",
-        journal_iso,
-        section,
-        len(pack_ideas),
-        len(same_day_outcomes),
-        cost,
+    spent_total = cost + (
+        trade_review_outcome.spent_usd if trade_review_outcome else 0.0
     )
     return EodReviewResult(
         journal_date=journal_iso,
@@ -231,7 +254,9 @@ async def run_eod_review(
         predictions_considered=len(pack_ideas),
         outcomes_scored=len(same_day_outcomes),
         body_len=len(body_md),
-        spent_usd=cost,
+        skipped_reason=journal_skipped_reason,
+        spent_usd=spent_total,
+        trade_review=trade_review_outcome,
     )
 
 
@@ -266,6 +291,201 @@ def _ideas_from_pack(pack: Any) -> list[Mapping[str, Any]]:
     if not isinstance(ideas, list):
         return []
     return [i for i in ideas if isinstance(i, Mapping)]
+
+
+async def _run_trade_review(
+    *,
+    mcp: "EodReviewMcp",
+    llm: LlmClient,
+    cfg: AgentConfig,
+    guard: bg.BudgetGuard,
+    pack_iso: str,
+    pack_ideas: Sequence[Mapping[str, Any]],
+    system_prompt: str | None,
+    dry_run: bool,
+) -> TradeReviewOutcome:
+    """Score yesterday's actual fills and write a structured trade review.
+
+    Sibling output to the journal entry above; called only when the
+    journal write succeeded. Skipped silently when there are no fills."""
+    try:
+        legs_envelope = await mcp.get_trade_legs(date_iso=pack_iso)
+    except McpToolError as e:
+        log.warning("get_trade_legs failed: %s", e)
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=0,
+            skipped_reason=f"get_trade_legs failed: {e}",
+        )
+
+    legs = _legs_from_envelope(legs_envelope)
+    if not legs:
+        log.info("no fills on %s — skipping trade review", pack_iso)
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=0,
+            skipped_reason="no fills",
+        )
+
+    account = _account_from_envelope(legs_envelope)
+    if not account:
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason="no account in get_trade_legs envelope",
+        )
+
+    summary = tr.leg_summary_from_legs(legs)
+
+    try:
+        guard.ensure_can_spend()
+    except bg.BudgetExceeded as e:
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason=f"per-loop budget: {e}",
+        )
+
+    sys_prompt = system_prompt or _read_trade_review_system_prompt()
+    user_msg = tr.format_trade_review_prompt(
+        pack_date=pack_iso,
+        legs=legs,
+        summary=summary,
+        pack_ideas=pack_ideas,
+    )
+
+    try:
+        resp = await llm.call(
+            model=cfg.models.smart,
+            system=sys_prompt,
+            messages=[{"role": "user", "content": user_msg}],
+            tools=[tr.TRADE_REVIEW_TOOL_SCHEMA],
+            tool_choice={"type": "tool", "name": tr.TRADE_REVIEW_TOOL_NAME},
+            max_tokens=2048,
+        )
+    except Exception as e:  # noqa: BLE001
+        log.exception("trade_review LLM call failed")
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason=f"llm error: {e}",
+        )
+
+    cost = guard.record(
+        cfg.models.smart,
+        resp.input_tokens,
+        resp.output_tokens,
+        envelope_cost_usd=resp.cost_usd,
+    )
+
+    tool_use = next(
+        (u for u in resp.tool_uses if u.name == tr.TRADE_REVIEW_TOOL_NAME),
+        None,
+    )
+    if tool_use is None:
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason="LLM did not call submit_trade_review",
+            spent_usd=cost,
+        )
+
+    parsed = tr.parse_tool_response(tool_use.input)
+    if not parsed["narrative_md"]:
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason="empty narrative_md from LLM",
+            spent_usd=cost,
+        )
+
+    if dry_run:
+        log.info(
+            "dry-run: would write trade review for %s (account=%s, %d tags)",
+            pack_iso,
+            account,
+            len(parsed["behavioral_tags"]),
+        )
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason="dry-run",
+            spent_usd=cost,
+        )
+
+    try:
+        write_result = await mcp.write_trade_review(
+            date_iso=pack_iso,
+            account=account,
+            prompt_version=tr.PROMPT_VERSION,
+            summary=summary,
+            behavioral_tags=parsed["behavioral_tags"],
+            leg_observations=parsed["leg_observations"],
+            narrative_md=parsed["narrative_md"],
+        )
+    except McpToolError as e:
+        log.exception("write_trade_review failed")
+        return TradeReviewOutcome(
+            pack_date=pack_iso,
+            legs_considered=len(legs),
+            skipped_reason=f"write_trade_review failed: {e}",
+            spent_usd=cost,
+        )
+
+    grade = None
+    score: float | None = None
+    if isinstance(write_result, Mapping):
+        g = write_result.get("grade")
+        if isinstance(g, str):
+            grade = g
+        s = write_result.get("score")
+        if isinstance(s, (int, float)):
+            score = float(s)
+
+    log.info(
+        "eod_review wrote trade_review for %s account=%s grade=%s ($%.4f)",
+        pack_iso,
+        account,
+        grade,
+        cost,
+    )
+    return TradeReviewOutcome(
+        pack_date=pack_iso,
+        legs_considered=len(legs),
+        grade=grade,
+        score=score,
+        spent_usd=cost,
+    )
+
+
+def _legs_from_envelope(envelope: Any) -> list[Mapping[str, Any]]:
+    if not isinstance(envelope, Mapping):
+        return []
+    legs = envelope.get("legs")
+    if not isinstance(legs, list):
+        return []
+    return [l for l in legs if isinstance(l, Mapping)]
+
+
+def _account_from_envelope(envelope: Any) -> str | None:
+    if not isinstance(envelope, Mapping):
+        return None
+    account = envelope.get("account")
+    if isinstance(account, str) and account.strip():
+        return account
+    return None
+
+
+def _read_trade_review_system_prompt() -> str:
+    p = Path(__file__).resolve().parent / "prompts" / "trade_review.md"
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+    return (
+        "You are an equity research analyst writing the structured trade "
+        "review for a single trader, after market close. Always call "
+        "`submit_trade_review` with `behavioral_tags`, `leg_observations`, "
+        "and `narrative_md` — never reply with bare text."
+    )
 
 
 def _no_pack_body(pack_date: date) -> str:
@@ -371,6 +591,21 @@ class EodReviewMcp:  # pragma: no cover — typing-only marker
     async def append_journal_entry(
         self, *, date_iso: str, section: str, body_md: str
     ) -> Any: ...
+    async def get_trade_legs(
+        self, *, date_iso: str, account: str | None = None
+    ) -> Any: ...
+    async def write_trade_review(
+        self,
+        *,
+        date_iso: str,
+        account: str,
+        prompt_version: int,
+        summary: Mapping[str, Any],
+        behavioral_tags: Sequence[str],
+        leg_observations: Sequence[Mapping[str, Any]],
+        narrative_md: str,
+        llm_call_id: str | None = None,
+    ) -> Any: ...
 
 
 class _ProdAdapter:
@@ -399,6 +634,34 @@ class _ProdAdapter:
         return await self._mcp.call_tool(
             "append_journal_entry",
             {"date": date_iso, "section": section, "body_md": body_md},
+        )
+
+    async def get_trade_legs(
+        self, *, date_iso: str, account: str | None = None
+    ) -> Any:
+        return await self._mcp.get_trade_legs(date_iso=date_iso, account=account)
+
+    async def write_trade_review(
+        self,
+        *,
+        date_iso: str,
+        account: str,
+        prompt_version: int,
+        summary: Mapping[str, Any],
+        behavioral_tags: Sequence[str],
+        leg_observations: Sequence[Mapping[str, Any]],
+        narrative_md: str,
+        llm_call_id: str | None = None,
+    ) -> Any:
+        return await self._mcp.write_trade_review(
+            date_iso=date_iso,
+            account=account,
+            prompt_version=prompt_version,
+            summary=summary,
+            behavioral_tags=behavioral_tags,
+            leg_observations=leg_observations,
+            narrative_md=narrative_md,
+            llm_call_id=llm_call_id,
         )
 
 
@@ -435,6 +698,7 @@ async def _async_main(args: argparse.Namespace) -> int:
             eval_window_days=args.eval_window_days,
             per_loop_usd=args.per_loop_usd,
             dry_run=args.dry_run,
+            skip_trade_review=args.no_trade_review,
         )
     log.info("eod_review result: %s", result)
     return 0
@@ -462,6 +726,11 @@ def main() -> int:
         help=f"Per-loop USD cap (default ${DEFAULT_PER_LOOP_USD:.2f})",
     )
     parser.add_argument("--dry-run", action="store_true", help="Skip the journal write")
+    parser.add_argument(
+        "--no-trade-review",
+        action="store_true",
+        help="Skip the structured trade-review LLM call (smoke tests only).",
+    )
     parser.add_argument("--force", action="store_true", help="Run on weekends/holidays")
     parser.add_argument("--log-level", default=os.environ.get("LOG_LEVEL", "INFO"))
     args = parser.parse_args()

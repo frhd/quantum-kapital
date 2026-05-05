@@ -68,6 +68,57 @@ class FakeEodMcp:
             {"entry_id": 1, "date": date_iso, "section": section},
         )
 
+    async def get_trade_legs(
+        self, *, date_iso: str, account: str | None = None
+    ) -> Any:
+        self.calls.append(
+            ("get_trade_legs", {"date": date_iso, "account": account})
+        )
+        # Default to empty legs so the trade-review path skips silently.
+        return self.responses.get(
+            "get_trade_legs",
+            {"date": date_iso, "account": "U-test", "legs": [], "totals": {}},
+        )
+
+    async def write_trade_review(
+        self,
+        *,
+        date_iso: str,
+        account: str,
+        prompt_version: int,
+        summary: Mapping[str, Any],
+        behavioral_tags: list[str],
+        leg_observations: list[Mapping[str, Any]],
+        narrative_md: str,
+        llm_call_id: str | None = None,
+    ) -> Mapping[str, Any]:
+        self.calls.append(
+            (
+                "write_trade_review",
+                {
+                    "date": date_iso,
+                    "account": account,
+                    "prompt_version": prompt_version,
+                    "summary": dict(summary),
+                    "behavioral_tags": list(behavioral_tags),
+                    "leg_observations": [dict(o) for o in leg_observations],
+                    "narrative_md": narrative_md,
+                    "llm_call_id": llm_call_id,
+                },
+            )
+        )
+        return self.responses.get(
+            "write_trade_review",
+            {
+                "date": date_iso,
+                "account": account,
+                "prompt_version": prompt_version,
+                "grade": "C",
+                "score": 0.0,
+                "generated_at": "2026-05-04T22:00:00Z",
+            },
+        )
+
 
 @dataclass
 class FakeLlm:
