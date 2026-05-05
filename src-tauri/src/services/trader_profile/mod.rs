@@ -14,6 +14,4 @@ mod tests;
 #[allow(unused_imports)]
 pub use aggregator::aggregate;
 #[allow(unused_imports)]
-pub use types::{
-    PnlByTag, RecentIncident, TagFrequency, TraderProfile, Trendline, WindowSummary,
-};
+pub use types::{PnlByTag, RecentIncident, TagFrequency, TraderProfile, Trendline, WindowSummary};

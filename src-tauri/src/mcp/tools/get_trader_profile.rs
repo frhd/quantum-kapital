@@ -41,12 +41,11 @@ impl McpHandler {
         &self,
         Parameters(args): Parameters<GetTraderProfileArgs>,
     ) -> Result<CallToolResult, McpError> {
-        let account = match resolve_account(self.ibkr_client.as_ref(), args.account.as_deref())
-            .await
-        {
-            Ok(a) => a,
-            Err(e) => return map_tool_result::<(), String>(Err(e)),
-        };
+        let account =
+            match resolve_account(self.ibkr_client.as_ref(), args.account.as_deref()).await {
+                Ok(a) => a,
+                Err(e) => return map_tool_result::<(), String>(Err(e)),
+            };
 
         let window_days = args
             .window_days

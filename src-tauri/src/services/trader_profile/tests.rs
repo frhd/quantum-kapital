@@ -112,7 +112,10 @@ async fn aggregator_counts_tags_across_window() {
         &db,
         today - Duration::days(3),
         "U1",
-        &[BehavioralTag::ChaseOwnExit, BehavioralTag::DisciplineOnLoser],
+        &[
+            BehavioralTag::ChaseOwnExit,
+            BehavioralTag::DisciplineOnLoser,
+        ],
         -50.0,
         -3.0,
         &[],
@@ -404,8 +407,5 @@ async fn aggregator_drops_unknown_tags_silently() {
     assert_eq!(p.n_reviews, 1);
     // Unknown tag silently dropped; flat_close survives.
     assert_eq!(p.tag_frequencies.len(), 1);
-    assert!(matches!(
-        p.tag_frequencies[0].tag,
-        BehavioralTag::FlatClose
-    ));
+    assert!(matches!(p.tag_frequencies[0].tag, BehavioralTag::FlatClose));
 }

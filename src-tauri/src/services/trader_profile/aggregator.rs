@@ -115,18 +115,14 @@ pub async fn aggregate(
             last_window_pnl += raw.net_pnl;
             last_window_score_sum += raw.grade_score;
             for tag in &tags {
-                *last_window_tags
-                    .entry(tag_to_string(*tag))
-                    .or_insert(0) += 1;
+                *last_window_tags.entry(tag_to_string(*tag)).or_insert(0) += 1;
             }
         } else if date >= prior_window_since && date < prior_window_until {
             prior_window_n += 1;
             prior_window_pnl += raw.net_pnl;
             prior_window_score_sum += raw.grade_score;
             for tag in &tags {
-                *prior_window_tags
-                    .entry(tag_to_string(*tag))
-                    .or_insert(0) += 1;
+                *prior_window_tags.entry(tag_to_string(*tag)).or_insert(0) += 1;
             }
         }
 
@@ -238,10 +234,7 @@ fn push_incidents(out: &mut Vec<RecentIncident>, date: NaiveDate, legs_json: &st
             Some(t) => t,
             None => continue,
         };
-        let symbol = leg
-            .symbol
-            .clone()
-            .unwrap_or_else(|| leg.leg_id.clone());
+        let symbol = leg.symbol.clone().unwrap_or_else(|| leg.leg_id.clone());
         out.push(RecentIncident {
             date,
             symbol,
