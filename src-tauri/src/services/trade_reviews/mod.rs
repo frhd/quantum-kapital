@@ -10,6 +10,7 @@
 //! to the `write_trade_review` MCP rail. The rail computes the grade
 //! server-side — the LLM never picks the grade.
 
+pub mod generator;
 pub mod grade;
 pub mod store;
 pub mod tags;
@@ -18,6 +19,8 @@ pub mod types;
 #[cfg(test)]
 mod tests;
 
+#[allow(unused_imports)]
+pub use generator::PROMPT_VERSION_RUST;
 #[allow(unused_imports)] // public API surface — used by mcp tools and (future) FE wrappers
 pub use grade::{compute_grade, Grade, GradeLetter};
 #[allow(unused_imports)]
