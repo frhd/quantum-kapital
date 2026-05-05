@@ -164,6 +164,7 @@ impl McpHandler {
             + Self::positions_router()
             + Self::account_summary_router()
             + Self::executions_router()
+            + Self::get_trade_legs_router()
             + Self::scanner_router()
             + Self::add_ticker_router()
             + Self::archive_ticker_router()

@@ -30,6 +30,7 @@ pub mod get_morning_pack;
 pub mod get_outcomes;
 pub mod get_prediction_history;
 pub mod get_sentiment;
+pub mod get_trade_legs;
 pub mod mark_alert_enriched;
 pub mod news;
 pub mod positions;

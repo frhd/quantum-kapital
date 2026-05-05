@@ -5,8 +5,6 @@
 //! opens FIFO, consume on closes, emit one leg per closing fill (plus
 //! one per leftover open).
 
-#![allow(dead_code)]
-
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::HashMap;
 
@@ -70,10 +68,8 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
             }
             None => continue,
         };
-        let mut opens: std::collections::VecDeque<OpenSlice> =
-            std::collections::VecDeque::new();
-        let mut order_ids_seen: std::collections::HashSet<i32> =
-            std::collections::HashSet::new();
+        let mut opens: std::collections::VecDeque<OpenSlice> = std::collections::VecDeque::new();
+        let mut order_ids_seen: std::collections::HashSet<i32> = std::collections::HashSet::new();
         let mut close_count_in_group = 0usize;
         for f in &group {
             order_ids_seen.insert(f.order_id);
@@ -99,8 +95,7 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
                         break;
                     };
                     let take = close_qty_remaining.min(front.qty_remaining);
-                    let consumed_commission =
-                        front.commission * (take / front.qty_original);
+                    let consumed_commission = front.commission * (take / front.qty_original);
                     consumed.push(OpenSlice {
                         exec_id: front.exec_id.clone(),
                         qty_remaining: take,
@@ -157,11 +152,7 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
     legs
 }
 
-fn emit_short_legs(
-    group: &[&ExecutionRow],
-    legs: &mut Vec<TradeLeg>,
-    counter: &mut usize,
-) {
+fn emit_short_legs(group: &[&ExecutionRow], legs: &mut Vec<TradeLeg>, counter: &mut usize) {
     for f in group {
         let leg = TradeLeg {
             leg_id: next_leg_id(counter),
@@ -235,10 +226,7 @@ fn build_round_trip(
     let gross_pnl = (close_price - avg_buy_price) * sell_qty * multiplier_factor;
     let commission_total = buy_commission + close_commission_total;
     let net_pnl = gross_pnl - commission_total;
-    let opened_at = consumed
-        .first()
-        .map(|o| o.opened_at)
-        .unwrap_or(close.time);
+    let opened_at = consumed.first().map(|o| o.opened_at).unwrap_or(close.time);
     let closed_at = close.time;
     let hold_minutes = (closed_at - opened_at).num_minutes();
     let mut source = consumed
