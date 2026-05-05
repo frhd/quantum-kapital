@@ -66,7 +66,7 @@ Both halves of that copy are misleading: the auto-write isn't running, and `qk-e
 |---|---|---|
 | 1 | [phase-1-llm-kind-review.md](phase-1-llm-kind-review.md) | done (commit 474f58c, 2026-05-05) |
 | 2 | [phase-2-prompt-builder.md](phase-2-prompt-builder.md) | done (commit 85b5487, 2026-05-05) |
-| 3 | [phase-3-tool-schema-and-parser.md](phase-3-tool-schema-and-parser.md) | in-progress (started 2026-05-05) |
+| 3 | [phase-3-tool-schema-and-parser.md](phase-3-tool-schema-and-parser.md) | done (commit 704f80f, 2026-05-05) |
 | 4 | [phase-4-summary-builder.md](phase-4-summary-builder.md) | todo |
 | 5 | [phase-5-generator-orchestrator.md](phase-5-generator-orchestrator.md) | todo |
 | 6 | [phase-6-tauri-command-and-wiring.md](phase-6-tauri-command-and-wiring.md) | todo |
