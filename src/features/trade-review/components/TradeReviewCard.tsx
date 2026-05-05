@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from "react"
 
+import { assessmentsApi } from "../../../shared/api/assessments"
 import { Button } from "../../../shared/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card"
 import { DatePicker } from "../../../shared/components/DatePicker"
@@ -167,7 +168,13 @@ export function TradeReviewCard({ date: dateProp, account }: TradeReviewCardProp
         ) : review ? (
           <PopulatedReview review={review} />
         ) : (
-          <EmptyTradeReview date={date} />
+          <EmptyTradeReview
+            date={date}
+            onGenerate={async () => {
+              await assessmentsApi.generateTradeReview(date, { account: account ?? null })
+              await refresh()
+            }}
+          />
         )}
       </CardContent>
     </Card>

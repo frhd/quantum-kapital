@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { TradeReviewCard } from "../components/TradeReviewCard"
 import type { TradeReview } from "../types"
@@ -7,6 +7,7 @@ import type { TradeReview } from "../types"
 vi.mock("../../../shared/api/assessments", () => ({
   assessmentsApi: {
     getTradeReview: vi.fn(),
+    generateTradeReview: vi.fn(),
     getPlaybook: vi.fn(),
     getTraderProfile: vi.fn(),
   },
@@ -46,6 +47,7 @@ const review: TradeReview = {
 describe("TradeReviewCard", () => {
   beforeEach(() => {
     vi.mocked(assessmentsApi.getTradeReview).mockReset()
+    vi.mocked(assessmentsApi.generateTradeReview).mockReset()
   })
 
   it("renders empty-state when no review exists for the date", async () => {
@@ -83,5 +85,44 @@ describe("TradeReviewCard", () => {
     vi.mocked(assessmentsApi.getTradeReview).mockRejectedValue(new Error("boom"))
     render(<TradeReviewCard date="2026-05-04" />)
     expect(await screen.findByText(/Failed to load review: boom/)).toBeInTheDocument()
+  })
+
+  it("shows a 'Generate review' button in the empty state", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(null)
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /generate review/i })
+    expect(button).toBeInTheDocument()
+  })
+
+  it("clicking 'Generate review' calls the wrapper and refreshes the card on success", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(null)
+    vi.mocked(assessmentsApi.generateTradeReview).mockResolvedValue(review)
+
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /generate review/i })
+
+    // After click, the card should re-fetch via getTradeReview and show
+    // the populated narrative.
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValueOnce(review)
+
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(assessmentsApi.generateTradeReview).toHaveBeenCalledWith("2026-05-04", {
+        account: null,
+      })
+    })
+    await waitFor(() => {
+      expect(screen.queryByText(/no trade review/i)).not.toBeInTheDocument()
+    })
+  })
+
+  it("renders the typed error from generate_trade_review when the call fails", async () => {
+    vi.mocked(assessmentsApi.getTradeReview).mockResolvedValue(null)
+    vi.mocked(assessmentsApi.generateTradeReview).mockRejectedValueOnce("daily budget exhausted")
+    render(<TradeReviewCard date="2026-05-04" />)
+    const button = await screen.findByRole("button", { name: /generate review/i })
+    fireEvent.click(button)
+    expect(await screen.findByText(/daily budget exhausted/i)).toBeInTheDocument()
   })
 })
