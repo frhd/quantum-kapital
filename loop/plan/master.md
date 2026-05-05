@@ -71,6 +71,6 @@ Both halves of that copy are misleading: the auto-write isn't running, and `qk-e
 | 5 | [phase-5-generator-orchestrator.md](phase-5-generator-orchestrator.md) | done (commit 67f71a7, 2026-05-05) |
 | 6 | [phase-6-tauri-command-and-wiring.md](phase-6-tauri-command-and-wiring.md) | done (commit 424ac20, 2026-05-05) |
 | 7 | [phase-7-fe-wrapper.md](phase-7-fe-wrapper.md) | done (commit daf8310, 2026-05-05) |
-| 8 | [phase-8-ui-button-and-empty-state.md](phase-8-ui-button-and-empty-state.md) | todo |
+| 8 | [phase-8-ui-button-and-empty-state.md](phase-8-ui-button-and-empty-state.md) | in-progress (started 2026-05-05) |
 
 Each phase ships in a single commit. TDD red→green→refactor at every phase. Tests inline as `#[cfg(test)] mod tests` (Rust) or `__tests__/*.test.tsx` (frontend), per project convention.
