@@ -34,3 +34,4 @@ pub mod ticker_primer;
 pub mod tracker_runner;
 pub mod tracker_service;
 pub mod tracker_state_machine;
+pub mod trade_legs;
