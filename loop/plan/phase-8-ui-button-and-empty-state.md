@@ -2,7 +2,7 @@
 
 > Part of [In-app trade-review generator](master.md). See master for invariants.
 
-**Status:** in-progress (started 2026-05-05)
+**Status:** done (commit baa8d41, 2026-05-05)
 
 **Depends on:** Phase 7 (FE wrapper exists).
 
