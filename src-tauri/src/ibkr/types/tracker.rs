@@ -282,6 +282,14 @@ pub struct Setup {
     pub invalidated_at: Option<DateTime<Utc>>,
     pub invalidation_reason: Option<String>,
     pub archived_at: Option<DateTime<Utc>>,
+    /// Quant-decisions Phase 1 — risk-engine sizing pinned at
+    /// detection. `None` for pre-P1 rows (migration default) and for
+    /// rows the engine refused to size before persistence; `Some` (
+    /// possibly with `skipped_reason`) once the engine touched the row.
+    /// Surfaced to the UI so each setup card shows qty / dollar-risk /
+    /// R-per-share without a separate query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sizing: Option<crate::services::risk_engine::Sizing>,
 }
 
 #[cfg(test)]

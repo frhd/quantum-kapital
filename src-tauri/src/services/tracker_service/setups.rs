@@ -8,6 +8,7 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use rusqlite::OptionalExtension;
 
 use crate::ibkr::types::tracker::{Setup, SetupStatus};
+use crate::services::risk_engine::{ConvictionGrade, Sizing, SizingSkippedReason};
 use crate::storage::error::StorageError;
 use crate::strategies::{Direction, SetupCandidate, TargetLevel};
 use crate::utils::helpers::unix_to_utc;
@@ -76,7 +77,62 @@ impl TrackerService {
             invalidated_at: None,
             invalidation_reason: None,
             archived_at: None,
+            sizing: None,
         })
+    }
+
+    /// Quant-decisions Phase 1 — persist the risk-engine `Sizing` for
+    /// `id`. Called by `TrackerRunner` after `RiskEngine::size`
+    /// returns; the row already exists from `insert_setup`. Returns
+    /// the refreshed setup row, or `NotFound` if the id is unknown.
+    pub async fn update_setup_sizing(&self, id: i64, sizing: &Sizing) -> Result<Setup> {
+        let qty = sizing.qty as i64;
+        let dollar_risk_cents = sizing.dollar_risk_cents;
+        let r_per_share_cents = sizing.r_per_share_cents;
+        let equity_at_decision_cents = sizing.equity_at_decision_cents;
+        let sizing_version = sizing.version as i64;
+        let conviction_grade = sizing.conviction_grade.as_str().to_string();
+        let conviction_multiplier_bps = sizing.conviction_multiplier_bps as i64;
+        let cap_applied = if sizing.cap_applied { 1_i64 } else { 0_i64 };
+        let skipped_reason = sizing.skipped_reason.map(|r| r.as_str().to_string());
+
+        let updated = self
+            .db
+            .with_conn(move |conn| {
+                let n = conn.execute(
+                    "UPDATE setups SET \
+                       qty = ?1, \
+                       dollar_risk_cents = ?2, \
+                       r_per_share_cents = ?3, \
+                       equity_at_decision_cents = ?4, \
+                       sizing_version = ?5, \
+                       sizing_skipped_reason = ?6, \
+                       conviction_grade = ?7, \
+                       conviction_multiplier_bps = ?8, \
+                       sizing_cap_applied = ?9 \
+                     WHERE id = ?10 AND archived_at IS NULL",
+                    rusqlite::params![
+                        qty,
+                        dollar_risk_cents,
+                        r_per_share_cents,
+                        equity_at_decision_cents,
+                        sizing_version,
+                        skipped_reason,
+                        conviction_grade,
+                        conviction_multiplier_bps,
+                        cap_applied,
+                        id,
+                    ],
+                )?;
+                Ok(n)
+            })
+            .await?;
+        if updated == 0 {
+            return Err(TrackerError::NotFound(format!("setup#{id}")));
+        }
+        self.get_setup(id)
+            .await?
+            .ok_or_else(|| TrackerError::NotFound(format!("setup#{id}")))
     }
 
     /// Persist a generated LLM thesis on a `setups` row. `thesis_md` is
@@ -126,7 +182,10 @@ impl TrackerService {
                 let mut sql = String::from(
                     "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
                             stop_price, targets, raw_signals, thesis, thesis_json, status, \
-                            invalidated_at, invalidation_reason, archived_at \
+                            invalidated_at, invalidation_reason, archived_at, \
+                            qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
+                            sizing_version, sizing_skipped_reason, conviction_grade, \
+                            conviction_multiplier_bps, sizing_cap_applied \
                      FROM setups WHERE archived_at IS NULL",
                 );
                 if symbol.is_some() {
@@ -171,7 +230,10 @@ impl TrackerService {
                 conn.query_row(
                     "SELECT id, symbol, strategy, direction, detected_at, trigger_price, \
                             stop_price, targets, raw_signals, thesis, thesis_json, status, \
-                            invalidated_at, invalidation_reason, archived_at \
+                            invalidated_at, invalidation_reason, archived_at, \
+                            qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
+                            sizing_version, sizing_skipped_reason, conviction_grade, \
+                            conviction_multiplier_bps, sizing_cap_applied \
                      FROM setups WHERE id = ?1 AND archived_at IS NULL",
                     rusqlite::params![id],
                     setup_row_to_raw,
@@ -279,6 +341,10 @@ impl TrackerService {
 
 // ---------------- setup row helpers ----------------
 
+// allow-large-tuple: 24 fields parallels the `setups` SELECT order
+// 1:1 so the row reader stays a single positional decode. Splitting
+// would require a struct shim that adds nothing the comment doesn't.
+#[allow(clippy::type_complexity)]
 type SetupRawRow = (
     i64,            // id
     String,         // symbol
@@ -295,6 +361,15 @@ type SetupRawRow = (
     Option<i64>,    // invalidated_at unix
     Option<String>, // invalidation_reason
     Option<i64>,    // archived_at unix
+    Option<i64>,    // qty
+    Option<i64>,    // dollar_risk_cents
+    Option<i64>,    // r_per_share_cents
+    Option<i64>,    // equity_at_decision_cents
+    Option<i64>,    // sizing_version
+    Option<String>, // sizing_skipped_reason
+    Option<String>, // conviction_grade
+    Option<i64>,    // conviction_multiplier_bps
+    Option<i64>,    // sizing_cap_applied
 );
 
 fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
@@ -314,6 +389,15 @@ fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
         row.get(12)?,
         row.get(13)?,
         row.get(14)?,
+        row.get(15)?,
+        row.get(16)?,
+        row.get(17)?,
+        row.get(18)?,
+        row.get(19)?,
+        row.get(20)?,
+        row.get(21)?,
+        row.get(22)?,
+        row.get(23)?,
     ))
 }
 
@@ -334,6 +418,15 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         invalidated_at,
         invalidation_reason,
         archived_at,
+        qty,
+        dollar_risk_cents,
+        r_per_share_cents,
+        equity_at_decision_cents,
+        sizing_version,
+        sizing_skipped_reason,
+        conviction_grade_s,
+        conviction_multiplier_bps,
+        sizing_cap_applied,
     ) = r;
     let direction = parse_direction(&direction_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -351,6 +444,18 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         Some(s) if !s.is_empty() => Some(serde_json::from_str::<serde_json::Value>(&s)?),
         _ => None,
     };
+    let sizing = decode_sizing(
+        id,
+        qty,
+        dollar_risk_cents,
+        r_per_share_cents,
+        equity_at_decision_cents,
+        sizing_version,
+        sizing_skipped_reason,
+        conviction_grade_s,
+        conviction_multiplier_bps,
+        sizing_cap_applied,
+    )?;
     Ok(Setup {
         id,
         symbol,
@@ -367,7 +472,52 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         invalidated_at: invalidated_at.map(unix_to_utc),
         invalidation_reason,
         archived_at: archived_at.map(unix_to_utc),
+        sizing,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decode_sizing(
+    id: i64,
+    qty: Option<i64>,
+    dollar_risk_cents: Option<i64>,
+    r_per_share_cents: Option<i64>,
+    equity_at_decision_cents: Option<i64>,
+    sizing_version: Option<i64>,
+    skipped_reason_s: Option<String>,
+    conviction_grade_s: Option<String>,
+    conviction_multiplier_bps: Option<i64>,
+    cap_applied: Option<i64>,
+) -> Result<Option<Sizing>> {
+    // Pre-P1 rows have NULL sizing_version. Treat those as "ungated"
+    // and surface as None to the UI.
+    let version = match sizing_version {
+        Some(v) => v as i32,
+        None => return Ok(None),
+    };
+    let grade = conviction_grade_s
+        .as_deref()
+        .and_then(ConvictionGrade::parse)
+        .unwrap_or(ConvictionGrade::C);
+    let skipped_reason = match skipped_reason_s.as_deref() {
+        Some(s) => Some(SizingSkippedReason::parse(s).ok_or_else(|| {
+            TrackerError::Storage(StorageError::Migration(format!(
+                "unknown sizing_skipped_reason '{s}' on setup {id}"
+            )))
+        })?),
+        None => None,
+    };
+    Ok(Some(Sizing {
+        qty: qty.unwrap_or(0).max(0) as u32,
+        dollar_risk_cents: dollar_risk_cents.unwrap_or(0),
+        r_per_share_cents: r_per_share_cents.unwrap_or(0),
+        equity_at_decision_cents: equity_at_decision_cents.unwrap_or(0),
+        conviction_grade: grade,
+        conviction_multiplier_bps: conviction_multiplier_bps.unwrap_or(0).max(0) as u32,
+        cap_applied: cap_applied.unwrap_or(0) != 0,
+        skipped_reason,
+        version,
+    }))
 }
 
 fn direction_as_str(direction: Direction) -> &'static str {

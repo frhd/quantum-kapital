@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
 
+use crate::services::risk_engine::RiskConfig;
 use crate::strategies::DetectorsConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -18,6 +19,14 @@ pub struct AppConfig {
     pub auto_scanner: AutoScannerConfig,
     #[serde(default)]
     pub social_sentiment: SocialSentimentConfig,
+    /// Quant-decisions Phase 1 — risk engine knobs (per-grade
+    /// risk_pct, max position pct, min dollar-risk, conviction
+    /// multiplier cap, round lot). Pre-existing settings.json
+    /// files predate the field; `#[serde(default)]` keeps them
+    /// parseable, and `RiskConfig::default()` matches the master
+    /// plan's `Defaults committed` table.
+    #[serde(default)]
+    pub risk_engine: RiskConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

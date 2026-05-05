@@ -27,6 +27,7 @@ pub mod predictions;
 pub mod projection_service;
 pub mod quote_service;
 pub mod research_notes;
+pub mod risk_engine;
 pub mod sentiment_surge_scanner;
 pub mod social_sentiment;
 pub mod social_sentiment_scheduler;

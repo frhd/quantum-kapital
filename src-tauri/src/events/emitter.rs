@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::ibkr::types::tracker::{Setup, TickerPrimingOutcome, TrackerStatus};
 use crate::ibkr::types::{DataTier, ScannerData};
+use crate::services::risk_engine::Sizing;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
@@ -90,6 +91,16 @@ pub enum AppEvent {
     SetupDetected {
         setup: Box<Setup>,
         thesis: Option<String>,
+    },
+    /// Quant-decisions Phase 1 — emitted by `TrackerRunner` after
+    /// `RiskEngine::size` has run and the sizing has been persisted
+    /// to the row. Fires before `SetupDetected` so the frontend
+    /// always sees a sized payload (or a `skipped_reason`) when it
+    /// surfaces the setup card.
+    SetupSized {
+        setup_id: i64,
+        symbol: String,
+        sizing: Sizing,
     },
     /// Emitted by `TrackerStateMachine::mark_invalidated` when a
     /// persisted setup is flipped to `Invalidated`. Carries the
@@ -222,6 +233,7 @@ impl AppEvent {
             AppEvent::PositionsRefreshed => "positions-refreshed",
             AppEvent::ScannerUpdate { .. } => "scanner-update",
             AppEvent::SetupDetected { .. } => "setup-detected",
+            AppEvent::SetupSized { .. } => "setup-sized",
             AppEvent::SetupInvalidated { .. } => "setup-invalidated",
             AppEvent::TickerStatusChanged { .. } => "ticker-status-changed",
             AppEvent::MorningPackReady { .. } => "morning-pack-ready",

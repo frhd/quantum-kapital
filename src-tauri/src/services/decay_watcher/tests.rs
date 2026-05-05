@@ -162,6 +162,7 @@ fn sample_setup() -> Setup {
         invalidated_at: None,
         invalidation_reason: None,
         archived_at: None,
+        sizing: None,
     }
 }
 

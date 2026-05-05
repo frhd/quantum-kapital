@@ -43,6 +43,7 @@ use services::news_interpreter::NewsInterpreter;
 use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
+use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
 use services::social_sentiment::reddit::RedditWsbProvider;
@@ -272,6 +273,28 @@ pub fn run() {
                 Arc::clone(&ibkr_state.event_emitter),
             ));
 
+            // Quant-decisions Phase 1 — risk engine. Sizes every
+            // detector hit against a T-1 NLV snapshot pulled from
+            // IBKR. Knobs come from `config.risk_engine` and stay
+            // editable at runtime via `risk_set_config`. The
+            // `IbkrClient` impls both `EquityFetcher` and
+            // `AccountSource`, so the production wiring is just two
+            // upcasts.
+            let equity_fetcher: Arc<dyn EquityFetcher> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn EquityFetcher>;
+            let equity_snapshot_svc = Arc::new(EquitySnapshotService::new(
+                Arc::clone(&db),
+                equity_fetcher,
+            ));
+            let account_source: Arc<dyn services::risk_engine::AccountSource> =
+                Arc::clone(&ibkr_state.client)
+                    as Arc<dyn services::risk_engine::AccountSource>;
+            let risk_engine = Arc::new(RiskEngine::new(
+                Arc::clone(&equity_snapshot_svc),
+                account_source,
+                config.risk_engine.clone(),
+            ));
+
             let tracker_runner = Arc::new(
                 TrackerRunner::new(
                     Arc::clone(&db),
@@ -283,7 +306,8 @@ pub fn run() {
                     Arc::new(registry_from_config(&config.detectors)),
                 )
                 .with_thesis_generator(Arc::clone(&thesis_generator))
-                .with_data_tier(Arc::clone(&ibkr_state.data_tier)),
+                .with_data_tier(Arc::clone(&ibkr_state.data_tier))
+                .with_risk_engine(Arc::clone(&risk_engine)),
             );
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
@@ -552,6 +576,8 @@ pub fn run() {
             // Code see byte-identical past-day executions.
             app.manage(account_reader);
             app.manage(trade_review_generator);
+            app.manage(risk_engine);
+            app.manage(equity_snapshot_svc);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -619,6 +645,10 @@ pub fn run() {
             ibkr::commands::save_share_image_png,
             ibkr::commands::get_today_playbook,
             ibkr::commands::get_trader_profile,
+            ibkr::commands::risk_get_config,
+            ibkr::commands::risk_set_config,
+            ibkr::commands::risk_recompute_setup,
+            ibkr::commands::risk_refresh_equity,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

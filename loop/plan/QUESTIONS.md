@@ -4,6 +4,14 @@ Append-only log. Issues raised during a phase that the phase intentionally did n
 
 Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write entries at the moment the issue is raised.
 
+## Phase 1 (2026-05-05)
+
+- *Pre-existing flake unrelated to risk-engine work.*
+  `services::decay_watcher::tests::respects_budget_kill_switch` panics with
+  "MockHttp queue exhausted" on baseline `main` (verified by stashing
+  Phase 1 changes and re-running). Not introduced by P1; left as-is for
+  P18-decay-watcher owner to fix.
+
 ## Phase 5 (TBD)
 
 - *Reserved for AV fundamentals retirement audit result.* P5 inspects whether AV fundamentals (revenue/EPS/sector) are load-bearing for any consumer beyond earnings-date lookup. If not, AV fundamentals fallback retires in this phase's diff.

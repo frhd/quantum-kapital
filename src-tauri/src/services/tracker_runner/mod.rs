@@ -25,6 +25,7 @@ use crate::ibkr::types::tracker::{AlertKind, Setup, TrackerStatus};
 use crate::services::alerts::record_alert;
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::news_provider::NewsProvider;
+use crate::services::risk_engine::RiskEngine;
 use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
 use crate::services::tracker_state_machine::TrackerStateMachine;
@@ -147,6 +148,12 @@ pub struct TrackerRunner {
     /// `None`, contexts default to `DataTier::Unknown` — preserving
     /// pre-data-tier behavior for tests that don't care.
     data_tier: Option<Arc<RwLock<DataTier>>>,
+    /// Quant-decisions Phase 1 — optional risk engine. When wired,
+    /// every newly-persisted setup is sized immediately, the sizing
+    /// is written back to the row, and `SetupSized` fires before
+    /// `SetupDetected`. When `None`, the runner is sizing-blind
+    /// (back-compat for tests).
+    risk_engine: Option<Arc<RiskEngine>>,
 }
 
 impl TrackerRunner {
@@ -169,7 +176,16 @@ impl TrackerRunner {
             registry,
             thesis_generator: None,
             data_tier: None,
+            risk_engine: None,
         }
+    }
+
+    /// Attach a [`RiskEngine`]. Once wired, every persisted setup is
+    /// sized + persisted with sizing fields populated, and
+    /// `SetupSized` fires before `SetupDetected`.
+    pub fn with_risk_engine(mut self, engine: Arc<RiskEngine>) -> Self {
+        self.risk_engine = Some(engine);
+        self
     }
 
     /// Attach a [`ThesisGenerator`]. With one wired, `run_for` skips the
@@ -260,7 +276,42 @@ impl TrackerRunner {
             match outcome.result {
                 Ok(Some(candidate)) => {
                     match self.persist_with_dedup(&ctx_owned.symbol, &candidate).await {
-                        Ok(Some(setup)) => {
+                        Ok(Some(mut setup)) => {
+                            // Quant-decisions Phase 1 — size the setup
+                            // immediately. Failures don't kill the row;
+                            // the UI surfaces an "ungated" warning when
+                            // sizing is None.
+                            if let Some(engine) = &self.risk_engine {
+                                match engine.size_for_candidate(&candidate).await {
+                                    Ok((sizing, _snapshot)) => {
+                                        match self
+                                            .tracker
+                                            .update_setup_sizing(setup.id, &sizing)
+                                            .await
+                                        {
+                                            Ok(refreshed) => {
+                                                setup = refreshed;
+                                                let _ = self
+                                                    .emitter
+                                                    .emit(AppEvent::SetupSized {
+                                                        setup_id: setup.id,
+                                                        symbol: setup.symbol.clone(),
+                                                        sizing: sizing.clone(),
+                                                    })
+                                                    .await;
+                                            }
+                                            Err(e) => warn!(
+                                                "update_setup_sizing failed for {} setup#{}: {e}",
+                                                ctx_owned.symbol, setup.id
+                                            ),
+                                        }
+                                    }
+                                    Err(e) => warn!(
+                                        "risk_engine sizing failed for {} setup#{}: {e}",
+                                        ctx_owned.symbol, setup.id
+                                    ),
+                                }
+                            }
                             // Phase 12: hand the persisted hit to the state
                             // machine so the ticker flips into SetupActive
                             // (and gets its in_play_until extended). Failures
