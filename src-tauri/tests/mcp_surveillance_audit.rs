@@ -123,11 +123,13 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // data, never market actions) + Trade-history Phase 2 (2 reads:
     // get_executions, get_trade_legs) + Behavioral-assessment Phase 3
     // (1 read: get_watchlist_briefing) + Behavioral-assessment Phase 4
-    // (1 read: get_trade_review, 1 write: write_trade_review) = 32.
+    // (1 read: get_trade_review, 1 write: write_trade_review) +
+    // Behavioral-assessment Phase 5 (1 read: get_today_playbook, 1
+    // write: write_playbook) = 34.
     assert_eq!(
         names.len(),
-        32,
-        "expected 32 registered MCP tools, got {}: {:?}",
+        34,
+        "expected 34 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
@@ -142,6 +144,7 @@ async fn mcp_tool_registry_is_surveillance_only() {
         "archive_ticker",
         "write_research_note",
         "write_morning_pack",
+        "write_playbook",
         "write_trade_review",
         "ack_alert",
         "promote_candidate",

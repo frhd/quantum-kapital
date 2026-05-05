@@ -141,6 +141,16 @@ pub enum AppEvent {
         prompt_version: i32,
         grade: String,
     },
+    /// Phase 5 (behavioral assessment) — emitted after `write_playbook`
+    /// inserts a structured pre-market playbook. The frontend re-queries
+    /// `get_today_playbook(date)` to refresh the playbook panel.
+    PlaybookWritten {
+        date: NaiveDate,
+        account: String,
+        generation_id: i32,
+        n_setups: usize,
+        n_skip: usize,
+    },
     /// Emitted after `ack_alert` records a decision. The UI flips the
     /// alert's row treatment (e.g. greying acted/passed alerts) without
     /// reloading the whole feed.
@@ -218,6 +228,7 @@ impl AppEvent {
             AppEvent::ResearchNoteWritten { .. } => "research-note-written",
             AppEvent::AgentMorningPackWritten { .. } => "agent-morning-pack-written",
             AppEvent::TradeReviewWritten { .. } => "trade-review-written",
+            AppEvent::PlaybookWritten { .. } => "playbook-written",
             AppEvent::AlertDecisionRecorded { .. } => "alert-decision-recorded",
             AppEvent::AlertEnriched { .. } => "alert-enriched",
             AppEvent::AlertDiveSkipped { .. } => "alert-dive-skipped",
