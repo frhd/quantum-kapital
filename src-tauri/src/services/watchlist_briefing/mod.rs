@@ -10,9 +10,9 @@ use chrono::Utc;
 use futures::stream::{FuturesUnordered, StreamExt};
 use serde_json::Value;
 
-pub mod types;
 #[cfg(test)]
 mod tests;
+pub mod types;
 
 pub use types::{SymbolBriefing, WatchlistBriefing};
 
