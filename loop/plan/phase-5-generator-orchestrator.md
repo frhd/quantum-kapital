@@ -2,7 +2,7 @@
 
 > Part of [In-app trade-review generator](master.md). See master for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-05)
 
 **Depends on:** Phase 1 (`LlmKind::Review`), Phase 2 (prompt), Phase 3 (tool schema + parser), Phase 4 (summary).
 
