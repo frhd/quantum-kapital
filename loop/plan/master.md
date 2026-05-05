@@ -82,7 +82,7 @@ Violating the letter of these rules is violating the spirit.
 | 3. `get_watchlist_briefing` MCP fan-out aggregator | [phase-3-watchlist-briefing.md](phase-3-watchlist-briefing.md) | — (parallel-able with 2) | done (commit d748ff4, 2026-05-05) |
 | 4. `day_reviews` schema + extended `eod_review.py` + `get_trade_review` / `write_trade_review` MCP tools | [phase-4-trade-review.md](phase-4-trade-review.md) | 2 | done (commit d8afab3, 2026-05-05) |
 | 5. `playbooks` schema + extended `morning_sweep.py` + `get_today_playbook` / `write_playbook` MCP tools | [phase-5-playbook.md](phase-5-playbook.md) | 3 | done (commit f892057, 2026-05-05) |
-| 6. `get_trader_profile` MCP tool + behavioral feedback wired into `morning_sweep.py` | [phase-6-trader-profile.md](phase-6-trader-profile.md) | 4, 5 | todo |
+| 6. `get_trader_profile` MCP tool + behavioral feedback wired into `morning_sweep.py` | [phase-6-trader-profile.md](phase-6-trader-profile.md) | 4, 5 | in-progress (started 2026-05-05) |
 | 7. UI surfacing: Trade Review card, Today's Playbook panel, Trader Profile dashboard | [phase-7-ui-surfacing.md](phase-7-ui-surfacing.md) | 4, 5, 6 | todo |
 
 > **Status convention:** `todo` | `in-progress (started YYYY-MM-DD)` | `done (commit <sha>, YYYY-MM-DD)`. Update both this table AND the phase file's `**Status:**` header at phase start and exit. Don't start a phase whose dependencies aren't `done`.

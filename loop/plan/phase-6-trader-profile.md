@@ -2,7 +2,7 @@
 
 > Part of [Behavioral assessment via MCP](master.md). See master for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-05)
 
 **Depends on:** 4 (`day_reviews` rows are the data source), 5 (`morning_sweep.py`'s playbook step is the consumer)
 
