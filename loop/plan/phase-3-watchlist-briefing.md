@@ -2,7 +2,7 @@
 
 > Part of [Behavioral assessment via MCP](master.md). See master for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-05)
 
 **Depends on:** — (parallel-able with Phase 2; both build directly on existing services)
 
