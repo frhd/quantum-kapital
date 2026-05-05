@@ -34,7 +34,7 @@ function ScoreSurface({ review }: { review: TradeReview | null | undefined }) {
     return (
       <span className="flex items-center gap-1">
         <GradeBadge grade={review.grade} score={review.grade_score ?? 0} />
-        <span className="text-muted-foreground rounded border border-border px-1.5 py-0.5 text-[10px] uppercase">
+        <span className="text-muted-foreground border-border rounded border px-1.5 py-0.5 text-[10px] uppercase">
           v1
         </span>
       </span>
@@ -42,13 +42,13 @@ function ScoreSurface({ review }: { review: TradeReview | null | undefined }) {
   }
   return (
     <span className="flex items-center gap-3 text-xs">
-      <span className="rounded border border-border bg-secondary/40 px-2 py-0.5">
+      <span className="border-border bg-secondary/40 rounded border px-2 py-0.5">
         <span className="text-muted-foreground mr-1 uppercase">R-edge</span>
         <span className="font-mono">
           {review.score_v2 != null ? review.score_v2.toFixed(2) : "—"}
         </span>
       </span>
-      <span className="rounded border border-border bg-secondary/40 px-2 py-0.5">
+      <span className="border-border bg-secondary/40 rounded border px-2 py-0.5">
         <span className="text-muted-foreground mr-1 uppercase">Discipline</span>
         <span
           className={`font-mono ${
@@ -153,10 +153,7 @@ export function TradeReviewCard({ date: dateProp, account }: TradeReviewCardProp
               <>
                 <RiskMetricsPanel metrics={review.risk_metrics ?? null} />
                 {review.equity_curve && review.equity_curve.length > 0 && (
-                  <EquityCurve
-                    points={review.equity_curve}
-                    caption="Daily equity (trade flow)"
-                  />
+                  <EquityCurve points={review.equity_curve} caption="Daily equity (trade flow)" />
                 )}
               </>
             )}

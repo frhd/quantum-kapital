@@ -49,7 +49,7 @@ export function StrategyRollup({ rows }: StrategyRollupProps) {
     )
   }
   return (
-    <div className="overflow-hidden rounded border border-border">
+    <div className="border-border overflow-hidden rounded border">
       <table className="w-full text-sm" aria-label="Per-strategy attribution">
         <thead className="bg-secondary/40 text-muted-foreground text-xs uppercase">
           <tr>
@@ -74,12 +74,8 @@ export function StrategyRollup({ rows }: StrategyRollupProps) {
               </td>
               <td className="px-2 py-1 text-right font-mono">{fmtR(r.avg_r)}</td>
               <td className="px-2 py-1 text-right font-mono">{fmtPct(r.win_rate)}</td>
-              <td className="px-2 py-1 text-right font-mono">
-                {fmtNum(r.profit_factor)}
-              </td>
-              <td className="px-2 py-1 text-right font-mono">
-                {fmtNum(r.sharpe_30d)}
-              </td>
+              <td className="px-2 py-1 text-right font-mono">{fmtNum(r.profit_factor)}</td>
+              <td className="px-2 py-1 text-right font-mono">{fmtNum(r.sharpe_30d)}</td>
             </tr>
           ))}
         </tbody>

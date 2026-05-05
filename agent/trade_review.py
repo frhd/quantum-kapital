@@ -107,8 +107,11 @@ TRADE_REVIEW_TOOL_SCHEMA: dict[str, Any] = {
     "name": TRADE_REVIEW_TOOL_NAME,
     "description": (
         "Pick behavioral tags from the closed enum and write a narrative "
-        "scoring today's fills. Do not pass a grade — the server computes "
-        "it deterministically from the summary + your tags."
+        "scoring today's fills. Do not pass a score — the server computes "
+        "score_v2 (R-edge) and discipline_v2 (tag deficit) "
+        "deterministically from the summary + your tags + the day's fills "
+        "joined to setup-id linkage. The two are surfaced separately and "
+        "must never be summed for ranking (Phase 4 commitment)."
     ),
     "input_schema": {
         "type": "object",
@@ -274,8 +277,10 @@ def format_trade_review_prompt(
     lines.append(
         "Call `submit_trade_review` with `behavioral_tags`, "
         "`leg_observations` (1–3 most consequential legs), and "
-        "`narrative_md` (200–400 words). DO NOT pick a grade — the "
-        "server computes it from the summary + your tags."
+        "`narrative_md` (200–400 words). DO NOT pick a score — the "
+        "server computes `score_v2` (Σ realized_R × conviction weight) "
+        "and `discipline_v2` (Σ tag weights) separately. The narrative "
+        "should explain *why* — the numbers explain *what*."
     )
 
     return "\n".join(lines)

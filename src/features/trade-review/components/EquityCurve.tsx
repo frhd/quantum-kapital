@@ -54,9 +54,7 @@ export function EquityCurve({ points, caption }: EquityCurveProps) {
     )
   }
 
-  const linePath = computed.xy
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
-    .join(" ")
+  const linePath = computed.xy.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")
   // Drawdown polygon: connect peakLine across the top and curve back.
   const ddPath =
     computed.peakLine.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") +
@@ -91,9 +89,7 @@ export function EquityCurve({ points, caption }: EquityCurveProps) {
         <path d={ddPath} fill="rgba(248, 113, 113, 0.15)" />
         <path d={linePath} fill="none" stroke="currentColor" strokeWidth={1.5} />
       </svg>
-      {caption && (
-        <div className="text-muted-foreground text-xs">{caption}</div>
-      )}
+      {caption && <div className="text-muted-foreground text-xs">{caption}</div>}
     </div>
   )
 }

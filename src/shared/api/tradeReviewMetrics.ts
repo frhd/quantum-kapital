@@ -9,11 +9,7 @@
 
 import { invoke } from "@tauri-apps/api/core"
 
-import type {
-  EquityPoint,
-  RiskMetrics,
-  StrategyRollup,
-} from "../../features/trade-review/types"
+import type { EquityPoint, RiskMetrics, StrategyRollup } from "../../features/trade-review/types"
 
 export interface DateRangeOpts {
   account?: string | null

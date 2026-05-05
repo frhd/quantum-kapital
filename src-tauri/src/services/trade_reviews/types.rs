@@ -125,7 +125,9 @@ pub struct ReviewV2Fields {
 
 impl ReviewV2Fields {
     /// Pre-P4 / legacy passthrough. The row stays on `formula_version
-    /// = "v1"` and v2 numerics are NULL.
+    /// = "v1"` and v2 numerics are NULL. Used by legacy fixtures and
+    /// by callers that opt out of v2 scoring.
+    #[allow(dead_code)] // exercised by legacy fixtures + opt-out callers
     pub fn v1_only() -> Self {
         Self {
             score_v2: None,

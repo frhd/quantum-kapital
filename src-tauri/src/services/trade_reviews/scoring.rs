@@ -53,10 +53,7 @@ pub async fn compute_v2_fields(
             .and_then(|sid| setup_meta.iter().find(|m| m.setup_id == sid))
             .and_then(|m| m.dollar_risk.filter(|dr| *dr > 1e-9))
             .map(|dr| leg.net_pnl / dr);
-        owned_legs.push(LegWithR {
-            leg,
-            realized_r,
-        });
+        owned_legs.push(LegWithR { leg, realized_r });
     }
 
     let calibration = ConvictionCalibration::fallback();
@@ -72,12 +69,8 @@ pub async fn compute_v2_fields(
     // recomputed by `trade_review_get_equity_curve` at read time.
     let equity_curve = reconstruct_daily_equity(inputs.fills, 0.0);
 
-    let r_series: Vec<f64> = owned_legs
-        .iter()
-        .filter_map(|w| w.realized_r)
-        .collect();
-    let metrics =
-        compute_risk_metrics(&equity_curve, &r_series, DEFAULT_RISK_FREE_RATE_ANNUAL);
+    let r_series: Vec<f64> = owned_legs.iter().filter_map(|w| w.realized_r).collect();
+    let metrics = compute_risk_metrics(&equity_curve, &r_series, DEFAULT_RISK_FREE_RATE_ANNUAL);
 
     let _ = inputs.date; // unused but kept in the API for symmetry
     let _ = inputs.account;

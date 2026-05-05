@@ -44,6 +44,7 @@ pub enum GradeLetter {
 }
 
 impl GradeLetter {
+    #[allow(dead_code)] // surfaced through `Grade::as_str` for v1 read-back
     pub fn as_str(self) -> &'static str {
         match self {
             GradeLetter::A => "A",
@@ -67,7 +68,9 @@ impl GradeLetter {
 }
 
 /// Pre-P4 grade tuple. Surfaced on legacy rows only; never produced by
-/// new writes.
+/// new writes. Kept on the public API surface so consumers reading
+/// pre-P4 rows can re-pack `(grade, grade_score)` deterministically.
+#[allow(dead_code)] // legacy v1 helper retained for downstream consumers
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Grade {
     pub grade: GradeLetter,
@@ -202,9 +205,9 @@ mod tests {
     #[test]
     fn discipline_v2_sums_tag_weights() {
         let tags = vec![
-            BehavioralTag::FlatClose,             // +5
-            BehavioralTag::DisciplineOnLoser,     // +5
-            BehavioralTag::ChaseOwnExit,          // -10
+            BehavioralTag::FlatClose,         // +5
+            BehavioralTag::DisciplineOnLoser, // +5
+            BehavioralTag::ChaseOwnExit,      // -10
         ];
         let d = compute_discipline_v2(&tags);
         assert!((d - 0.0).abs() < 1e-9);

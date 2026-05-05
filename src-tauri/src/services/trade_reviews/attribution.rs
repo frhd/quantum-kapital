@@ -102,11 +102,7 @@ pub fn rollup_by_strategy(legs: &[LegWithR<'_>]) -> Vec<StrategyRollup> {
             // Build a per-strategy daily equity series for Sharpe.
             let mut by_date: std::collections::BTreeMap<NaiveDate, f64> = Default::default();
             for g in &group {
-                let close = g
-                    .leg
-                    .closed_at
-                    .unwrap_or(g.leg.opened_at)
-                    .date_naive();
+                let close = g.leg.closed_at.unwrap_or(g.leg.opened_at).date_naive();
                 *by_date.entry(close).or_insert(0.0) += g.leg.net_pnl;
             }
             let mut equity = 0.0;

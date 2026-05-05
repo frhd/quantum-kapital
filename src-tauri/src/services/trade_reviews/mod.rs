@@ -52,6 +52,4 @@ pub use store::{TradeReviewError, TradeReviewStore, WriteOutcome};
 #[allow(unused_imports)]
 pub use tags::BehavioralTag;
 #[allow(unused_imports)]
-pub use types::{
-    LegObservation, LegSummary, ReviewV2Fields, TradeReview, WriteTradeReviewRequest,
-};
+pub use types::{LegObservation, LegSummary, ReviewV2Fields, TradeReview, WriteTradeReviewRequest};

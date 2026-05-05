@@ -125,6 +125,56 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   per-channel override tracking is needed (qty vs stop independently),
   add a sibling column.
 
+## Phase 4 (2026-05-06)
+
+- *Equity-curve reconstruction is trade-flow-only.* The phase doc
+  committed to subtracting deposits / withdrawals / dividends / non-
+  trade fees from the daily equity series via `account_summary` deltas
+  vs prior NLV. P4 ships without that — there is no `account_summary`
+  service today, only the per-row `equity_snapshots` table from P1
+  (which only carries the T-1 close NLV the risk-engine sized
+  against). The curve we render is `Σ(realized_pnl - commission)` per
+  ET trading day. Whoever lands the NLV-history service should plug
+  it into `equity_curve.rs::reconstruct_daily_equity` and emit
+  `reconciliation_warning` for days where the NLV-delta minus our
+  trade-flow PnL exceeds the $50 threshold.
+- *Conviction calibration uses the fallback table, not
+  `eval_harness::calibration_stats`.* Phase doc decision was
+  "calibrated with N≥50 fallback to 1.0". The fallback (A=1.5 / B=1.0
+  / C=1.0) is wired in `grade.rs::ConvictionCalibration::fallback`.
+  Hooking up the calibration-stats query is gated on the eval harness
+  exposing a `realized_target_rate(grade) -> Option<f64>` synchronous
+  helper from a `Db` handle — today the helper lives behind the MCP
+  tool wrapper and isn't easy to call from `compute_v2_fields`. Open
+  for whoever owns the eval-harness API surface; until then `score_v2`
+  rewards A-conviction setups at 1.5× fixed.
+- *Single-day risk_metrics on a `day_reviews` row are mostly empty.*
+  Sharpe / Sortino / Calmar require N≥20 daily samples (committed in
+  the phase doc). A v2 row written for a single day will report
+  `sharpe=null`, `sortino=null`, `calmar=null` — only PF / expectancy
+  / win-rate / DD numbers populate. Multi-day rolled-up metrics come
+  from the `trade_review_get_metrics` Tauri command (range query),
+  not from a `day_reviews` row. The UI `RiskMetricsPanel` renders the
+  null cells as `—` ("insufficient history") so the gating is visible
+  rather than silent.
+- *MCP `write_trade_review` tolerates fills-fetch failure.* The agent
+  path expects the executions seam to be reachable (live IBKR or
+  persisted store). When fetch errors (paper disconnect, pre-P2
+  history, NotConnected stub in tests) the rail still writes a v2
+  row using `score_v2 = 0` and `discipline_v2 = Σ(tag_weights)`. The
+  narrative + tags carry value even without R-attribution; the
+  `n_legs_unattributed` counter (computed inside `compute_v2_fields`
+  but NOT yet surfaced in the response shape) would tell the reviewer
+  "the linkage was incomplete." A future tool-response refactor can
+  expose it for visibility.
+- *`AppEvent::TradeReviewWritten.grade` field renamed to
+  `formula_version`.* No frontend currently subscribes to this event,
+  so the rename is risk-free; flagged here so a future FE that wires
+  up the event-driven refresh path knows what to read. Pre-P4
+  consumers would have read `grade: "B"`; post-P4 consumers read
+  `formula_version: "v1" | "v2"` and decide which scoring fields to
+  display from the re-fetched review.
+
 ## Phase 5 (TBD)
 
 - *Reserved for AV fundamentals retirement audit result.* P5 inspects whether AV fundamentals (revenue/EPS/sector) are load-bearing for any consumer beyond earnings-date lookup. If not, AV fundamentals fallback retires in this phase's diff.

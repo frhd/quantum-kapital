@@ -13,7 +13,7 @@
 //! the wider equity series is left to the phase that adds NLV
 //! snapshots.
 
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use chrono_tz::America::New_York;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -81,6 +81,7 @@ pub fn et_date_naive(year: i32, month: u32, day: u32) -> NaiveDate {
 
 #[cfg(test)]
 fn et_dt(date: NaiveDate, h: u32, m: u32) -> DateTime<Utc> {
+    use chrono::TimeZone;
     let naive = date.and_hms_opt(h, m, 0).unwrap();
     New_York
         .from_local_datetime(&naive)
@@ -94,7 +95,12 @@ mod tests {
     use super::*;
     use crate::ibkr::types::ExecutionSide;
 
-    fn fill(date: NaiveDate, hour: u32, realized: Option<f64>, commission: Option<f64>) -> ExecutionRow {
+    fn fill(
+        date: NaiveDate,
+        hour: u32,
+        realized: Option<f64>,
+        commission: Option<f64>,
+    ) -> ExecutionRow {
         ExecutionRow {
             exec_id: format!("{date}-{hour}"),
             account: "U1".into(),

@@ -78,24 +78,19 @@ export function RiskMetricsPanel({ metrics }: RiskMetricsPanelProps) {
     <div className="space-y-2">
       <div className="text-muted-foreground flex justify-between text-xs">
         <span>
-          {metrics.n_days} day{metrics.n_days === 1 ? "" : "s"} ·{" "}
-          {metrics.n_trades} trade{metrics.n_trades === 1 ? "" : "s"}
+          {metrics.n_days} day{metrics.n_days === 1 ? "" : "s"} · {metrics.n_trades} trade
+          {metrics.n_trades === 1 ? "" : "s"}
         </span>
         <span>rf {(metrics.risk_free_rate_annual * 100).toFixed(2)}%</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {cells.map((c) => (
-          <div
-            key={c.label}
-            className="border-border bg-secondary/40 rounded border p-2"
-          >
-            <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
+          <div key={c.label} className="border-border bg-secondary/40 rounded border p-2">
+            <div className="text-muted-foreground text-[10px] tracking-wide uppercase">
               {c.label}
             </div>
             <div className="font-mono text-sm font-semibold">{c.value}</div>
-            {c.hint && (
-              <div className="text-muted-foreground text-[10px]">{c.hint}</div>
-            )}
+            {c.hint && <div className="text-muted-foreground text-[10px]">{c.hint}</div>}
           </div>
         ))}
       </div>

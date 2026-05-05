@@ -67,12 +67,18 @@ pub async fn aggregate(
                  ORDER BY date DESC",
             )?;
             let iter = stmt.query_map(params![account_owned, since_str], |r| {
+                // Phase 4 made `grade_score` nullable on v2 rows. Treat
+                // NULL as 0.0 for the trendline aggregation — the
+                // window-score sum stays meaningful for v1-mixed
+                // populations and degrades to "no signal" on pure-v2
+                // populations (P6 trader-profile rewrite is the
+                // long-term fix; today we just survive the read).
                 Ok(RawRow {
                     date: r.get::<_, String>(0)?,
                     tags_json: r.get::<_, String>(1)?,
                     legs_json: r.get::<_, String>(2)?,
                     net_pnl: r.get::<_, f64>(3)?,
-                    grade_score: r.get::<_, f64>(4)?,
+                    grade_score: r.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
                 })
             })?;
             let mut out = Vec::new();

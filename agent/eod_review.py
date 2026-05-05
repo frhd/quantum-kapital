@@ -432,6 +432,10 @@ async def _run_trade_review(
             spent_usd=cost,
         )
 
+    # Phase 4 (quant-decisions): write_trade_review now returns
+    # {score_v2, discipline_v2, formula_version} on v2 rows. Older
+    # deployments may still return {grade, score}; we capture whichever
+    # arrives so the outcome row never goes blank during the rollover.
     grade = None
     score: float | None = None
     if isinstance(write_result, Mapping):
@@ -441,12 +445,17 @@ async def _run_trade_review(
         s = write_result.get("score")
         if isinstance(s, (int, float)):
             score = float(s)
+        if score is None:
+            sv2 = write_result.get("score_v2")
+            if isinstance(sv2, (int, float)):
+                score = float(sv2)
 
     log.info(
-        "eod_review wrote trade_review for %s account=%s grade=%s ($%.4f)",
+        "eod_review wrote trade_review for %s account=%s formula=%s score=%s ($%.4f)",
         pack_iso,
         account,
-        grade,
+        write_result.get("formula_version") if isinstance(write_result, Mapping) else None,
+        score,
         cost,
     )
     return TradeReviewOutcome(

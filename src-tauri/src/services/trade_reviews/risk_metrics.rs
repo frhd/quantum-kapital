@@ -320,7 +320,9 @@ mod tests {
 
     #[test]
     fn short_history_returns_none_sharpe() {
-        let eq: Vec<_> = (0..5).map(|i| pt(i, 100_000.0 + i as f64 * 100.0)).collect();
+        let eq: Vec<_> = (0..5)
+            .map(|i| pt(i, 100_000.0 + i as f64 * 100.0))
+            .collect();
         let m = compute_risk_metrics(&eq, &[], DEFAULT_RISK_FREE_RATE_ANNUAL);
         assert!(m.sharpe.is_none(), "n_days={}", m.n_days);
     }

@@ -168,7 +168,6 @@ impl McpHandler {
             Err(e) => map_tool_result::<(), String>(Err(e.to_string())),
         }
     }
-
 }
 
 #[cfg(test)]

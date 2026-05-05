@@ -3,7 +3,7 @@
 //!
 //! Three commands; all read-only over a date range:
 //! - `trade_review_get_metrics`         → `RiskMetrics` rolled up
-//!                                          across the range
+//!   across the range
 //! - `trade_review_get_strategy_rollup` → per-strategy attribution
 //! - `trade_review_get_equity_curve`    → daily equity series
 //!
@@ -84,8 +84,7 @@ async fn fetch_dollar_risks(
         return Ok(Default::default());
     }
     db.with_conn(move |conn| {
-        let mut stmt =
-            conn.prepare("SELECT id, dollar_risk_cents FROM setups WHERE id = ?1")?;
+        let mut stmt = conn.prepare("SELECT id, dollar_risk_cents FROM setups WHERE id = ?1")?;
         let mut out: std::collections::HashMap<i64, f64> = Default::default();
         for id in ids {
             if let Ok((id, cents)) = stmt.query_row(params![id], |row| {
@@ -93,10 +92,8 @@ async fn fetch_dollar_risks(
                 let cents: Option<i64> = row.get(1)?;
                 Ok((id, cents))
             }) {
-                if let Some(c) = cents {
-                    if c > 0 {
-                        out.insert(id, c as f64 / 100.0);
-                    }
+                if let Some(c) = cents.filter(|c| *c > 0) {
+                    out.insert(id, c as f64 / 100.0);
                 }
             }
         }
@@ -262,14 +259,9 @@ mod tests {
             rows.push(fill(d, 14, realized, 0.5));
         }
         store.record(&rows).await.unwrap();
-        let fills = fetch_executions_in_range(
-            &db,
-            "U1",
-            start,
-            start + Duration::days(29),
-        )
-        .await
-        .unwrap();
+        let fills = fetch_executions_in_range(&db, "U1", start, start + Duration::days(29))
+            .await
+            .unwrap();
         let curve = reconstruct_daily_equity(&fills, 100_000.0);
         assert_eq!(curve.len(), 30);
         let metrics = compute_risk_metrics(&curve, &[], DEFAULT_RISK_FREE_RATE_ANNUAL);

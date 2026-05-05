@@ -232,13 +232,9 @@ impl TradeReviewStore {
         let row: Option<RawRow> = self
             .db
             .with_conn(move |conn| {
-                conn.query_row(
-                    SELECT_COLUMNS_LATEST,
-                    params![date_str, account],
-                    map_raw,
-                )
-                .optional()
-                .map_err(StorageError::from)
+                conn.query_row(SELECT_COLUMNS_LATEST, params![date_str, account], map_raw)
+                    .optional()
+                    .map_err(StorageError::from)
             })
             .await?;
         row.map(parse_row).transpose()
@@ -259,7 +255,8 @@ impl TradeReviewStore {
     }
 }
 
-const SELECT_COLUMNS: &str = "SELECT date, account, prompt_version, generated_at, grade, grade_score,
+const SELECT_COLUMNS: &str =
+    "SELECT date, account, prompt_version, generated_at, grade, grade_score,
         gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
         win_rate, behavioral_tags, leg_observations, summary_json,
         narrative_md, llm_call_id,
@@ -268,7 +265,8 @@ const SELECT_COLUMNS: &str = "SELECT date, account, prompt_version, generated_at
         FROM day_reviews
         WHERE date = ?1 AND account = ?2 AND prompt_version = ?3";
 
-const SELECT_COLUMNS_LATEST: &str = "SELECT date, account, prompt_version, generated_at, grade, grade_score,
+const SELECT_COLUMNS_LATEST: &str =
+    "SELECT date, account, prompt_version, generated_at, grade, grade_score,
         gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
         win_rate, behavioral_tags, leg_observations, summary_json,
         narrative_md, llm_call_id,
@@ -331,9 +329,10 @@ fn parse_row(raw: RawRow) -> Result<TradeReview, TradeReviewError> {
         })?
         .with_timezone(&Utc);
     let grade = match raw.grade {
-        Some(g) => Some(GradeLetter::parse(&g).ok_or_else(|| {
-            TradeReviewError::InvalidRow(format!("grade `{}`", g))
-        })?),
+        Some(g) => Some(
+            GradeLetter::parse(&g)
+                .ok_or_else(|| TradeReviewError::InvalidRow(format!("grade `{}`", g)))?,
+        ),
         None => None,
     };
     let summary: LegSummary = serde_json::from_str(&raw.summary_json)?;

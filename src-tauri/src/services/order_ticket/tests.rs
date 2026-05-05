@@ -651,7 +651,9 @@ async fn tracer_bullet_setup_to_executions_row_with_setup_id_populated() {
     use chrono::TimeZone;
 
     let h = Harness::new().await;
-    let setup_id = h.seed_setup("AAPL", Direction::Long, 150.0, 148.0, 100).await;
+    let setup_id = h
+        .seed_setup("AAPL", Direction::Long, 150.0, 148.0, 100)
+        .await;
 
     // P3: place the bracket. This records the P2 intent + writes a
     // bracket_groups row.
@@ -709,9 +711,8 @@ async fn tracer_bullet_setup_to_executions_row_with_setup_id_populated() {
     // executions row carries setup_id. Read directly so the test
     // doesn't depend on the higher-level query helpers.
     let exec_id = exec.exec_id.clone();
-    let setup_on_row: Option<i64> = h
-        .db
-        .with_conn(move |conn| {
+    let setup_on_row: Option<i64> =
+        h.db.with_conn(move |conn| {
             let id: Option<i64> = conn
                 .query_row(
                     "SELECT setup_id FROM executions WHERE exec_id = ?1",
