@@ -6,6 +6,7 @@ pub enum LlmKind {
     Decay,
     News,
     Ranker,
+    Review,
 }
 
 impl LlmKind {
@@ -15,6 +16,7 @@ impl LlmKind {
             LlmKind::Decay => "decay",
             LlmKind::News => "news",
             LlmKind::Ranker => "ranker",
+            LlmKind::Review => "review",
         }
     }
 }
