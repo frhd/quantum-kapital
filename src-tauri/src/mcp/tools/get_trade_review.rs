@@ -34,7 +34,7 @@ pub struct GetTradeReviewArgs {
 impl McpHandler {
     #[tool(
         name = "get_trade_review",
-        description = "Return the structured trade review for `date` (`YYYY-MM-DD`, ET). Optional `account` (defaults to the sole managed account) and `prompt_version` (defaults to the latest version on `date`). Returns `{ date, account, prompt_version, review: { generated_at, grade, grade_score, summary, behavioral_tags[], leg_observations[], narrative_md, llm_call_id } | null }`. The `review` is null when no row was written for the requested key — not an error."
+        description = "Return the structured trade review for `date` (`YYYY-MM-DD`, ET). Optional `account` (defaults to the sole managed account) and `prompt_version` (defaults to the latest version on `date`). Returns `{ date, account, prompt_version, review: { formula_version, generated_at, score_v2?, discipline_v2?, risk_metrics?, equity_curve?, grade?, grade_score?, summary, behavioral_tags[], leg_observations[], narrative_md, llm_call_id } | null }`. `formula_version` (`v1` for pre-Phase-4 rows, `v2` for new writes) tells you which scoring fields are populated — pre-P4 rows carry the legacy `(grade, grade_score)` and the v2 numerics are NULL; post-P4 rows carry `(score_v2, discipline_v2, risk_metrics, equity_curve)` and the legacy fields are NULL. Never sum `score_v2` and `discipline_v2` for ranking. The `review` is null when no row was written for the requested key — not an error."
     )]
     pub async fn get_trade_review(
         &self,
@@ -131,7 +131,13 @@ mod tests {
         let (_tmp, handler) = handler_with_account("U1").await;
         let store = TradeReviewStore::new(handler.db.clone());
         let date = NaiveDate::from_ymd_opt(2026, 5, 4).unwrap();
-        store.write(sample_request(date, "U1", 1)).await.unwrap();
+        store
+            .write(
+                sample_request(date, "U1", 1),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
+            .await
+            .unwrap();
 
         let r = handler
             .get_trade_review(Parameters(GetTradeReviewArgs {
@@ -186,9 +192,27 @@ mod tests {
         let (_tmp, handler) = handler_with_account("U1").await;
         let store = TradeReviewStore::new(handler.db.clone());
         let date = NaiveDate::from_ymd_opt(2026, 5, 4).unwrap();
-        store.write(sample_request(date, "U1", 1)).await.unwrap();
-        store.write(sample_request(date, "U1", 5)).await.unwrap();
-        store.write(sample_request(date, "U1", 3)).await.unwrap();
+        store
+            .write(
+                sample_request(date, "U1", 1),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
+            .await
+            .unwrap();
+        store
+            .write(
+                sample_request(date, "U1", 5),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
+            .await
+            .unwrap();
+        store
+            .write(
+                sample_request(date, "U1", 3),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
+            .await
+            .unwrap();
 
         let r = handler
             .get_trade_review(Parameters(GetTradeReviewArgs {
@@ -209,7 +233,13 @@ mod tests {
         let (_tmp, handler) = handler_with_account("U1").await;
         let store = TradeReviewStore::new(handler.db.clone());
         let date = NaiveDate::from_ymd_opt(2026, 5, 4).unwrap();
-        store.write(sample_request(date, "U1", 1)).await.unwrap();
+        store
+            .write(
+                sample_request(date, "U1", 1),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
+            .await
+            .unwrap();
 
         let _ = handler
             .get_trade_review(Parameters(GetTradeReviewArgs {

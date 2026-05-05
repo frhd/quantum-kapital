@@ -238,7 +238,10 @@ mod tests {
         let store = TradeReviewStore::new(Arc::clone(&db));
         let date = NaiveDate::from_ymd_opt(2026, 5, 4).unwrap();
         store
-            .write(sample_review_request(date, "U1", 1))
+            .write(
+                sample_review_request(date, "U1", 1),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
             .await
             .unwrap();
         let reader = make_reader_with_account("U1").await;

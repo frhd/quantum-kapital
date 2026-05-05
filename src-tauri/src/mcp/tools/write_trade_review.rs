@@ -17,7 +17,8 @@ use crate::mcp::handler::McpHandler;
 use crate::mcp::tools::map_tool_result;
 use crate::mcp::tools::write_support::{emit_event, record_audit, stamp_audit_summary};
 use crate::services::trade_reviews::{
-    BehavioralTag, LegObservation, LegSummary, TradeReviewStore, WriteTradeReviewRequest,
+    compute_v2_fields, BehavioralTag, LegObservation, LegSummary, TradeReviewStore,
+    V2ComputeInputs, WriteTradeReviewRequest,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -51,7 +52,7 @@ pub struct WriteTradeReviewArgs {
 impl McpHandler {
     #[tool(
         name = "write_trade_review",
-        description = "Persist a structured trade review for `date` (`YYYY-MM-DD`, ET) + `account` + `prompt_version`. The server computes the grade deterministically from `(summary, behavioral_tags)` — never pass a grade. `behavioral_tags` are picked from a closed enum (chase_own_exit, late_otm_lottery, gamma_window_violation, single_name_concentration, position_sizing_ungraduated, post_loss_revenge, flat_close, discipline_on_loser, scaled_in_winner, scaled_in_loser, thesis_match_executed, off_thesis_trade). Idempotent on `(date, account, prompt_version)` — a re-run overwrites cleanly. Returns `{ date, account, prompt_version, grade, score, generated_at }`."
+        description = "Persist a structured trade review for `date` (`YYYY-MM-DD`, ET) + `account` + `prompt_version`. The server computes scoring deterministically from `(summary, behavioral_tags)` plus the day's fills + setup-id linkage — never pass a score. `behavioral_tags` are picked from a closed enum (chase_own_exit, late_otm_lottery, gamma_window_violation, single_name_concentration, position_sizing_ungraduated, post_loss_revenge, flat_close, discipline_on_loser, scaled_in_winner, scaled_in_loser, thesis_match_executed, off_thesis_trade). Idempotent on `(date, account, prompt_version)` — a re-run overwrites cleanly. Returns `{ date, account, prompt_version, score_v2, discipline_v2, formula_version, generated_at }` (v2 surfaces R-edge and discipline as separate numbers; never sum them for ranking)."
     )]
     pub async fn write_trade_review(
         &self,
@@ -89,6 +90,33 @@ impl McpHandler {
             Err(e) => return map_tool_result::<(), String>(Err(e)),
         };
 
+        // Build v2 fields from the day's fills + setup linkage. Empty
+        // fills are tolerated (gives v2 with score_v2=0 + discipline
+        // from tags). When the IBKR seam is unreachable (paper-disconnect,
+        // pre-P2 history, integration tests with NotConnected) we treat
+        // it as zero fills so the rail still writes a v2 row with the
+        // discipline portion populated. The narrative + tags carry
+        // their own value even without R-attribution.
+        let fills = self
+            .ibkr_client
+            .executions(&args.account, date)
+            .await
+            .unwrap_or_default();
+        let v2 = match compute_v2_fields(
+            &self.db,
+            V2ComputeInputs {
+                date,
+                account: &args.account,
+                fills: &fills,
+                tags: &args.behavioral_tags,
+            },
+        )
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => return map_tool_result::<(), String>(Err(format!("scoring: {e}"))),
+        };
+
         let store = TradeReviewStore::new(self.db.clone());
         let req = WriteTradeReviewRequest {
             date,
@@ -101,17 +129,19 @@ impl McpHandler {
             llm_call_id: args.llm_call_id,
         };
 
-        match store.write(req).await {
+        match store.write(req, v2).await {
             Ok(outcome) => {
                 stamp_audit_summary(
                     &self.db,
                     audit_id,
                     &format!(
-                        "day_reviews date={} account={} prompt_version={} grade={}",
+                        "day_reviews date={} account={} prompt_version={} formula={} score_v2={:?} discipline_v2={:?}",
                         outcome.review.date,
                         outcome.review.account,
                         outcome.review.prompt_version,
-                        outcome.grade.grade.as_str(),
+                        outcome.formula_version,
+                        outcome.score_v2,
+                        outcome.discipline_v2,
                     ),
                 )
                 .await;
@@ -121,7 +151,7 @@ impl McpHandler {
                         date: outcome.review.date,
                         account: outcome.review.account.clone(),
                         prompt_version: outcome.review.prompt_version,
-                        grade: outcome.grade.grade.as_str().to_string(),
+                        formula_version: outcome.formula_version.clone(),
                     },
                 )
                 .await;
@@ -129,14 +159,16 @@ impl McpHandler {
                     "date": outcome.review.date.to_string(),
                     "account": outcome.review.account,
                     "prompt_version": outcome.review.prompt_version,
-                    "grade": outcome.grade.grade.as_str(),
-                    "score": outcome.grade.score,
+                    "score_v2": outcome.score_v2,
+                    "discipline_v2": outcome.discipline_v2,
+                    "formula_version": outcome.formula_version,
                     "generated_at": outcome.review.generated_at,
                 })))
             }
             Err(e) => map_tool_result::<(), String>(Err(e.to_string())),
         }
     }
+
 }
 
 #[cfg(test)]
@@ -179,8 +211,11 @@ mod tests {
         assert_eq!(body["date"], "2026-05-04");
         assert_eq!(body["account"], "U1234567");
         assert_eq!(body["prompt_version"], 1);
-        let grade = body["grade"].as_str().unwrap();
-        assert!(["A", "B", "C", "D", "F"].contains(&grade));
+        assert_eq!(body["formula_version"], "v2");
+        // discipline_v2 = sum(tag weights) — FlatClose+5, DisciplineOnLoser+5 → 10
+        assert!((body["discipline_v2"].as_f64().unwrap() - 10.0).abs() < 1e-9);
+        // No fills available in this test (mock not connected) → score_v2 = 0
+        assert!((body["score_v2"].as_f64().unwrap() - 0.0).abs() < 1e-9);
 
         // Stored.
         let store = TradeReviewStore::new(handler.db.clone());
@@ -277,20 +312,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_trade_review_grade_is_deterministic() {
+    async fn write_trade_review_score_is_deterministic() {
         let (_tmp, db) = make_db();
         let handler = handler_for_db(db);
         let r1 = handler
             .write_trade_review(Parameters(good_args(1)))
             .await
             .expect("ok");
-        let g1 = r1.structured_content.expect("structured")["grade"].clone();
+        let body1 = r1.structured_content.expect("structured");
 
         let r2 = handler
             .write_trade_review(Parameters(good_args(2))) // bumped prompt_version
             .await
             .expect("ok");
-        let g2 = r2.structured_content.expect("structured")["grade"].clone();
-        assert_eq!(g1, g2, "same inputs → same grade across prompt_versions");
+        let body2 = r2.structured_content.expect("structured");
+        assert_eq!(
+            body1["score_v2"], body2["score_v2"],
+            "same inputs → same score_v2 across prompt_versions",
+        );
+        assert_eq!(
+            body1["discipline_v2"], body2["discipline_v2"],
+            "same inputs → same discipline_v2 across prompt_versions",
+        );
     }
 }

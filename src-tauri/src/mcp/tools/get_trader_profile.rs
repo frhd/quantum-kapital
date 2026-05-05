@@ -132,21 +132,27 @@ mod tests {
         let store = TradeReviewStore::new(handler.db.clone());
         let today = Utc::now().with_timezone(&New_York).date_naive();
         store
-            .write(write_request(
-                today - Duration::days(1),
-                "U1",
-                vec![BehavioralTag::FlatClose, BehavioralTag::ChaseOwnExit],
-                100.0,
-            ))
+            .write(
+                write_request(
+                    today - Duration::days(1),
+                    "U1",
+                    vec![BehavioralTag::FlatClose, BehavioralTag::ChaseOwnExit],
+                    100.0,
+                ),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
             .await
             .unwrap();
         store
-            .write(write_request(
-                today - Duration::days(2),
-                "U1",
-                vec![BehavioralTag::FlatClose],
-                200.0,
-            ))
+            .write(
+                write_request(
+                    today - Duration::days(2),
+                    "U1",
+                    vec![BehavioralTag::FlatClose],
+                    200.0,
+                ),
+                crate::services::trade_reviews::ReviewV2Fields::v1_only(),
+            )
             .await
             .unwrap();
 

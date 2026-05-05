@@ -161,14 +161,17 @@ pub enum AppEvent {
         date: NaiveDate,
         idea_count: usize,
     },
-    /// Phase 4 (behavioral assessment) — emitted after `write_trade_review`
+    /// Phase 4 (quant-decisions): emitted after `write_trade_review`
     /// upserts a structured trade review. The frontend re-queries
     /// `get_trade_review(date)` to refresh the daily card.
+    /// `formula_version` ("v1" / "v2") tells the UI which scoring
+    /// payload it should expect (legacy `grade`/`grade_score` vs new
+    /// `score_v2`/`discipline_v2`).
     TradeReviewWritten {
         date: NaiveDate,
         account: String,
         prompt_version: i32,
-        grade: String,
+        formula_version: String,
     },
     /// Phase 5 (behavioral assessment) — emitted after `write_playbook`
     /// inserts a structured pre-market playbook. The frontend re-queries

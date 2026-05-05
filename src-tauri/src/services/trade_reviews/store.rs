@@ -1,8 +1,15 @@
 //! `TradeReviewStore` — writer + reader for the `day_reviews` table.
 //!
-//! Idempotent UPSERT keyed on `(date, account, prompt_version)`. The
-//! grade is computed deterministically server-side at write time —
-//! callers pass tags + summary, never a precomputed grade.
+//! Idempotent UPSERT keyed on `(date, account, prompt_version)`. Phase
+//! 4 split: writes are now v2 by default — `score_v2` /
+//! `discipline_v2` / `risk_metrics_json` / `equity_curve_json` /
+//! `formula_version='v2'`. The legacy `(grade, grade_score)` columns
+//! relax to NULLABLE in V20 and stay NULL on v2 rows. Pre-P4 rows
+//! continue to read back with their stored v1 values and
+//! `formula_version='v1'`. Caller passes a [`ReviewV2Fields`] alongside
+//! the existing summary; pre-P4 callers can pass
+//! [`ReviewV2Fields::v1_only`] for a passthrough write that keeps the
+//! row on the legacy schema.
 
 use std::sync::Arc;
 
@@ -13,9 +20,13 @@ use thiserror::Error;
 use crate::storage::error::StorageError;
 use crate::storage::Db;
 
-use super::grade::{compute_grade, Grade, GradeLetter};
+use super::equity_curve::EquityPoint;
+use super::grade::GradeLetter;
+use super::risk_metrics::RiskMetrics;
 use super::tags::BehavioralTag;
-use super::types::{LegObservation, LegSummary, TradeReview, WriteTradeReviewRequest};
+use super::types::{
+    LegObservation, LegSummary, ReviewV2Fields, TradeReview, WriteTradeReviewRequest,
+};
 
 #[derive(Error, Debug)]
 pub enum TradeReviewError {
@@ -32,10 +43,15 @@ pub enum TradeReviewError {
 }
 
 /// Outcome of a write.
+///
+/// `score_v2` / `discipline_v2` are surfaced separately — callers MUST
+/// NOT sum them for ranking (master commitment).
 #[derive(Debug, Clone)]
 pub struct WriteOutcome {
     pub review: TradeReview,
-    pub grade: Grade,
+    pub score_v2: Option<f64>,
+    pub discipline_v2: Option<f64>,
+    pub formula_version: String,
 }
 
 #[derive(Clone)]
@@ -48,11 +64,15 @@ impl TradeReviewStore {
         Self { db }
     }
 
-    /// UPSERT a trade review for `(date, account, prompt_version)`.
-    /// Computes the grade server-side from `(summary, behavioral_tags)`.
+    /// UPSERT a trade review for `(date, account, prompt_version)`
+    /// with explicit v2 fields. Pre-P4 callers can pass
+    /// `ReviewV2Fields::v1_only()` to write a v1-tagged row with
+    /// NULL v2 numerics — pre-existing rows are not retroactively
+    /// upgraded.
     pub async fn write(
         &self,
         req: WriteTradeReviewRequest,
+        v2: ReviewV2Fields,
     ) -> Result<WriteOutcome, TradeReviewError> {
         if req.account.trim().is_empty() {
             return Err(TradeReviewError::EmptyAccount);
@@ -61,15 +81,11 @@ impl TradeReviewStore {
             return Err(TradeReviewError::EmptyNarrative);
         }
 
-        let grade = compute_grade(&req.summary, &req.behavioral_tags);
         let now = Utc::now();
-
         let date_str = req.date.to_string();
         let account = req.account.clone();
         let prompt_version = req.prompt_version;
         let generated_at_str = now.to_rfc3339();
-        let grade_str = grade.grade.as_str().to_string();
-        let grade_score = grade.score;
         let summary_json = serde_json::to_string(&req.summary)?;
         let tags_json = serde_json::to_string(&req.behavioral_tags)?;
         let observations_json = serde_json::to_string(&req.leg_observations)?;
@@ -79,6 +95,20 @@ impl TradeReviewStore {
         let tags_for_row = req.behavioral_tags.clone();
         let observations_for_row = req.leg_observations.clone();
 
+        let risk_metrics_json = match &v2.risk_metrics {
+            Some(m) => Some(serde_json::to_string(m)?),
+            None => None,
+        };
+        let equity_curve_json = match &v2.equity_curve {
+            Some(c) => Some(serde_json::to_string(c)?),
+            None => None,
+        };
+        let formula_version = v2.formula_version.clone();
+        let score_v2_value = v2.score_v2;
+        let discipline_v2_value = v2.discipline_v2;
+        let risk_metrics_clone = v2.risk_metrics.clone();
+        let equity_curve_clone = v2.equity_curve.clone();
+
         self.db
             .with_conn(move |conn| {
                 conn.execute(
@@ -86,10 +116,12 @@ impl TradeReviewStore {
                         date, account, prompt_version, generated_at, grade, grade_score,
                         gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
                         win_rate, behavioral_tags, leg_observations, summary_json,
-                        narrative_md, llm_call_id
+                        narrative_md, llm_call_id,
+                        score_v2, discipline_v2, risk_metrics_json, equity_curve_json,
+                        formula_version
                      ) VALUES (
-                        ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                        ?16, ?17
+                        ?1, ?2, ?3, ?4, NULL, NULL, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+                        ?14, ?15, ?16, ?17, ?18, ?19, ?20
                      )
                      ON CONFLICT(date, account, prompt_version) DO UPDATE SET
                         generated_at      = excluded.generated_at,
@@ -105,14 +137,17 @@ impl TradeReviewStore {
                         leg_observations  = excluded.leg_observations,
                         summary_json      = excluded.summary_json,
                         narrative_md      = excluded.narrative_md,
-                        llm_call_id       = excluded.llm_call_id",
+                        llm_call_id       = excluded.llm_call_id,
+                        score_v2          = excluded.score_v2,
+                        discipline_v2     = excluded.discipline_v2,
+                        risk_metrics_json = excluded.risk_metrics_json,
+                        equity_curve_json = excluded.equity_curve_json,
+                        formula_version   = excluded.formula_version",
                     params![
                         date_str,
                         account,
                         prompt_version,
                         generated_at_str,
-                        grade_str,
-                        grade_score,
                         summary_for_row.gross_pnl,
                         summary_for_row.net_pnl,
                         summary_for_row.commissions_total,
@@ -124,6 +159,11 @@ impl TradeReviewStore {
                         summary_json,
                         narrative,
                         llm_call_id,
+                        score_v2_value,
+                        discipline_v2_value,
+                        risk_metrics_json,
+                        equity_curve_json,
+                        formula_version,
                     ],
                 )?;
                 Ok(())
@@ -136,15 +176,22 @@ impl TradeReviewStore {
                 account: req.account,
                 prompt_version: req.prompt_version,
                 generated_at: now,
-                grade: grade.grade,
-                grade_score: grade.score,
-                summary: summary_for_row_owned(&summary_for_row),
+                formula_version: v2.formula_version.clone(),
+                grade: None,
+                grade_score: None,
+                score_v2: score_v2_value,
+                discipline_v2: discipline_v2_value,
+                risk_metrics: risk_metrics_clone,
+                equity_curve: equity_curve_clone,
+                summary: summary_for_row,
                 behavioral_tags: tags_for_row,
                 leg_observations: observations_for_row,
                 narrative_md: req.narrative_md,
                 llm_call_id: req.llm_call_id,
             },
-            grade,
+            score_v2: score_v2_value,
+            discipline_v2: discipline_v2_value,
+            formula_version: v2.formula_version,
         })
     }
 
@@ -162,12 +209,7 @@ impl TradeReviewStore {
             .db
             .with_conn(move |conn| {
                 conn.query_row(
-                    "SELECT date, account, prompt_version, generated_at, grade, grade_score,
-                            gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
-                            win_rate, behavioral_tags, leg_observations, summary_json,
-                            narrative_md, llm_call_id
-                     FROM day_reviews
-                     WHERE date = ?1 AND account = ?2 AND prompt_version = ?3",
+                    SELECT_COLUMNS,
                     params![date_str, account, prompt_version],
                     map_raw,
                 )
@@ -191,14 +233,7 @@ impl TradeReviewStore {
             .db
             .with_conn(move |conn| {
                 conn.query_row(
-                    "SELECT date, account, prompt_version, generated_at, grade, grade_score,
-                            gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
-                            win_rate, behavioral_tags, leg_observations, summary_json,
-                            narrative_md, llm_call_id
-                     FROM day_reviews
-                     WHERE date = ?1 AND account = ?2
-                     ORDER BY prompt_version DESC
-                     LIMIT 1",
+                    SELECT_COLUMNS_LATEST,
                     params![date_str, account],
                     map_raw,
                 )
@@ -224,23 +259,44 @@ impl TradeReviewStore {
     }
 }
 
-fn summary_for_row_owned(s: &LegSummary) -> LegSummary {
-    s.clone()
-}
+const SELECT_COLUMNS: &str = "SELECT date, account, prompt_version, generated_at, grade, grade_score,
+        gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
+        win_rate, behavioral_tags, leg_observations, summary_json,
+        narrative_md, llm_call_id,
+        score_v2, discipline_v2, risk_metrics_json, equity_curve_json,
+        formula_version
+        FROM day_reviews
+        WHERE date = ?1 AND account = ?2 AND prompt_version = ?3";
+
+const SELECT_COLUMNS_LATEST: &str = "SELECT date, account, prompt_version, generated_at, grade, grade_score,
+        gross_pnl, net_pnl, commissions_total, n_round_trips, n_carryover,
+        win_rate, behavioral_tags, leg_observations, summary_json,
+        narrative_md, llm_call_id,
+        score_v2, discipline_v2, risk_metrics_json, equity_curve_json,
+        formula_version
+        FROM day_reviews
+        WHERE date = ?1 AND account = ?2
+        ORDER BY prompt_version DESC
+        LIMIT 1";
 
 struct RawRow {
     date: String,
     account: String,
     prompt_version: i32,
     generated_at: String,
-    grade: String,
-    grade_score: f64,
+    grade: Option<String>,
+    grade_score: Option<f64>,
     win_rate: Option<f64>,
     behavioral_tags: String,
     leg_observations: String,
     summary_json: String,
     narrative_md: String,
     llm_call_id: Option<String>,
+    score_v2: Option<f64>,
+    discipline_v2: Option<f64>,
+    risk_metrics_json: Option<String>,
+    equity_curve_json: Option<String>,
+    formula_version: String,
 }
 
 fn map_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
@@ -258,6 +314,11 @@ fn map_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRow> {
         summary_json: row.get(14)?,
         narrative_md: row.get(15)?,
         llm_call_id: row.get(16)?,
+        score_v2: row.get(17)?,
+        discipline_v2: row.get(18)?,
+        risk_metrics_json: row.get(19)?,
+        equity_curve_json: row.get(20)?,
+        formula_version: row.get(21)?,
     })
 }
 
@@ -269,8 +330,12 @@ fn parse_row(raw: RawRow) -> Result<TradeReview, TradeReviewError> {
             TradeReviewError::InvalidRow(format!("generated_at `{}`: {e}", raw.generated_at))
         })?
         .with_timezone(&Utc);
-    let grade = GradeLetter::parse(&raw.grade)
-        .ok_or_else(|| TradeReviewError::InvalidRow(format!("grade `{}`", raw.grade)))?;
+    let grade = match raw.grade {
+        Some(g) => Some(GradeLetter::parse(&g).ok_or_else(|| {
+            TradeReviewError::InvalidRow(format!("grade `{}`", g))
+        })?),
+        None => None,
+    };
     let summary: LegSummary = serde_json::from_str(&raw.summary_json)?;
     let mut summary = summary;
     if summary.win_rate.is_none() {
@@ -278,13 +343,26 @@ fn parse_row(raw: RawRow) -> Result<TradeReview, TradeReviewError> {
     }
     let behavioral_tags: Vec<BehavioralTag> = serde_json::from_str(&raw.behavioral_tags)?;
     let leg_observations: Vec<LegObservation> = serde_json::from_str(&raw.leg_observations)?;
+    let risk_metrics: Option<RiskMetrics> = match raw.risk_metrics_json {
+        Some(s) => Some(serde_json::from_str(&s)?),
+        None => None,
+    };
+    let equity_curve: Option<Vec<EquityPoint>> = match raw.equity_curve_json {
+        Some(s) => Some(serde_json::from_str(&s)?),
+        None => None,
+    };
     Ok(TradeReview {
         date,
         account: raw.account,
         prompt_version: raw.prompt_version,
         generated_at,
+        formula_version: raw.formula_version,
         grade,
         grade_score: raw.grade_score,
+        score_v2: raw.score_v2,
+        discipline_v2: raw.discipline_v2,
+        risk_metrics,
+        equity_curve,
         summary,
         behavioral_tags,
         leg_observations,

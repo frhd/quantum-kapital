@@ -29,6 +29,7 @@ use crate::services::llm_service::{
     LlmError, LlmKind, LlmRequest, LlmService, Message, Role, SystemBlock, ToolChoice,
 };
 use crate::services::trade_legs::match_legs;
+use crate::services::trade_reviews::scoring::{compute_v2_fields, V2ComputeInputs};
 use crate::services::trade_reviews::store::{TradeReviewError, TradeReviewStore};
 use crate::services::trade_reviews::types::{TradeReview, WriteTradeReviewRequest};
 use crate::storage::Db;
@@ -118,6 +119,17 @@ impl TradeReviewGenerator {
         };
 
         let store = TradeReviewStore::new(Arc::clone(&self.db));
+        let v2 = compute_v2_fields(
+            &self.db,
+            V2ComputeInputs {
+                date,
+                account,
+                fills: &fills,
+                tags: &parsed.behavioral_tags,
+            },
+        )
+        .await
+        .map_err(TradeReviewError::Storage)?;
         let req = WriteTradeReviewRequest {
             date,
             account: account.to_string(),
@@ -128,7 +140,7 @@ impl TradeReviewGenerator {
             narrative_md: parsed.narrative_md,
             llm_call_id: None,
         };
-        let outcome = store.write(req).await?;
+        let outcome = store.write(req, v2).await?;
         Ok(outcome.review)
     }
 }
