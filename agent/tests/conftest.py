@@ -80,6 +80,42 @@ class FakeMcpClient:
         self.calls.append(("add_ticker", {"symbol": symbol, "reason": reason}))
         return {"symbol": symbol, "added": True}
 
+    async def get_trader_profile(
+        self,
+        *,
+        window_days: int = 30,
+        account: str | None = None,
+    ) -> Any:
+        self.calls.append(
+            ("get_trader_profile", {"window_days": window_days, "account": account})
+        )
+        return self._get(
+            "get_trader_profile",
+            {
+                "account": account or "U-test",
+                "window_days": window_days,
+                "since_date": "2026-04-05",
+                "n_reviews": 0,
+                "tag_frequencies": [],
+                "pnl_by_tag": [],
+                "trendline": {
+                    "last_7d": {
+                        "n_reviews": 0,
+                        "tag_counts": {},
+                        "net_pnl": 0.0,
+                        "avg_grade_score": 0.0,
+                    },
+                    "prior_21d": {
+                        "n_reviews": 0,
+                        "tag_counts": {},
+                        "net_pnl": 0.0,
+                        "avg_grade_score": 0.0,
+                    },
+                },
+                "recent_incidents": [],
+            },
+        )
+
     async def write_playbook(
         self,
         *,

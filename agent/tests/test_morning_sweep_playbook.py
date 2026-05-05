@@ -242,6 +242,160 @@ async def test_run_sweep_playbook_skipped_when_llm_omits_tool_call(
 
 
 @pytest.mark.asyncio
+async def test_playbook_prompt_carries_trader_profile_when_present(
+    fake_mcp: FakeMcpClient, fake_llm: FakeLlmClient
+):
+    """The moat: when the trader has a recent negative-tag pattern on a
+    name (e.g. chase_own_exit on TSLA in 3 of last 7 days), the
+    playbook generator must SEE that signal in its prompt and the LLM
+    must surface TSLA in skip_list with a reason citing the pattern.
+
+    This test pins the wiring (profile reaches the prompt) and confirms
+    the LLM's tool-call response — with a canned skip_list entry naming
+    TSLA + the pattern — propagates to write_playbook unmodified."""
+    fake_mcp.responses = _stock_responses()
+    fake_mcp.responses["get_trader_profile"] = {
+        "account": "U1",
+        "window_days": 30,
+        "since_date": "2026-04-05",
+        "n_reviews": 7,
+        "tag_frequencies": [
+            {"tag": "chase_own_exit", "count": 3, "pct_of_reviews": 3 / 7},
+            {"tag": "flat_close", "count": 5, "pct_of_reviews": 5 / 7},
+        ],
+        "pnl_by_tag": [],
+        "trendline": {
+            "last_7d": {
+                "n_reviews": 5,
+                "tag_counts": {"chase_own_exit": 3, "flat_close": 5},
+                "net_pnl": -200.0,
+                "avg_grade_score": -2.0,
+            },
+            "prior_21d": {
+                "n_reviews": 2,
+                "tag_counts": {"flat_close": 2},
+                "net_pnl": 100.0,
+                "avg_grade_score": 5.0,
+            },
+        },
+        "recent_incidents": [
+            {
+                "date": "2026-05-04",
+                "symbol": "TSLA",
+                "tag": "chase_own_exit",
+                "leg_observation": "Re-entered 395C at $2.50 within 2 min of selling at $2.45",
+            },
+            {
+                "date": "2026-05-03",
+                "symbol": "TSLA",
+                "tag": "chase_own_exit",
+                "leg_observation": "Re-bought after taking profit",
+            },
+            {
+                "date": "2026-05-02",
+                "symbol": "TSLA",
+                "tag": "chase_own_exit",
+                "leg_observation": "Chased back in 5 min after exit",
+            },
+        ],
+    }
+
+    skip_response = make_tool_response(
+        tool_name="submit_playbook",
+        tool_input={
+            "ranked_setups": [
+                {
+                    "symbol": "AAPL",
+                    "bias": "long",
+                    "trigger": "reclaim 5/4 HOD",
+                    "entry": "$150",
+                    "invalidation": "lose $145",
+                    "target_1": "$160",
+                    "conviction": "B",
+                    "rationale_md": "Catalyst + base.",
+                }
+            ],
+            "skip_list": [
+                {
+                    "symbol": "TSLA",
+                    "reason": "recent chase_own_exit pattern (3 of last 7 days)",
+                }
+            ],
+        },
+    )
+    fake_llm.responses = [
+        _scoring_response(),
+        _morning_pack_response(),
+        skip_response,
+    ]
+
+    result = await run_sweep(
+        mcp=fake_mcp,
+        llm=fake_llm,
+        cfg=_cfg(),
+        today=date(2026, 5, 5),
+        system_prompt="SYSTEM",
+        playbook_system_prompt="PLAYBOOK_SYSTEM",
+    )
+
+    assert result.skipped_reason is None
+    assert result.playbook is not None
+    assert result.playbook.n_skip == 1
+
+    # The prompt the LLM saw must carry the TRADER PROFILE block.
+    playbook_call = fake_llm.recorded[2]
+    user_msg = playbook_call["messages"][0]["content"]
+    assert "TRADER PROFILE" in user_msg
+    assert "chase_own_exit" in user_msg
+    assert "TSLA" in user_msg
+    assert "Re-entered 395C" in user_msg
+
+    # write_playbook reached MCP with TSLA in skip_list, reason citing pattern.
+    write_calls = [c for c in fake_mcp.calls if c[0] == "write_playbook"]
+    assert len(write_calls) == 1
+    skip = write_calls[0][1]["skip_list"]
+    assert any(
+        e["symbol"] == "TSLA" and "chase_own_exit" in e["reason"] for e in skip
+    ), f"expected TSLA skip with chase_own_exit reason, got {skip}"
+
+    # get_trader_profile was actually called with the configured window.
+    profile_calls = [c for c in fake_mcp.calls if c[0] == "get_trader_profile"]
+    assert len(profile_calls) == 1
+    assert profile_calls[0][1]["window_days"] == 30
+
+
+@pytest.mark.asyncio
+async def test_playbook_prompt_omits_profile_block_text_when_no_reviews(
+    fake_mcp: FakeMcpClient, fake_llm: FakeLlmClient
+):
+    """When the profile is empty (n_reviews=0), the LLM still gets a
+    playbook prompt but the TRADER PROFILE section is the placeholder —
+    no behavioral conditioning. Mirrors the without-profile baseline of
+    the moat test."""
+    fake_mcp.responses = _stock_responses()
+    # default get_trader_profile in the fake returns n_reviews=0
+    fake_llm.responses = [
+        _scoring_response(),
+        _morning_pack_response(),
+        _playbook_response(),
+    ]
+
+    result = await run_sweep(
+        mcp=fake_mcp,
+        llm=fake_llm,
+        cfg=_cfg(),
+        today=date(2026, 5, 5),
+        system_prompt="SYSTEM",
+    )
+
+    assert result.playbook is not None
+    playbook_call = fake_llm.recorded[2]
+    user_msg = playbook_call["messages"][0]["content"]
+    assert "TRADER PROFILE" in user_msg
+    assert "no profile available" in user_msg
+
+
+@pytest.mark.asyncio
 async def test_run_sweep_playbook_handles_empty_ranked_setups(
     fake_mcp: FakeMcpClient, fake_llm: FakeLlmClient
 ):

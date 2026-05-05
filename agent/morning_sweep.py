@@ -253,10 +253,10 @@ async def _run_playbook(
 ) -> PlaybookOutcome:
     """Generate + persist the structured pre-market playbook.
 
-    Sibling to the morning_pack write above. v1 passes
-    `trader_profile = None`; Phase 6 wires in the real profile fetched
-    from `get_trader_profile`. The prompt template already includes a
-    placeholder, so wiring the profile is a one-line change here."""
+    Sibling to the morning_pack write above. The trader profile is
+    fetched from `get_trader_profile` and threaded into the prompt so
+    the LLM can deprioritise names with recent negative-tag patterns
+    (the moat — see Phase 6)."""
     try:
         guard.ensure_can_spend()
     except bg.BudgetExceeded as e:
@@ -265,11 +265,13 @@ async def _run_playbook(
             skipped_reason=f"per-loop budget: {e}",
         )
 
+    trader_profile = await _fetch_trader_profile(mcp, cfg)
+
     sys_prompt = system_prompt or _read_playbook_system_prompt()
     user_msg = pb.format_playbook_prompt(
         pack_date=iso_today,
         bundles=bundles,
-        trader_profile=None,  # Phase 6 wires the real one.
+        trader_profile=trader_profile,
     )
 
     try:
@@ -362,6 +364,28 @@ async def _run_playbook(
         generation_id=generation_id,
         spent_usd=cost,
     )
+
+
+async def _fetch_trader_profile(
+    mcp: McpClient,
+    cfg: AgentConfig,
+) -> dict | None:
+    """Best-effort fetch of the trader profile.
+
+    Returns `None` when the profile is empty (no reviews yet) or the
+    MCP call fails — callers degrade gracefully and ship a playbook
+    without behavioral conditioning rather than blocking."""
+    try:
+        raw = await mcp.get_trader_profile(window_days=cfg.universe.profile_window_days)
+    except Exception:  # noqa: BLE001
+        log.exception("get_trader_profile failed; proceeding without")
+        return None
+    if not isinstance(raw, dict):
+        return None
+    if int(raw.get("n_reviews", 0) or 0) == 0:
+        log.info("trader profile empty (no reviews yet); proceeding without conditioning")
+        return None
+    return raw
 
 
 async def _gather_bundles(

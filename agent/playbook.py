@@ -223,34 +223,67 @@ def format_playbook_prompt(
 
 
 def _render_trader_profile_section(profile: Mapping[str, Any] | None) -> str:
-    """Phase 6 will fill this in with real tag frequencies + recent
-    incidents. v1 returns a placeholder so the prompt template is
-    stable across phases — the wiring is a one-line change in
-    `morning_sweep.py`, not a prompt edit."""
+    """Render the TRADER PROFILE block the playbook LLM sees.
+
+    The profile envelope produced by `get_trader_profile` carries
+    `tag_frequencies: list[{tag, count, pct_of_reviews}]`,
+    `recent_incidents: list[{date, symbol, tag, leg_observation}]`,
+    and a `trendline` with last_7d / prior_21d windows. Defensive
+    against missing keys so a partial profile (or a future schema
+    extension) doesn't crash the prompt."""
     if profile is None:
         return (
             "TRADER PROFILE\n"
             "--------------\n"
-            "(no profile available — Phase 6 will wire this in)"
+            "(no profile available — first reviews not yet collected)"
         )
-    # When Phase 6 hands a real profile in, render it tersely. Defensive
-    # against missing keys so a partial profile doesn't crash the prompt.
-    lines = ["TRADER PROFILE", "--------------"]
+    lines: list[str] = ["TRADER PROFILE", "--------------"]
     window = profile.get("window_days")
-    if window:
-        lines.append(f"window: last {window} days")
+    n_reviews = profile.get("n_reviews")
+    since = profile.get("since_date")
+    if n_reviews is not None and window:
+        lines.append(f"reviews considered: {n_reviews} (last {window}d, since {since})")
+
     tags = profile.get("tag_frequencies")
-    if isinstance(tags, Mapping) and tags:
-        lines.append("tag frequencies:")
-        for tag, count in sorted(tags.items(), key=lambda kv: -int(kv[1] or 0)):
-            lines.append(f"  - {tag}: {count}")
+    if isinstance(tags, Sequence) and tags:
+        lines.append("most frequent tags:")
+        for tf in list(tags)[:6]:
+            if not isinstance(tf, Mapping):
+                continue
+            name = tf.get("tag", "?")
+            count = tf.get("count", 0)
+            pct = tf.get("pct_of_reviews")
+            pct_str = f" ({float(pct) * 100:.0f}% of reviews)" if isinstance(pct, (int, float)) else ""
+            lines.append(f"  - {name}: {count}{pct_str}")
+
+    trend = profile.get("trendline")
+    if isinstance(trend, Mapping):
+        last_7 = trend.get("last_7d") if isinstance(trend.get("last_7d"), Mapping) else None
+        prior_21 = trend.get("prior_21d") if isinstance(trend.get("prior_21d"), Mapping) else None
+        if last_7 and prior_21:
+            lines.append(
+                "trend: last 7d net P&L ${:.0f} (avg score {:.1f}); "
+                "prior 21d net P&L ${:.0f} (avg score {:.1f})".format(
+                    float(last_7.get("net_pnl", 0.0) or 0.0),
+                    float(last_7.get("avg_grade_score", 0.0) or 0.0),
+                    float(prior_21.get("net_pnl", 0.0) or 0.0),
+                    float(prior_21.get("avg_grade_score", 0.0) or 0.0),
+                )
+            )
+
     incidents = profile.get("recent_incidents")
     if isinstance(incidents, Sequence) and incidents:
-        lines.append("recent incidents:")
-        for inc in incidents:
-            if isinstance(inc, Mapping):
-                sym = inc.get("symbol", "?")
-                tag = inc.get("tag", "?")
-                date = inc.get("date", "?")
-                lines.append(f"  - {date} {sym} {tag}")
+        lines.append("recent behavioral incidents (last 7d):")
+        for inc in list(incidents)[:5]:
+            if not isinstance(inc, Mapping):
+                continue
+            sym = inc.get("symbol", "?")
+            tag = inc.get("tag", "?")
+            date_ = inc.get("date", "?")
+            obs = inc.get("leg_observation") or ""
+            obs_short = obs if len(obs) <= 120 else obs[:117] + "..."
+            line = f"  - {date_} {sym} {tag}"
+            if obs_short:
+                line += f" — {obs_short}"
+            lines.append(line)
     return "\n".join(lines)

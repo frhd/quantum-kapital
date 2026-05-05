@@ -29,6 +29,10 @@ candidate_min_score = 0.0
 # How many days of historical setups to surface to the LLM as context per ticker.
 setups_lookback_days = 30
 
+# How many days of past day_reviews to aggregate into the trader profile that
+# conditions the morning playbook. ~30 covers ~22 trading days.
+profile_window_days = 30
+
 [output]
 # 3-5 ranked ideas per the morning pack.
 min_ideas = 3

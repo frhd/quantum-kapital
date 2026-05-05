@@ -21,6 +21,10 @@ class UniverseConfig:
     top_k: int
     candidate_min_score: float
     setups_lookback_days: int
+    # How many days of past `day_reviews` to load when conditioning the
+    # playbook on the trader's behavioral history. 30 covers ~22 trading
+    # days — enough for the 7d / 21d trendline split to have signal.
+    profile_window_days: int = 30
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,7 @@ def load(path: str | Path | None = None) -> AgentConfig:
             top_k=int(raw["universe"]["top_k"]),
             candidate_min_score=float(raw["universe"]["candidate_min_score"]),
             setups_lookback_days=int(raw["universe"]["setups_lookback_days"]),
+            profile_window_days=int(raw["universe"].get("profile_window_days", 30)),
         ),
         output=OutputConfig(
             min_ideas=int(raw["output"]["min_ideas"]),

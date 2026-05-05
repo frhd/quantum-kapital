@@ -246,6 +246,17 @@ class McpClient:
             args["llm_call_id"] = llm_call_id
         return await self.call_tool("write_trade_review", args)
 
+    async def get_trader_profile(
+        self,
+        *,
+        window_days: int = 30,
+        account: str | None = None,
+    ) -> Any:
+        args: dict[str, Any] = {"window_days": window_days}
+        if account is not None:
+            args["account"] = account
+        return await self.call_tool("get_trader_profile", args)
+
     async def get_today_playbook(
         self,
         *,

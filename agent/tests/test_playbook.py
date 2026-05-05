@@ -167,23 +167,54 @@ def test_format_prompt_renders_bundles_and_menus():
 def test_format_prompt_includes_trader_profile_placeholder_when_none():
     body = format_playbook_prompt(pack_date="2026-05-05", bundles=[])
     assert "TRADER PROFILE" in body
-    assert "Phase 6 will wire this in" in body
+    assert "no profile available" in body
 
 
 def test_format_prompt_renders_trader_profile_when_provided():
     profile = {
+        "account": "U1",
         "window_days": 14,
-        "tag_frequencies": {"chase_own_exit": 3, "flat_close": 5},
+        "since_date": "2026-04-21",
+        "n_reviews": 8,
+        "tag_frequencies": [
+            {"tag": "flat_close", "count": 5, "pct_of_reviews": 5 / 8},
+            {"tag": "chase_own_exit", "count": 3, "pct_of_reviews": 3 / 8},
+        ],
+        "pnl_by_tag": [],
+        "trendline": {
+            "last_7d": {
+                "n_reviews": 5,
+                "tag_counts": {"chase_own_exit": 3, "flat_close": 5},
+                "net_pnl": -200.0,
+                "avg_grade_score": -2.0,
+            },
+            "prior_21d": {
+                "n_reviews": 3,
+                "tag_counts": {},
+                "net_pnl": 150.0,
+                "avg_grade_score": 4.5,
+            },
+        },
         "recent_incidents": [
-            {"date": "2026-05-01", "symbol": "TSLA", "tag": "chase_own_exit"}
+            {
+                "date": "2026-05-01",
+                "symbol": "TSLA",
+                "tag": "chase_own_exit",
+                "leg_observation": "Re-entered 395C at $2.50 within 2 min of selling at $2.45",
+            }
         ],
     }
     body = format_playbook_prompt(
         pack_date="2026-05-05", bundles=[], trader_profile=profile
     )
-    assert "window: last 14 days" in body
+    assert "reviews considered: 8 (last 14d, since 2026-04-21)" in body
+    assert "flat_close: 5" in body
     assert "chase_own_exit: 3" in body
+    assert "62% of reviews" in body  # 5/8 → 62.5% formatted to 62
+    assert "trend: last 7d net P&L $-200" in body
+    assert "prior 21d net P&L $150" in body
     assert "2026-05-01 TSLA chase_own_exit" in body
+    assert "Re-entered 395C" in body
 
 
 def test_format_prompt_is_deterministic():
