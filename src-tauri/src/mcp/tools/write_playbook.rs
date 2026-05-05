@@ -17,9 +17,7 @@ use crate::events::AppEvent;
 use crate::mcp::handler::McpHandler;
 use crate::mcp::tools::map_tool_result;
 use crate::mcp::tools::write_support::{emit_event, record_audit, stamp_audit_summary};
-use crate::services::playbooks::{
-    PlaybookStore, RankedSetup, SkipEntry, WritePlaybookRequest,
-};
+use crate::services::playbooks::{PlaybookStore, RankedSetup, SkipEntry, WritePlaybookRequest};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct WritePlaybookArgs {
@@ -75,17 +73,11 @@ impl McpHandler {
             "n_setups": args.ranked_setups.len(),
             "n_skip": args.skip_list.len(),
         });
-        let audit_id = match record_audit(
-            &self.db,
-            "write_playbook",
-            &input_for_audit,
-            &self.caller,
-        )
-        .await
-        {
-            Ok(id) => id,
-            Err(e) => return map_tool_result::<(), String>(Err(e)),
-        };
+        let audit_id =
+            match record_audit(&self.db, "write_playbook", &input_for_audit, &self.caller).await {
+                Ok(id) => id,
+                Err(e) => return map_tool_result::<(), String>(Err(e)),
+            };
 
         let store = PlaybookStore::new(self.db.clone());
         let req = WritePlaybookRequest {
@@ -294,10 +286,7 @@ mod tests {
             skip_list: vec![],
             llm_call_id: None,
         };
-        let r = handler
-            .write_playbook(Parameters(args))
-            .await
-            .expect("ok");
+        let r = handler.write_playbook(Parameters(args)).await.expect("ok");
         assert_eq!(r.is_error, Some(false));
         let body = r.structured_content.expect("structured");
         assert_eq!(body["n_setups"], 0);

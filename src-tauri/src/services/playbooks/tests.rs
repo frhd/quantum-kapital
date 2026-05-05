@@ -59,8 +59,14 @@ async fn store_write_returns_monotonic_generation_id() {
 async fn store_read_latest_returns_most_recent_generation() {
     let (_tmp, db) = make_db();
     let store = PlaybookStore::new(db);
-    store.write(sample_request("2026-05-05", "U1")).await.unwrap();
-    store.write(sample_request("2026-05-05", "U1")).await.unwrap(); // generation 2
+    store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
+    store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap(); // generation 2
     let pb = store
         .read_latest(NaiveDate::from_ymd_opt(2026, 5, 5).unwrap(), "U1")
         .await
@@ -77,8 +83,14 @@ async fn store_read_latest_returns_most_recent_generation() {
 async fn store_read_specific_generation_returns_that_one() {
     let (_tmp, db) = make_db();
     let store = PlaybookStore::new(db);
-    store.write(sample_request("2026-05-05", "U1")).await.unwrap();
-    store.write(sample_request("2026-05-05", "U1")).await.unwrap();
+    store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
+    store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
     let g1 = store
         .read_generation(NaiveDate::from_ymd_opt(2026, 5, 5).unwrap(), "U1", 1)
         .await
@@ -102,8 +114,14 @@ async fn store_read_missing_returns_none() {
 async fn store_separate_dates_have_independent_generations() {
     let (_tmp, db) = make_db();
     let store = PlaybookStore::new(db);
-    let g1a = store.write(sample_request("2026-05-04", "U1")).await.unwrap();
-    let g1b = store.write(sample_request("2026-05-05", "U1")).await.unwrap();
+    let g1a = store
+        .write(sample_request("2026-05-04", "U1"))
+        .await
+        .unwrap();
+    let g1b = store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
     assert_eq!(g1a.playbook.generation_id, 1);
     assert_eq!(g1b.playbook.generation_id, 1);
 }
@@ -112,8 +130,14 @@ async fn store_separate_dates_have_independent_generations() {
 async fn store_separate_accounts_have_independent_generations() {
     let (_tmp, db) = make_db();
     let store = PlaybookStore::new(db);
-    let g1a = store.write(sample_request("2026-05-05", "U1")).await.unwrap();
-    let g1b = store.write(sample_request("2026-05-05", "U2")).await.unwrap();
+    let g1a = store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
+    let g1b = store
+        .write(sample_request("2026-05-05", "U2"))
+        .await
+        .unwrap();
     assert_eq!(g1a.playbook.generation_id, 1);
     assert_eq!(g1b.playbook.generation_id, 1);
 }
@@ -133,8 +157,14 @@ async fn store_count_tracks_writes() {
     let (_tmp, db) = make_db();
     let store = PlaybookStore::new(db);
     assert_eq!(store.count().await.unwrap(), 0);
-    store.write(sample_request("2026-05-05", "U1")).await.unwrap();
-    store.write(sample_request("2026-05-05", "U1")).await.unwrap();
+    store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
+    store
+        .write(sample_request("2026-05-05", "U1"))
+        .await
+        .unwrap();
     assert_eq!(store.count().await.unwrap(), 2);
 }
 
