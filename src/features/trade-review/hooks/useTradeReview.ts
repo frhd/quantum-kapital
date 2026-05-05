@@ -46,16 +46,17 @@ export function useTradeReview(date: string, account?: string | null): UseTradeR
   }, [refresh])
 
   useEffect(() => {
-    const onActive = () => {
+    const onFocus = () => {
       void refresh()
     }
-    window.addEventListener("focus", onActive)
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") onActive()
-    })
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refresh()
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
     return () => {
-      window.removeEventListener("focus", onActive)
-      document.removeEventListener("visibilitychange", onActive)
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [refresh])
 
