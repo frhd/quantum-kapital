@@ -33,6 +33,7 @@ pub mod get_sentiment;
 pub mod get_today_playbook;
 pub mod get_trade_legs;
 pub mod get_trade_review;
+pub mod get_trader_profile;
 pub mod get_watchlist_briefing;
 pub mod mark_alert_enriched;
 pub mod news;

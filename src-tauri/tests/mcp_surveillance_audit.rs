@@ -43,7 +43,11 @@ fn is_blocked(name: &str) -> bool {
     // else; allowlist by exact name here.
     if matches!(
         n.as_str(),
-        "get_executions" | "get_trade_legs" | "get_trade_review" | "write_trade_review"
+        "get_executions"
+            | "get_trade_legs"
+            | "get_trade_review"
+            | "write_trade_review"
+            | "get_trader_profile"
     ) {
         return false;
     }
@@ -81,6 +85,7 @@ fn audit_predicates_block_known_order_names() {
         "get_trade_legs",
         "get_trade_review",
         "write_trade_review",
+        "get_trader_profile",
         "run_scanner",
         "list_watchlist",
         "get_llm_budget_status",
@@ -125,11 +130,12 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // (1 read: get_watchlist_briefing) + Behavioral-assessment Phase 4
     // (1 read: get_trade_review, 1 write: write_trade_review) +
     // Behavioral-assessment Phase 5 (1 read: get_today_playbook, 1
-    // write: write_playbook) = 34.
+    // write: write_playbook) + Behavioral-assessment Phase 6 (1 read:
+    // get_trader_profile) = 35.
     assert_eq!(
         names.len(),
-        34,
-        "expected 34 registered MCP tools, got {}: {:?}",
+        35,
+        "expected 35 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );

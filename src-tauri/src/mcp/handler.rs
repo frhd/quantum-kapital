@@ -167,6 +167,7 @@ impl McpHandler {
             + Self::get_today_playbook_router()
             + Self::get_trade_legs_router()
             + Self::get_trade_review_router()
+            + Self::get_trader_profile_router()
             + Self::get_watchlist_briefing_router()
             + Self::scanner_router()
             + Self::add_ticker_router()
