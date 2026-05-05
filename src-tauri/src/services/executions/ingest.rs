@@ -11,6 +11,7 @@
 //! depends only on what it actually needs and the wiring in `lib.rs`
 //! can pass `Arc<IbkrClient>` directly.
 
+use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -23,6 +24,7 @@ use tracing::{info, warn};
 use crate::ibkr::client::{IbkrClient, StreamHandle};
 use crate::ibkr::error::Result as IbkrResult;
 use crate::ibkr::types::IbkrExecution;
+use crate::services::tca::TcaService;
 
 use super::store::ExecutionsStore;
 
@@ -61,11 +63,28 @@ impl LiveExecutionsFetcher for crate::ibkr::mocks::MockIbkrClient {
 pub struct ExecutionsIngestor {
     store: Arc<ExecutionsStore>,
     fetcher: Arc<dyn LiveExecutionsFetcher>,
+    /// Phase 2 — set after `store.record` succeeds, the ingestor
+    /// asks TCA to stamp `setup_id` / `intent_id` / slippage on the
+    /// freshly-stored rows. Optional so the executions service can
+    /// still be wired without TCA in tests + early bring-up.
+    tca: Option<Arc<TcaService>>,
 }
 
 impl ExecutionsIngestor {
     pub fn new(store: Arc<ExecutionsStore>, fetcher: Arc<dyn LiveExecutionsFetcher>) -> Self {
-        Self { store, fetcher }
+        Self {
+            store,
+            fetcher,
+            tca: None,
+        }
+    }
+
+    /// Attach a TCA service. The ingestor calls
+    /// `expire_stale` + per-account `attach_fills_for_account_today`
+    /// after every successful `store.record` batch.
+    pub fn with_tca(mut self, tca: Arc<TcaService>) -> Self {
+        self.tca = Some(tca);
+        self
     }
 
     /// One drain pass. Public for tests; otherwise called from `spawn`.
@@ -80,6 +99,19 @@ impl ExecutionsIngestor {
             Ok(rows) => {
                 if let Err(e) = self.store.record(&rows).await {
                     warn!(error = %e, "executions ingestor: store.record failed");
+                    return;
+                }
+                if let Some(tca) = self.tca.as_ref() {
+                    if let Err(e) = tca.expire_stale().await {
+                        warn!(error = %e, "tca: expire_stale failed");
+                    }
+                    let accounts: BTreeSet<String> =
+                        rows.iter().map(|r| r.account.clone()).collect();
+                    for account in accounts {
+                        if let Err(e) = tca.attach_fills_for_account_today(&account).await {
+                            warn!(account = %account, error = %e, "tca: attach failed");
+                        }
+                    }
                 }
             }
             Err(e) => {

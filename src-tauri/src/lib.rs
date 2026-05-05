@@ -44,6 +44,7 @@ use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
+use services::tca::TcaService;
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
 use services::social_sentiment::reddit::RedditWsbProvider;
@@ -471,12 +472,24 @@ pub fn run() {
             // ingestor primes the store every 5 min during market
             // hours for off-band fills the live drain may miss.
             let executions_store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+            // Quant-decisions Phase 2 — TCA. Constructed before the
+            // ingestor so the post-record pass can stamp setup_id /
+            // slippage on freshly-stored rows. The ingestor's
+            // `with_tca` is optional: the same store is wired to MCP
+            // / Tauri reads independently.
+            let tca_service = Arc::new(TcaService::new(
+                Arc::clone(&db),
+                Arc::clone(&executions_store),
+            ));
             let executions_ingestor_fetcher: Arc<dyn LiveExecutionsFetcher> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn LiveExecutionsFetcher>;
-            let executions_ingestor = Arc::new(ExecutionsIngestor::new(
-                Arc::clone(&executions_store),
-                executions_ingestor_fetcher,
-            ));
+            let executions_ingestor = Arc::new(
+                ExecutionsIngestor::new(
+                    Arc::clone(&executions_store),
+                    executions_ingestor_fetcher,
+                )
+                .with_tca(Arc::clone(&tca_service)),
+            );
             {
                 let ingestor = Arc::clone(&executions_ingestor);
                 tauri::async_runtime::spawn(async move {
@@ -575,6 +588,7 @@ pub fn run() {
             app.manage(trade_review_generator);
             app.manage(risk_engine);
             app.manage(equity_snapshot_svc);
+            app.manage(tca_service);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
