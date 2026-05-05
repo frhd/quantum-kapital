@@ -1,13 +1,16 @@
 import {
   Activity,
   BarChart3,
+  ClipboardList,
   Eye,
   FileText,
+  Gauge,
   Inbox,
   LineChart,
   type LucideIcon,
   Menu,
   Moon,
+  NotebookPen,
   Receipt,
   Search,
   Settings,
@@ -25,6 +28,9 @@ export type PageId =
   | "eval"
   | "positions"
   | "trades"
+  | "playbook"
+  | "review"
+  | "profile"
   | "account"
 
 interface NavItem {
@@ -48,6 +54,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "tracker", label: "Tracker", icon: Eye },
       { id: "research", label: "Research", icon: FileText },
       { id: "eval", label: "Eval", icon: Activity },
+    ],
+  },
+  {
+    label: "Assessment",
+    items: [
+      { id: "playbook", label: "Today's Playbook", icon: NotebookPen },
+      { id: "review", label: "Trade Review", icon: ClipboardList },
+      { id: "profile", label: "Trader Profile", icon: Gauge },
     ],
   },
   {

@@ -17,6 +17,7 @@ import {
   status,
   trackedTickers,
 } from "./data"
+import { playbook, traderProfile, tradeReview } from "./assessment-data"
 
 type Fixture = (args: Record<string, unknown>) => unknown
 
@@ -74,4 +75,13 @@ export const fixtures: Record<string, Fixture> = {
   social_get_latest: () => [],
   social_list_window: () => [],
   social_refresh_now: () => 0,
+
+  // Phase 7 — assessment surface (trade review / playbook / trader
+  // profile). The fixtures return populated artifacts so the panels
+  // render with believable content under `pnpm dev:browser`; an empty
+  // state can be observed by passing a date that falls outside the
+  // fixture (the panel gates on the `date` arg matching today).
+  get_trade_review: ({ date }) => (date === tradeReview.date ? tradeReview : null),
+  get_today_playbook: ({ date }) => (date === playbook.date ? playbook : null),
+  get_trader_profile: () => traderProfile,
 }

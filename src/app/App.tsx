@@ -20,6 +20,9 @@ import { AddToTrackerDialog } from "../features/tracker/components/AddToTrackerD
 import { ResearchTab } from "../features/research/components/ResearchTab"
 import { EvalTab } from "../features/eval/components/EvalTab"
 import { TradesPage } from "../features/trades/components/TradesPage"
+import { TradeReviewCard } from "../features/trade-review"
+import { TodaysPlaybook } from "../features/playbook"
+import { TraderProfilePage } from "../features/trader-profile"
 import { DataTierBanner } from "../shared/components/DataTierBanner"
 import type { AddToTrackerPrefill } from "../features/tracker/types"
 
@@ -167,7 +170,15 @@ export default function App() {
                   </>
                 )}
 
-                {currentPage === "trades" && <TradesPage />}
+                {currentPage === "trades" && (
+                  <TradesPage onOpenReview={() => setCurrentPage("review")} />
+                )}
+
+                {currentPage === "playbook" && <TodaysPlaybook />}
+
+                {currentPage === "review" && <TradeReviewCard />}
+
+                {currentPage === "profile" && <TraderProfilePage />}
 
                 {currentPage === "account" && (
                   <AccountDetails

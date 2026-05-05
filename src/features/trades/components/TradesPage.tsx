@@ -88,7 +88,15 @@ function Cell({
   )
 }
 
-export function TradesPage() {
+export interface TradesPageProps {
+  /** Optional callback to navigate to the Trade Review page for the
+   *  selected date. The Trades panel surfaces a "Review →" link in
+   *  its header that calls this — wired by the app shell so the
+   *  feature folder doesn't need to know about the page router. */
+  onOpenReview?: (date: string) => void
+}
+
+export function TradesPage({ onOpenReview }: TradesPageProps = {}) {
   const [date, setDate] = useState(todayEt())
   const { rows, loading, refreshing, error, refresh } = useTrades(date)
   const groups = useMemo(() => groupExecutions(rows), [rows])
@@ -105,6 +113,16 @@ export function TradesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {onOpenReview && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onOpenReview(date)}
+              className="h-8 px-3 text-xs"
+            >
+              Review →
+            </Button>
+          )}
           <input
             type="date"
             value={date}
