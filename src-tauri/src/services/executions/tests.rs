@@ -175,3 +175,47 @@ async fn ingestor_skips_when_ibkr_disconnected() {
         .unwrap();
     assert!(rows.is_empty());
 }
+
+#[tokio::test]
+async fn account_reader_serves_past_days_from_store() {
+    use crate::mcp::ibkr_seam::{AccountReader, LiveAccountClient, ProdAccountReader};
+
+    let (_tmp, db) = make_db();
+    let store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+
+    // Seed the store with a fill on a *past* date relative to "today".
+    // Use yesterday-ET so the wrapper's `date < today_et` branch fires
+    // regardless of when the suite runs.
+    use chrono_tz::America::New_York;
+    let yesterday_et = Utc::now()
+        .with_timezone(&New_York)
+        .date_naive()
+        .pred_opt()
+        .unwrap();
+    let yesterday_et_noon = New_York
+        .from_local_datetime(&yesterday_et.and_hms_opt(12, 0, 0).unwrap())
+        .single()
+        .unwrap()
+        .with_timezone(&Utc);
+    let mut prior = stk("PRIOR", "DU123", 100.0, 250.0);
+    prior.exec_time = yesterday_et_noon;
+    store.record(std::slice::from_ref(&prior)).await.unwrap();
+
+    let mock = Arc::new(MockIbkrClient::new());
+    mock.set_accounts(vec!["DU123".into()]).await;
+    mock.set_connected(true).await;
+    // Mock has NO fills loaded — if the wrapper hits live IBKR for a
+    // past day the result will be empty, which would fail the assert.
+
+    let reader = ProdAccountReader::new(
+        Arc::clone(&mock) as Arc<dyn LiveAccountClient>,
+        Arc::clone(&store),
+    );
+
+    let rows = reader
+        .executions("DU123", yesterday_et)
+        .await
+        .expect("reader ok");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].exec_id, "PRIOR");
+}

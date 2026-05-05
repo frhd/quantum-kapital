@@ -14,12 +14,16 @@
 //! a dozen methods the rest of the app already calls inherently —
 //! noise for a tool surface that needs only two methods.
 
-use async_trait::async_trait;
-use chrono::NaiveDate;
+use std::sync::Arc;
 
-use crate::ibkr::error::Result as IbkrResult;
-use crate::ibkr::types::{AccountSummary, Position};
+use async_trait::async_trait;
+use chrono::{NaiveDate, Utc};
+use chrono_tz::America::New_York;
+
+use crate::ibkr::error::{IbkrError, Result as IbkrResult};
+use crate::ibkr::types::{AccountSummary, IbkrExecution, Position};
 use crate::mcp::tools::executions::ExecutionRow;
+use crate::services::executions::ExecutionsStore;
 
 /// Narrow seam for the MCP account tools. Returns an error if the
 /// underlying IBKR connection isn't live; the tool layer surfaces that
@@ -46,8 +50,19 @@ pub trait AccountReader: Send + Sync {
     async fn executions(&self, account: &str, date: NaiveDate) -> IbkrResult<Vec<ExecutionRow>>;
 }
 
+/// Inner seam consumed by [`ProdAccountReader`]. Combines the four
+/// live-IBKR methods the wrapper needs into a single trait so the
+/// wrapper itself can be unit-tested with `MockIbkrClient`.
 #[async_trait]
-impl AccountReader for crate::ibkr::client::IbkrClient {
+pub trait LiveAccountClient: Send + Sync {
+    async fn list_accounts(&self) -> IbkrResult<Vec<String>>;
+    async fn get_positions(&self, account: &str) -> IbkrResult<Vec<Position>>;
+    async fn get_account_summary(&self, account: &str) -> IbkrResult<Vec<AccountSummary>>;
+    async fn fetch_executions(&self, date: NaiveDate) -> IbkrResult<Vec<IbkrExecution>>;
+}
+
+#[async_trait]
+impl LiveAccountClient for crate::ibkr::client::IbkrClient {
     async fn list_accounts(&self) -> IbkrResult<Vec<String>> {
         crate::ibkr::client::IbkrClient::get_accounts(self).await
     }
@@ -60,13 +75,108 @@ impl AccountReader for crate::ibkr::client::IbkrClient {
         crate::ibkr::client::IbkrClient::get_account_summary(self, account).await
     }
 
+    async fn fetch_executions(&self, date: NaiveDate) -> IbkrResult<Vec<IbkrExecution>> {
+        crate::ibkr::client::IbkrClient::executions(self, date).await
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl LiveAccountClient for crate::ibkr::mocks::MockIbkrClient {
+    async fn list_accounts(&self) -> IbkrResult<Vec<String>> {
+        crate::ibkr::mocks::IbkrClientTrait::get_accounts(self).await
+    }
+
+    async fn get_positions(&self, account: &str) -> IbkrResult<Vec<Position>> {
+        crate::ibkr::mocks::IbkrClientTrait::get_positions(self, account).await
+    }
+
+    async fn get_account_summary(&self, account: &str) -> IbkrResult<Vec<AccountSummary>> {
+        crate::ibkr::mocks::IbkrClientTrait::get_account_summary(self, account).await
+    }
+
+    async fn fetch_executions(&self, date: NaiveDate) -> IbkrResult<Vec<IbkrExecution>> {
+        crate::ibkr::mocks::MockIbkrClient::executions(self, date).await
+    }
+}
+
+/// Production [`AccountReader`] for the live MCP server.
+///
+/// Wraps the IBKR client and the persistent `ExecutionsStore` so that
+/// `executions(account, date)`:
+/// - past day (`date < today_et`): served from the store. IBKR's
+///   `reqExecutions` only returns the current TWS-day, so without the
+///   store yesterday's fills are unreachable.
+/// - today (`date == today_et`): drained live from IBKR; the full
+///   batch (all managed accounts) is recorded into the store, then
+///   the store is queried so the response is consistent with what a
+///   later "yesterday" call will see.
+/// - future (`date > today_et`): empty.
+///
+/// `list_accounts`, `get_positions`, `get_account_summary` forward to
+/// the IBKR client unchanged.
+pub struct ProdAccountReader {
+    client: Arc<dyn LiveAccountClient>,
+    store: Arc<ExecutionsStore>,
+}
+
+impl ProdAccountReader {
+    pub fn new(client: Arc<dyn LiveAccountClient>, store: Arc<ExecutionsStore>) -> Self {
+        Self { client, store }
+    }
+}
+
+#[async_trait]
+impl AccountReader for ProdAccountReader {
+    async fn list_accounts(&self) -> IbkrResult<Vec<String>> {
+        self.client.list_accounts().await
+    }
+
+    async fn get_positions(&self, account: &str) -> IbkrResult<Vec<Position>> {
+        self.client.get_positions(account).await
+    }
+
+    async fn get_account_summary(&self, account: &str) -> IbkrResult<Vec<AccountSummary>> {
+        self.client.get_account_summary(account).await
+    }
+
     async fn executions(&self, account: &str, date: NaiveDate) -> IbkrResult<Vec<ExecutionRow>> {
-        let rows = crate::ibkr::client::IbkrClient::executions(self, date).await?;
-        Ok(rows
-            .into_iter()
-            .filter(|r| r.account == account)
-            .map(ExecutionRow::from_ibkr)
-            .collect())
+        let today_et = Utc::now().with_timezone(&New_York).date_naive();
+        if date > today_et {
+            return Ok(Vec::new());
+        }
+        if date < today_et {
+            let rows = self
+                .store
+                .query(account, date, None)
+                .await
+                .map_err(|e| IbkrError::Unknown(format!("executions store: {e}")))?;
+            return Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect());
+        }
+        // Today: drain live IBKR for **all** managed accounts (IBKR's
+        // server-side filter is date-only), record the full batch into
+        // the store, then query back filtered to this account so a
+        // subsequent past-day call sees the same rows.
+        match self.client.fetch_executions(date).await {
+            Ok(live) if live.is_empty() => Ok(Vec::new()),
+            Ok(live) => {
+                if let Err(e) = self.store.record(&live).await {
+                    tracing::warn!(error = %e, "executions store record failed; serving live");
+                    return Ok(live
+                        .into_iter()
+                        .filter(|r| r.account == account)
+                        .map(ExecutionRow::from_ibkr)
+                        .collect());
+                }
+                let rows = self
+                    .store
+                    .query(account, date, None)
+                    .await
+                    .map_err(|e| IbkrError::Unknown(format!("executions store: {e}")))?;
+                Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect())
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 

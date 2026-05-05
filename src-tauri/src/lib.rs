@@ -19,6 +19,7 @@ use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketSca
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
+use services::executions::{ExecutionsIngestor, ExecutionsStore, LiveExecutionsFetcher};
 use services::financial_data_service::FinancialDataService;
 use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
 use services::fundamentals_provider::av_call_ledger::AvCallLedger;
@@ -434,9 +435,34 @@ pub fn run() {
             // the bridge binary's default. Started here so we can grab
             // `Arc` clones of `ibkr_state.mcp_handle` and `llm_service`
             // before they're moved into `app.manage` below.
+            // Phase 1 (assessment-MCP plan): persist IBKR fills so
+            // assessment tooling (Phases 2/4/6) can query multi-day
+            // history. The store sits behind `ProdAccountReader`'s
+            // `executions(account, date)` so past-day queries are
+            // served from SQLite while today still drains live; the
+            // ingestor primes the store every 5 min during market
+            // hours for off-band fills the live drain may miss.
+            let executions_store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+            let executions_ingestor_fetcher: Arc<dyn LiveExecutionsFetcher> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn LiveExecutionsFetcher>;
+            let executions_ingestor = Arc::new(ExecutionsIngestor::new(
+                Arc::clone(&executions_store),
+                executions_ingestor_fetcher,
+            ));
+            let _executions_ingestor_handle = Arc::clone(&executions_ingestor).spawn();
+            // Detached: the StreamHandle stops cleanly when the tokio
+            // runtime tears down. A future refactor can store it on
+            // `IbkrState` if explicit start/stop is needed.
+
             let mcp_socket_path = db_dir.join("mcp.sock");
+            let account_reader: Arc<dyn crate::mcp::ibkr_seam::AccountReader> = Arc::new(
+                crate::mcp::ibkr_seam::ProdAccountReader::new(
+                    Arc::clone(&ibkr_state.client) as Arc<dyn crate::mcp::ibkr_seam::LiveAccountClient>,
+                    Arc::clone(&executions_store),
+                ),
+            );
             let mcp_ibkr_client: Arc<dyn crate::mcp::ibkr_seam::AccountReader> =
-                Arc::clone(&ibkr_state.client) as Arc<dyn crate::mcp::ibkr_seam::AccountReader>;
+                Arc::clone(&account_reader);
             let mcp_market_scanner: Arc<dyn MarketScanner> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn MarketScanner>;
             let mcp_handler = mcp::McpHandler::new(
@@ -503,6 +529,10 @@ pub fn run() {
             app.manage(sentiment_surge_scanner);
             app.manage(candidate_scheduler);
             app.manage(ticker_primer);
+            // Tauri commands (trades.rs) consume the same store-backed
+            // AccountReader as the MCP server so desktop UI and Claude
+            // Code see byte-identical past-day executions.
+            app.manage(account_reader);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

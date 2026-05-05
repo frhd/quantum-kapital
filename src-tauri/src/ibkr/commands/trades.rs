@@ -13,10 +13,11 @@
 //! so prior dates render as an empty list (Phase 4 lifts that
 //! constraint).
 
+use std::sync::Arc;
+
 use chrono::NaiveDate;
 use tauri::State;
 
-use crate::ibkr::state::IbkrState;
 use crate::mcp::ibkr_seam::AccountReader;
 use crate::mcp::tools::executions::ExecutionRow;
 use crate::mcp::tools::resolve_account;
@@ -41,11 +42,11 @@ pub(crate) async fn fetch_executions_for_date(
 
 #[tauri::command]
 pub async fn ibkr_get_executions_for_date(
-    state: State<'_, IbkrState>,
+    reader: State<'_, Arc<dyn AccountReader>>,
     account: Option<String>,
     date: String,
 ) -> Result<Vec<ExecutionRow>, String> {
-    fetch_executions_for_date(state.client.as_ref(), account.as_deref(), &date).await
+    fetch_executions_for_date(reader.inner().as_ref(), account.as_deref(), &date).await
 }
 
 #[cfg(test)]
