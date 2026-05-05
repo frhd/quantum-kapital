@@ -8,8 +8,10 @@
 
 #![allow(dead_code, unused_imports)]
 
+pub mod ingest;
 pub mod store;
 
+pub use ingest::{ExecutionsIngestor, LiveExecutionsFetcher};
 pub use store::{ExecutionsStore, RecordSummary};
 
 #[cfg(test)]

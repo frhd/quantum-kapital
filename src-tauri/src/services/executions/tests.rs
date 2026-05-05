@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use chrono::{NaiveDate, TimeZone, Utc};
 
+use super::ingest::ExecutionsIngestor;
 use super::store::ExecutionsStore;
+use crate::ibkr::mocks::MockIbkrClient;
 use crate::ibkr::types::{ExecutionSide, IbkrExecution};
 use crate::mcp::tools::test_support::make_db;
 
@@ -152,4 +154,24 @@ async fn store_query_isolates_accounts() {
     assert_eq!(u1[0].account, "U1");
     assert_eq!(u2.len(), 1);
     assert_eq!(u2[0].account, "U2");
+}
+
+#[tokio::test]
+async fn ingestor_skips_when_ibkr_disconnected() {
+    let (_tmp, db) = make_db();
+    let store = Arc::new(ExecutionsStore::new(Arc::clone(&db)));
+    let mock = Arc::new(MockIbkrClient::new());
+    mock.set_accounts(vec!["DU123".to_string()]).await;
+    mock.set_connected(false).await;
+
+    let ingestor = ExecutionsIngestor::new(Arc::clone(&store), Arc::clone(&mock) as _);
+    // One tick should not panic and should not populate the store —
+    // a disconnected fetcher returns NotConnected, the ingestor logs.
+    ingestor.tick_once().await;
+
+    let rows = store
+        .query("DU123", NaiveDate::from_ymd_opt(2026, 5, 4).unwrap(), None)
+        .await
+        .unwrap();
+    assert!(rows.is_empty());
 }
