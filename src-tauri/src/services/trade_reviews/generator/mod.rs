@@ -1,3 +1,4 @@
+// allow-large-file: phase-5 inline orchestrator tests
 //! In-app trade-review generator.
 //!
 //! Pulls a day's fills, FIFO-matches them, computes the leg summary,
