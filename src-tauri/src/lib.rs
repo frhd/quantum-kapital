@@ -282,13 +282,10 @@ pub fn run() {
             // upcasts.
             let equity_fetcher: Arc<dyn EquityFetcher> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn EquityFetcher>;
-            let equity_snapshot_svc = Arc::new(EquitySnapshotService::new(
-                Arc::clone(&db),
-                equity_fetcher,
-            ));
+            let equity_snapshot_svc =
+                Arc::new(EquitySnapshotService::new(Arc::clone(&db), equity_fetcher));
             let account_source: Arc<dyn services::risk_engine::AccountSource> =
-                Arc::clone(&ibkr_state.client)
-                    as Arc<dyn services::risk_engine::AccountSource>;
+                Arc::clone(&ibkr_state.client) as Arc<dyn services::risk_engine::AccountSource>;
             let risk_engine = Arc::new(RiskEngine::new(
                 Arc::clone(&equity_snapshot_svc),
                 account_source,

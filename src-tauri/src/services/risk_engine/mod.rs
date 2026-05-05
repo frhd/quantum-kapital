@@ -120,10 +120,7 @@ impl RiskEngine {
         if let Some(reason) = sizing.skipped_reason {
             warn!(
                 "risk_engine: skipped sizing for {} ({:?}) — equity={}c, grade={:?}",
-                candidate.strategy,
-                reason,
-                snapshot.nlv_cents,
-                sizing.conviction_grade,
+                candidate.strategy, reason, snapshot.nlv_cents, sizing.conviction_grade,
             );
         }
         Ok((sizing, snapshot))
@@ -135,7 +132,6 @@ impl RiskEngine {
         let account = self.account_source.current_account().await?;
         Ok(self.snapshot_svc.force_refresh(&account).await?)
     }
-
 }
 
 #[cfg(test)]
@@ -165,10 +161,7 @@ mod tests {
 
     #[async_trait]
     impl EquityFetcher for StubFetcher {
-        async fn fetch_nlv(
-            &self,
-            _account: &str,
-        ) -> std::result::Result<f64, IbkrError> {
+        async fn fetch_nlv(&self, _account: &str) -> std::result::Result<f64, IbkrError> {
             Ok(*self.nlv.lock().unwrap())
         }
     }

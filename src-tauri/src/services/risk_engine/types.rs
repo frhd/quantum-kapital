@@ -258,11 +258,7 @@ impl Sizing {
     /// Convenience constructor for skipped sizings — qty/risk default
     /// to zero, version pinned to current. Used by both the engine
     /// and tests; keeps the "skipped" shape trivially comparable.
-    pub fn skipped(
-        reason: SizingSkippedReason,
-        equity_cents: i64,
-        grade: ConvictionGrade,
-    ) -> Self {
+    pub fn skipped(reason: SizingSkippedReason, equity_cents: i64, grade: ConvictionGrade) -> Self {
         Self {
             qty: 0,
             dollar_risk_cents: 0,
@@ -339,10 +335,7 @@ mod tests {
         assert!(s.is_skipped());
         assert_eq!(s.qty, 0);
         assert_eq!(s.dollar_risk_cents, 0);
-        assert_eq!(
-            s.skipped_reason,
-            Some(SizingSkippedReason::BelowMinRisk)
-        );
+        assert_eq!(s.skipped_reason, Some(SizingSkippedReason::BelowMinRisk));
         assert_eq!(s.version, SIZING_VERSION);
     }
 }

@@ -890,3 +890,181 @@ async fn detected_alert_is_deduped_when_runner_reemits() {
 // only when tests reference them.
 #[allow(dead_code)]
 fn _bind_unused(_: DateTime<Utc>, _: ChronoDuration) {}
+
+// ---------------- risk-engine end-to-end ----------------
+//
+// Quant-decisions Phase 1 — exit criterion: a fixture setup walks
+// through TrackerRunner against a MockIbkrClient-backed RiskEngine,
+// and the persisted row carries qty / dollar_risk / R-per-share.
+// This is the "tracer-bullet" preview the master plan references.
+
+mod risk_e2e {
+    use super::*;
+
+    use crate::ibkr::error::IbkrError;
+    use crate::ibkr::mocks::{test_fixtures, MockIbkrClient};
+    use crate::services::risk_engine::{
+        AccountSource, ConvictionGrade, EquityFetcher, EquitySnapshotService, RiskConfig,
+        RiskEngine,
+    };
+
+    /// `EquityFetcher` adapter over the `MockIbkrClient`. The blanket
+    /// impl in `risk_engine` is over the concrete `IbkrClient`; tests
+    /// pull from the mock instead.
+    struct MockFetcher(Arc<MockIbkrClient>);
+
+    #[async_trait]
+    impl EquityFetcher for MockFetcher {
+        async fn fetch_nlv(&self, account: &str) -> Result<f64, IbkrError> {
+            use crate::ibkr::mocks::IbkrClientTrait;
+            let summary = self.0.get_account_summary(account).await?;
+            let row = summary
+                .iter()
+                .find(|s| s.tag == "NetLiquidation")
+                .ok_or_else(|| IbkrError::RequestFailed("no nlv".to_string()))?;
+            row.value
+                .parse::<f64>()
+                .map_err(|e| IbkrError::SerializationError(e.to_string()))
+        }
+    }
+
+    struct MockAccount(Arc<MockIbkrClient>);
+
+    #[async_trait]
+    impl AccountSource for MockAccount {
+        async fn current_account(&self) -> Result<String, IbkrError> {
+            use crate::ibkr::mocks::IbkrClientTrait;
+            self.0
+                .get_accounts()
+                .await?
+                .into_iter()
+                .next()
+                .ok_or_else(|| IbkrError::RequestFailed("no accounts".to_string()))
+        }
+    }
+
+    fn risk_runner(
+        db: Arc<Db>,
+        bars: Arc<dyn BarsFetcher>,
+        news: Arc<dyn NewsProvider>,
+        registry: DetectorRegistry,
+        risk_engine: Arc<RiskEngine>,
+    ) -> (Arc<TrackerService>, Arc<EventEmitter>, TrackerRunner) {
+        let tracker = Arc::new(TrackerService::new(Arc::clone(&db)));
+        let emitter = Arc::new(EventEmitter::for_capture());
+        let state_machine = Arc::new(TrackerStateMachine::new(
+            Arc::clone(&db),
+            Arc::clone(&tracker),
+            Arc::clone(&emitter),
+        ));
+        let runner = TrackerRunner::new(
+            Arc::clone(&db),
+            Arc::clone(&tracker),
+            state_machine,
+            Arc::clone(&emitter),
+            bars,
+            news,
+            Arc::new(registry),
+        )
+        .with_risk_engine(risk_engine);
+        (tracker, emitter, runner)
+    }
+
+    #[tokio::test]
+    async fn fixture_setup_walks_through_runner_with_sized_row_and_event() {
+        // Stand up the chain: mock IBKR (NLV=100k) → equity-snapshot
+        // service → risk engine → tracker runner with a stubbed
+        // breakout detector. The candidate carries A-conviction
+        // (signal 0.9), so default knobs (0.5% risk, $5 R) yield 100
+        // shares.
+        let (_tmp, db) = make_db();
+        let mock = Arc::new(MockIbkrClient::new());
+        mock.set_connected(true).await;
+        mock.set_accounts(vec!["DU1".to_string()]).await;
+        mock.set_account_summary(test_fixtures::sample_account_summary())
+            .await;
+
+        let snap_svc = Arc::new(EquitySnapshotService::new(
+            Arc::clone(&db),
+            Arc::new(MockFetcher(Arc::clone(&mock))) as Arc<dyn EquityFetcher>,
+        ));
+        let engine = Arc::new(RiskEngine::new(
+            snap_svc,
+            Arc::new(MockAccount(Arc::clone(&mock))),
+            RiskConfig::default(),
+        ));
+
+        let stub = StubDetector::new_hit(
+            "breakout-test",
+            StrategyTag::Breakout,
+            sample_candidate("breakout-test", Direction::Long),
+        );
+        let mut registry = DetectorRegistry::new();
+        registry.register(Arc::new(stub));
+
+        let bars: Arc<dyn BarsFetcher> =
+            Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+        let news: Arc<dyn NewsProvider> = Arc::new(MockNews::new());
+        let (tracker, emitter, runner) =
+            risk_runner(Arc::clone(&db), bars, news, registry, Arc::clone(&engine));
+        add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+
+        let setups = runner.run_for("AAPL").await.expect("run_for");
+        assert_eq!(setups.len(), 1);
+        let setup = &setups[0];
+
+        // Sizing landed on the persisted row.
+        let sizing = setup.sizing.as_ref().expect("sized row carries Sizing");
+        // sample_candidate uses signal 0.7 → grade B (default thresholds).
+        assert_eq!(sizing.conviction_grade, ConvictionGrade::B);
+        // 0.33% * $100k / $5 = 66 sh.
+        assert_eq!(sizing.qty, 66);
+        assert_eq!(sizing.dollar_risk_cents, 33_000);
+        assert_eq!(sizing.r_per_share_cents, 500);
+        assert_eq!(sizing.equity_at_decision_cents, 10_000_000);
+        assert!(sizing.skipped_reason.is_none());
+
+        // Re-read through TrackerService confirms persistence.
+        let stored = tracker.get_setup(setup.id).await.unwrap().unwrap();
+        assert_eq!(stored.sizing, setup.sizing);
+
+        // SetupSized fired.
+        let events = emitter.captured().await;
+        let sized_event = events
+            .iter()
+            .find(|e| matches!(e, AppEvent::SetupSized { setup_id, .. } if *setup_id == setup.id));
+        assert!(sized_event.is_some(), "SetupSized event captured");
+    }
+
+    #[tokio::test]
+    async fn run_proceeds_without_risk_engine_attached() {
+        // Back-compat: TrackerRunner sized-blind path still works.
+        // No risk_engine → no sizing column populated → no
+        // SetupSized event.
+        let (_tmp, db) = make_db();
+        let stub = StubDetector::new_hit(
+            "breakout-noengine",
+            StrategyTag::Breakout,
+            sample_candidate("breakout-noengine", Direction::Long),
+        );
+        let mut registry = DetectorRegistry::new();
+        registry.register(Arc::new(stub));
+        let bars: Arc<dyn BarsFetcher> =
+            Arc::new(MockBars::new().with_daily("AAPL", fixture_daily_bars()));
+        let news: Arc<dyn NewsProvider> = Arc::new(MockNews::new());
+        let (tracker, emitter, runner) = build_runner(db, bars, news, registry);
+        add_ticker(&tracker, "AAPL", TrackerStatus::Watching).await;
+
+        let setups = runner.run_for("AAPL").await.expect("run_for");
+        assert_eq!(setups.len(), 1);
+        assert!(setups[0].sizing.is_none(), "no risk engine, no sizing");
+
+        let events = emitter.captured().await;
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, AppEvent::SetupSized { .. })),
+            "no SetupSized event without engine"
+        );
+    }
+}

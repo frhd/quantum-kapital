@@ -124,6 +124,13 @@ export interface Setup {
   invalidated_at: string | null
   invalidation_reason: string | null
   archived_at: string | null
+  /**
+   * Quant-decisions Phase 1 — risk-engine sizing. `null` for pre-P1
+   * rows (migration default) and for the (rare) sized-blind path
+   * where the runner had no engine attached. UI surfaces this as
+   * "ungated" so the trader knows sizing didn't run.
+   */
+  sizing?: import("../../shared/api/riskEngine").Sizing | null
 }
 
 // --- Phase 21: Alert feed ---

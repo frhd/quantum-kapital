@@ -118,11 +118,7 @@ impl EquitySnapshotService {
     }
 
     /// Read the row for `account` on `as_of_date` if present.
-    pub async fn read(
-        &self,
-        account: &str,
-        as_of_date: &str,
-    ) -> Result<Option<EquitySnapshot>> {
+    pub async fn read(&self, account: &str, as_of_date: &str) -> Result<Option<EquitySnapshot>> {
         let account = account.to_string();
         let date = as_of_date.to_string();
         let row = self
@@ -250,11 +246,12 @@ fn decode_row(r: SnapshotRow) -> Result<EquitySnapshot> {
             "bad as_of_date '{as_of_date}' for {account}: {e}"
         )))
     })?;
-    let fetched_at: DateTime<Utc> = DateTime::from_timestamp(fetched_at_unix, 0).ok_or_else(|| {
-        EquitySnapshotError::Storage(StorageError::Migration(format!(
-            "bad fetched_at unix '{fetched_at_unix}' for {account}"
-        )))
-    })?;
+    let fetched_at: DateTime<Utc> =
+        DateTime::from_timestamp(fetched_at_unix, 0).ok_or_else(|| {
+            EquitySnapshotError::Storage(StorageError::Migration(format!(
+                "bad fetched_at unix '{fetched_at_unix}' for {account}"
+            )))
+        })?;
     Ok(EquitySnapshot {
         account,
         as_of_date,
@@ -317,7 +314,11 @@ mod tests {
         let snap2 = svc.current("DU1").await.unwrap();
         assert_eq!(snap2.nlv_cents, snap1.nlv_cents);
         assert_eq!(snap2.as_of_date, snap1.as_of_date);
-        assert_eq!(*fetcher.calls.lock().unwrap(), 1, "second read served from cache");
+        assert_eq!(
+            *fetcher.calls.lock().unwrap(),
+            1,
+            "second read served from cache"
+        );
     }
 
     #[tokio::test]

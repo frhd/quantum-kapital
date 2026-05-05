@@ -121,4 +121,3 @@ fn conviction_signal_from_setup(setup: &crate::ibkr::types::tracker::Setup) -> f
         ConvictionGrade::C => 0.3,
     }
 }
-

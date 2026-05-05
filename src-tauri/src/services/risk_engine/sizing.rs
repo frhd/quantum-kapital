@@ -67,7 +67,7 @@ pub fn compute_sizing(
     let multiplier = conviction_multiplier(grade, cfg);
     let multiplier_bps = (multiplier * 10_000.0).round() as u32;
     let risk_pct = cfg.risk_pct_for(grade).max(0.0);
-    let equity = snapshot.nlv() ;
+    let equity = snapshot.nlv();
     if equity <= 0.0 {
         // No equity → can't size. Treat as below-min-risk so the UI
         // still surfaces a clear reason.
@@ -139,12 +139,7 @@ mod tests {
         }
     }
 
-    fn candidate(
-        signal: f64,
-        direction: Direction,
-        trigger: f64,
-        stop: f64,
-    ) -> SetupCandidate {
+    fn candidate(signal: f64, direction: Direction, trigger: f64, stop: f64) -> SetupCandidate {
         SetupCandidate {
             strategy: "breakout",
             tag: StrategyTag::Breakout,
@@ -254,10 +249,7 @@ mod tests {
         let snap = snapshot(1_000.0);
         let cand = candidate(0.2, Direction::Long, 105.0, 100.0);
         let s = compute_sizing(&cand, &snap, &RiskConfig::default());
-        assert_eq!(
-            s.skipped_reason,
-            Some(SizingSkippedReason::BelowMinRisk)
-        );
+        assert_eq!(s.skipped_reason, Some(SizingSkippedReason::BelowMinRisk));
         assert_eq!(s.qty, 0);
         assert_eq!(s.equity_at_decision_cents, 100_000);
     }
@@ -283,10 +275,7 @@ mod tests {
         let snap = snapshot(100_000.0);
         let cand = candidate(0.9, Direction::Long, 100.0, 105.0);
         let s = compute_sizing(&cand, &snap, &RiskConfig::default());
-        assert_eq!(
-            s.skipped_reason,
-            Some(SizingSkippedReason::InvalidPrice)
-        );
+        assert_eq!(s.skipped_reason, Some(SizingSkippedReason::InvalidPrice));
     }
 
     #[test]
@@ -294,10 +283,7 @@ mod tests {
         let snap = snapshot(100_000.0);
         let cand = candidate(0.9, Direction::Long, f64::NAN, 100.0);
         let s = compute_sizing(&cand, &snap, &RiskConfig::default());
-        assert_eq!(
-            s.skipped_reason,
-            Some(SizingSkippedReason::InvalidPrice)
-        );
+        assert_eq!(s.skipped_reason, Some(SizingSkippedReason::InvalidPrice));
     }
 
     #[test]
@@ -305,10 +291,7 @@ mod tests {
         let snap = snapshot(0.0);
         let cand = candidate(0.9, Direction::Long, 105.0, 100.0);
         let s = compute_sizing(&cand, &snap, &RiskConfig::default());
-        assert_eq!(
-            s.skipped_reason,
-            Some(SizingSkippedReason::BelowMinRisk)
-        );
+        assert_eq!(s.skipped_reason, Some(SizingSkippedReason::BelowMinRisk));
     }
 
     // --- conviction multiplier cap ---
@@ -318,13 +301,11 @@ mod tests {
         // Even with a config setting cap = 2.0, P1 logic clamps to 1.0
         // because the master decision pins it pre-P4. (`min(1.0, cap)`.)
         let snap = snapshot(100_000.0);
-        let mut cfg = RiskConfig::default();
-        cfg.conviction_multiplier_cap = 2.0;
-        let s = compute_sizing(
-            &candidate(0.9, Direction::Long, 105.0, 100.0),
-            &snap,
-            &cfg,
-        );
+        let cfg = RiskConfig {
+            conviction_multiplier_cap: 2.0,
+            ..RiskConfig::default()
+        };
+        let s = compute_sizing(&candidate(0.9, Direction::Long, 105.0, 100.0), &snap, &cfg);
         assert_eq!(s.conviction_multiplier_bps, 10_000);
         assert_eq!(s.qty, 100);
     }
@@ -334,18 +315,15 @@ mod tests {
     #[test]
     fn round_lot_floors_to_multiple() {
         let snap = snapshot(100_000.0);
-        let mut cfg = RiskConfig::default();
-        cfg.round_lot = 10;
         // A risk = 100 sh on the reference case; 100 % 10 == 0.
-        // Tighten config to force a non-multiple before rounding:
-        // risk 0.4% -> $400, R $5 -> 80 shares (multiple of 10).
-        cfg.risk_pct_a = 0.0041;
-        let s = compute_sizing(
-            &candidate(0.9, Direction::Long, 105.0, 100.0),
-            &snap,
-            &cfg,
-        );
-        // floor(410 / 5) = 82 -> rounded down to 80.
+        // Tighten risk_pct_a to force a non-multiple before rounding:
+        // 0.41% -> $410, R $5 -> floor(82) -> rounded down to 80.
+        let cfg = RiskConfig {
+            round_lot: 10,
+            risk_pct_a: 0.0041,
+            ..RiskConfig::default()
+        };
+        let s = compute_sizing(&candidate(0.9, Direction::Long, 105.0, 100.0), &snap, &cfg);
         assert_eq!(s.qty, 80);
         assert_eq!(s.dollar_risk_cents, 40_000);
     }

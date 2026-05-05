@@ -1,3 +1,10 @@
+// allow-large-file: the setups CRUD block, the 24-column raw-row tuple,
+// and the `decode_setup_raw` + `decode_sizing` helpers are tightly
+// coupled to a single SELECT shape. Splitting the decode into a sibling
+// file would force the row tuple to leak as a public type just to
+// share it across files; keeping all of it in one place is the lower-
+// surface-area choice. Quant-decisions Phase 1 added the sizing
+// columns; further P4 grade columns are expected here too.
 //! Setup-row CRUD methods for `TrackerService`.
 //!
 //! This file holds the `impl TrackerService { … }` block containing every
