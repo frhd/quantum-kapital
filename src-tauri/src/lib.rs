@@ -600,6 +600,9 @@ pub fn run() {
             ibkr::commands::candidates_promote,
             ibkr::commands::candidates_refresh_now,
             ibkr::commands::candidates_scheduler_status,
+            ibkr::commands::get_trade_review,
+            ibkr::commands::get_today_playbook,
+            ibkr::commands::get_trader_profile,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

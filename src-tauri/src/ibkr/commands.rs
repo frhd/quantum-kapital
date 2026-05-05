@@ -3,6 +3,7 @@
 
 pub mod accounts;
 pub mod analysis;
+pub mod assessments;
 pub mod auto_scanner;
 pub mod candidates;
 pub mod connection;
@@ -19,6 +20,7 @@ pub mod trading;
 // Re-export all commands at the root level for backward compatibility
 pub use accounts::*;
 pub use analysis::*;
+pub use assessments::*;
 pub use auto_scanner::*;
 pub use candidates::*;
 pub use connection::*;
