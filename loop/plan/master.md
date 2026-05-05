@@ -65,7 +65,7 @@ Locked once so phases don't re-debate. Overridable per-phase with a written just
 
 | Phase | File | Depends on | Status |
 |---|---|---|---|
-| 1 | [phase-1-risk-engine.md](phase-1-risk-engine.md) | none (foundation) | todo |
+| 1 | [phase-1-risk-engine.md](phase-1-risk-engine.md) | none (foundation) | in-progress (started 2026-05-05) |
 | 2 | [phase-2-tca-linkage.md](phase-2-tca-linkage.md) | none (foundation) | todo |
 | 3 | [phase-3-bracket-on-activation.md](phase-3-bracket-on-activation.md) | 1, 2 | todo |
 | 4 | [phase-4-r-grading.md](phase-4-r-grading.md) | 1, 2 | todo |
