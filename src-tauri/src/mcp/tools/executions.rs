@@ -70,10 +70,24 @@ pub struct ExecutionRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commission_currency: Option<String>,
     pub order_id: i32,
+    /// Phase 2: linkage to the originating setup (NULL for fills
+    /// placed without a setup, including pre-P2 history).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_id: Option<i64>,
+    /// Phase 2: detector-class string carried from
+    /// `setups.strategy`. Same NULL semantics as `setup_id`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<String>,
+    /// Phase 2: absolute slippage in basis points vs the recorded
+    /// intent's `intended_price`. NULL ↔ no intent matched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slippage_bps: Option<i64>,
 }
 
 impl ExecutionRow {
     /// Project an IBKR adapter row into the public wire shape.
+    /// Linkage fields default to `None` — populate them via the
+    /// store's `query_with_linkage` for the trade-review surface.
     pub fn from_ibkr(e: IbkrExecution) -> Self {
         Self {
             exec_id: e.exec_id,
@@ -93,6 +107,9 @@ impl ExecutionRow {
             currency: e.currency,
             commission_currency: e.commission_currency,
             order_id: e.order_id,
+            setup_id: None,
+            strategy: None,
+            slippage_bps: None,
         }
     }
 }

@@ -270,6 +270,83 @@ impl ExecutionsStore {
             .await
     }
 
+    /// Read fills for an ET trading day enriched with the Phase 2
+    /// linkage columns (`setup_id`, `strategy`, `slippage_bps`).
+    /// Wires `executions` LEFT JOIN `setups` so unattributed fills
+    /// surface with NULL strategy. Returns the `ExecutionRow` wire
+    /// DTO — same shape as the IBKR adapter projection but with the
+    /// linkage fields populated when present. Used by the
+    /// `ProdAccountReader` for past-day reads and by the FIFO
+    /// matcher for per-strategy roll-ups.
+    pub async fn query_with_linkage(
+        &self,
+        account: &str,
+        date: NaiveDate,
+    ) -> StorageResult<Vec<crate::mcp::tools::executions::ExecutionRow>> {
+        use crate::mcp::tools::executions::ExecutionRow;
+        let (start_utc, end_utc) = et_day_bounds_utc(date);
+        let account = account.to_string();
+        self.db
+            .with_conn(move |conn| {
+                let start = start_utc.to_rfc3339();
+                let end = end_utc.to_rfc3339();
+                let mut stmt = conn.prepare(
+                    "SELECT e.exec_id, e.account, e.symbol, e.contract_type, e.expiry,
+                            e.strike, e.\"right\", e.multiplier, e.side, e.qty, e.avg_price,
+                            e.currency, e.exec_time, e.order_id, e.commission,
+                            e.realized_pnl, e.commission_currency,
+                            e.setup_id, s.strategy, e.slippage_bps
+                     FROM executions e
+                     LEFT JOIN setups s ON s.id = e.setup_id
+                     WHERE e.account = ?1
+                       AND e.exec_time >= ?2 AND e.exec_time < ?3
+                     ORDER BY e.exec_time ASC",
+                )?;
+                let rows = stmt
+                    .query_map(params![account, start, end], |row| {
+                        let exec_time_str: String = row.get(12)?;
+                        let exec_time = DateTime::parse_from_rfc3339(&exec_time_str)
+                            .map_err(|e| {
+                                rusqlite::Error::FromSqlConversionFailure(
+                                    12,
+                                    rusqlite::types::Type::Text,
+                                    Box::new(e),
+                                )
+                            })?
+                            .with_timezone(&Utc);
+                        let side_str: String = row.get(8)?;
+                        let side = parse_side(&side_str);
+                        Ok(ExecutionRow {
+                            exec_id: row.get(0)?,
+                            time: exec_time,
+                            account: row.get(1)?,
+                            symbol: row.get(2)?,
+                            contract_type: row.get(3)?,
+                            expiry: row
+                                .get::<_, Option<String>>(4)?
+                                .and_then(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d").ok()),
+                            strike: row.get(5)?,
+                            right: row.get(6)?,
+                            multiplier: row.get(7)?,
+                            side,
+                            qty: row.get(9)?,
+                            avg_price: row.get(10)?,
+                            currency: row.get(11)?,
+                            commission: row.get(14)?,
+                            realized_pnl: row.get(15)?,
+                            commission_currency: row.get(16)?,
+                            order_id: row.get(13)?,
+                            setup_id: row.get(17)?,
+                            strategy: row.get(18)?,
+                            slippage_bps: row.get(19)?,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows)
+            })
+            .await
+    }
+
     /// Count fills with `commission IS NULL` since the given ET day.
     /// Observability hook — surfaces stuck rows during dogfooding.
     #[allow(dead_code)] // wired by Phase 2+

@@ -173,6 +173,8 @@ mod tests {
             hold_minutes: Some(29),
             source_exec_ids: vec!["e1".into(), "e2".into()],
             tags: vec![LegTag::RoundTrip],
+            strategy: None,
+            setup_id: None,
         };
         let body = format_prompt(d(2026, 5, 4), &[leg], &summary);
 
@@ -217,6 +219,8 @@ mod tests {
             hold_minutes: None,
             source_exec_ids: vec!["e1".into()],
             tags: vec![LegTag::Carryover],
+            strategy: None,
+            setup_id: None,
         };
         let body = format_prompt(d(2026, 5, 4), &[leg], &summary);
         assert!(body.contains("leg_carry NVDA (carryover) net=$+0.00"));

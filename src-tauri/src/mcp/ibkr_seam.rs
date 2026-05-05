@@ -148,13 +148,17 @@ impl AccountReader for ProdAccountReader {
             return Ok(Vec::new());
         }
         if date < today_et {
-            let rows = self
+            // Past-day: serve from the store with linkage columns
+            // joined in (Phase 2). The plain `query` is kept for
+            // commission-patching and other writer-side reads where
+            // the linkage shape would be dead weight.
+            let enriched = self
                 .store
-                .query(account, date, None)
+                .query_with_linkage(account, date)
                 .await
                 .map_err(|e| IbkrError::Unknown(format!("executions store: {e}")))?;
-            if !rows.is_empty() {
-                return Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect());
+            if !enriched.is_empty() {
+                return Ok(enriched);
             }
             // Store has nothing for this day. Try a live drain — IBKR's
             // `specific_dates` filter retains the last ~7 trading days,
@@ -185,7 +189,10 @@ impl AccountReader for ProdAccountReader {
         // Today: drain live IBKR for **all** managed accounts (IBKR's
         // server-side filter is date-only), record the full batch into
         // the store, then query back filtered to this account so a
-        // subsequent past-day call sees the same rows.
+        // subsequent past-day call sees the same rows. Phase 2 swaps
+        // the read to `query_with_linkage` so freshly-attached
+        // setup/strategy/slippage data lands in the response without
+        // a second hop.
         match self.client.fetch_executions(date).await {
             Ok(live) if live.is_empty() => Ok(Vec::new()),
             Ok(live) => {
@@ -197,12 +204,12 @@ impl AccountReader for ProdAccountReader {
                         .map(ExecutionRow::from_ibkr)
                         .collect());
                 }
-                let rows = self
+                let enriched = self
                     .store
-                    .query(account, date, None)
+                    .query_with_linkage(account, date)
                     .await
                     .map_err(|e| IbkrError::Unknown(format!("executions store: {e}")))?;
-                Ok(rows.into_iter().map(ExecutionRow::from_ibkr).collect())
+                Ok(enriched)
             }
             Err(e) => Err(e),
         }

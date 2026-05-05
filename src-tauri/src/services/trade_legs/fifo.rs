@@ -21,6 +21,10 @@ struct OpenSlice {
     commission: f64, // proportional to qty_remaining/qty_original at time of pop
     opened_at: DateTime<Utc>,
     order_id: i32,
+    /// Phase 2 — strategy/setup_id of the opening fill, carried into
+    /// the round-trip leg the slice closes.
+    strategy: Option<String>,
+    setup_id: Option<i64>,
 }
 
 #[derive(Hash, Eq, PartialEq, Clone)]
@@ -82,6 +86,8 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
                     commission: f.commission.unwrap_or(0.0),
                     opened_at: f.time,
                     order_id: f.order_id,
+                    strategy: f.strategy.clone(),
+                    setup_id: f.setup_id,
                 });
             } else {
                 close_count_in_group += 1;
@@ -104,6 +110,8 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
                         commission: consumed_commission,
                         opened_at: front.opened_at,
                         order_id: front.order_id,
+                        strategy: front.strategy.clone(),
+                        setup_id: front.setup_id,
                     });
                     front.qty_remaining -= take;
                     front.commission -= consumed_commission;
@@ -112,6 +120,13 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
                         opens.push_front(front);
                     }
                 }
+                // Carry the strategy/setup_id of the first consumed
+                // opening slice. Multi-strategy round-trips (rare;
+                // requires manually-linked re-entries crossing
+                // detector classes) inherit the earliest one — same
+                // FIFO logic as the qty consumption.
+                let open_strategy = consumed.first().and_then(|o| o.strategy.clone());
+                let open_setup_id = consumed.first().and_then(|o| o.setup_id);
                 let mut leg = build_round_trip(
                     group[0],
                     f,
@@ -119,6 +134,8 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
                     close_price,
                     close_qty_original,
                     close_commission_total,
+                    open_strategy,
+                    open_setup_id,
                 );
                 leg.leg_id = next_leg_id(&mut leg_counter);
                 legs.push(leg);
@@ -126,7 +143,9 @@ pub fn match_legs(fills: &[ExecutionRow]) -> Vec<TradeLeg> {
         }
         // Carryover: any opens left.
         while let Some(o) = opens.pop_front() {
-            let mut leg = build_carryover(group[0], &o);
+            let strat = o.strategy.clone();
+            let sid = o.setup_id;
+            let mut leg = build_carryover(group[0], &o, strat, sid);
             leg.leg_id = next_leg_id(&mut leg_counter);
             legs.push(leg);
         }
@@ -191,6 +210,8 @@ fn emit_short_legs(group: &[&ExecutionRow], legs: &mut Vec<TradeLeg>, counter: &
             hold_minutes: None,
             source_exec_ids: vec![f.exec_id.clone()],
             tags: vec![LegTag::ComplexStrategy, LegTag::Carryover],
+            strategy: f.strategy.clone(),
+            setup_id: f.setup_id,
         };
         legs.push(leg);
     }
@@ -201,6 +222,7 @@ fn next_leg_id(counter: &mut usize) -> String {
     format!("leg_{:03}", counter)
 }
 
+#[allow(clippy::too_many_arguments)] // private helper; refactor to a builder if it grows
 fn build_round_trip(
     representative: &ExecutionRow,
     close: &ExecutionRow,
@@ -208,6 +230,8 @@ fn build_round_trip(
     close_price: f64,
     close_qty: f64,
     close_commission_total: f64,
+    open_strategy: Option<String>,
+    open_setup_id: Option<i64>,
 ) -> TradeLeg {
     let buy_qty: f64 = consumed.iter().map(|o| o.qty_remaining).sum();
     let buy_notional: f64 = consumed.iter().map(|o| o.qty_remaining * o.price).sum();
@@ -265,10 +289,17 @@ fn build_round_trip(
         hold_minutes: Some(hold_minutes),
         source_exec_ids: source,
         tags,
+        strategy: open_strategy,
+        setup_id: open_setup_id,
     }
 }
 
-fn build_carryover(representative: &ExecutionRow, o: &OpenSlice) -> TradeLeg {
+fn build_carryover(
+    representative: &ExecutionRow,
+    o: &OpenSlice,
+    open_strategy: Option<String>,
+    open_setup_id: Option<i64>,
+) -> TradeLeg {
     TradeLeg {
         leg_id: String::new(),
         account: representative.account.clone(),
@@ -290,6 +321,8 @@ fn build_carryover(representative: &ExecutionRow, o: &OpenSlice) -> TradeLeg {
         hold_minutes: None,
         source_exec_ids: vec![o.exec_id.clone()],
         tags: vec![LegTag::Carryover],
+        strategy: open_strategy,
+        setup_id: open_setup_id,
     }
 }
 

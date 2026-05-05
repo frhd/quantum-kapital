@@ -263,6 +263,9 @@ mod tests {
             commission,
             realized_pnl: None,
             commission_currency: Some("USD".into()),
+            setup_id: None,
+            strategy: None,
+            slippage_bps: None,
         }
     }
 

@@ -77,6 +77,8 @@ mod tests {
             hold_minutes: matches!(tag, LegTag::RoundTrip).then_some(60),
             source_exec_ids: vec![],
             tags: vec![tag],
+            strategy: None,
+            setup_id: None,
         }
     }
 

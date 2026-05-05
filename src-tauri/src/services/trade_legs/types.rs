@@ -41,6 +41,17 @@ pub struct TradeLeg {
     pub hold_minutes: Option<i64>,
     pub source_exec_ids: Vec<String>,
     pub tags: Vec<LegTag>,
+    /// Phase 2 linkage: detector class string carried from the
+    /// underlying executions' `strategy`. `None` when no fill in the
+    /// leg was attributed to a setup. A leg whose source fills span
+    /// multiple strategies is rare in practice; when it happens, the
+    /// FIFO matcher records the strategy of the **opening** fill.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<String>,
+    /// Phase 2 linkage: setup id of the opening fill. Same NULL
+    /// semantics as `strategy`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_id: Option<i64>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

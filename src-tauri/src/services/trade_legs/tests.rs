@@ -29,6 +29,9 @@ fn opt(exec_id: &str, side: ExecutionSide, qty: f64, price: f64, t_min: u32) -> 
         currency: Some("USD".to_string()),
         commission_currency: Some("USD".to_string()),
         order_id: 1,
+        setup_id: None,
+        strategy: None,
+        slippage_bps: None,
     }
 }
 
