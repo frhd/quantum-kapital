@@ -8,6 +8,7 @@ pub mod candidate_universe;
 pub mod daily_ranker;
 pub mod decay_watcher;
 pub mod eod_scheduler;
+pub mod executions;
 pub mod eval_harness;
 pub mod financial_data_service;
 pub mod fundamentals_provider;
