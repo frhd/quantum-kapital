@@ -7,6 +7,7 @@
 #![allow(dead_code)] // Phase 2: only `prompt` is wired so far.
 
 pub mod prompt;
+pub mod tool;
 
 /// Prompt-version sentinel for the Rust generator. Bump when:
 /// - the rubric weights in `tags::BehavioralTag::weight()` change,
