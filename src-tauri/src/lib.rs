@@ -472,6 +472,12 @@ pub fn run() {
                         as Arc<dyn crate::mcp::ibkr_seam::LiveAccountClient>,
                     Arc::clone(&executions_store),
                 ));
+            let trade_review_generator =
+                Arc::new(crate::services::trade_reviews::TradeReviewGenerator::new(
+                    Arc::clone(&llm_service),
+                    Arc::clone(&account_reader),
+                    Arc::clone(&db),
+                ));
             let mcp_ibkr_client: Arc<dyn crate::mcp::ibkr_seam::AccountReader> =
                 Arc::clone(&account_reader);
             let mcp_market_scanner: Arc<dyn MarketScanner> =
@@ -544,6 +550,7 @@ pub fn run() {
             // AccountReader as the MCP server so desktop UI and Claude
             // Code see byte-identical past-day executions.
             app.manage(account_reader);
+            app.manage(trade_review_generator);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -607,6 +614,7 @@ pub fn run() {
             ibkr::commands::candidates_refresh_now,
             ibkr::commands::candidates_scheduler_status,
             ibkr::commands::get_trade_review,
+            ibkr::commands::generate_trade_review,
             ibkr::commands::get_today_playbook,
             ibkr::commands::get_trader_profile,
             #[cfg(debug_assertions)]

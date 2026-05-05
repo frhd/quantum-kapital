@@ -17,7 +17,9 @@ use tauri::State;
 use crate::mcp::ibkr_seam::AccountReader;
 use crate::mcp::tools::resolve_account;
 use crate::services::playbooks::{Playbook, PlaybookStore};
-use crate::services::trade_reviews::{TradeReview, TradeReviewStore};
+use crate::services::trade_reviews::{
+    GenerateError, TradeReview, TradeReviewGenerator, TradeReviewStore,
+};
 use crate::services::trader_profile::{aggregate, TraderProfile};
 use crate::storage::Db;
 
@@ -127,6 +129,38 @@ pub async fn get_trader_profile(
         db.inner(),
         account.as_deref(),
         window_days,
+    )
+    .await
+}
+
+pub(crate) async fn fetch_generate_trade_review(
+    reader: &dyn AccountReader,
+    generator: &Arc<TradeReviewGenerator>,
+    account: Option<&str>,
+    date: &str,
+) -> Result<Option<TradeReview>, String> {
+    let parsed = NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map_err(|e| format!("invalid date '{date}', expected YYYY-MM-DD: {e}"))?;
+    let resolved = resolve_account(reader, account).await?;
+    match generator.generate(parsed, &resolved).await {
+        Ok(review) => Ok(Some(review)),
+        Err(GenerateError::NoFills { .. }) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn generate_trade_review(
+    reader: State<'_, Arc<dyn AccountReader>>,
+    generator: State<'_, Arc<TradeReviewGenerator>>,
+    date: String,
+    account: Option<String>,
+) -> Result<Option<TradeReview>, String> {
+    fetch_generate_trade_review(
+        reader.inner().as_ref(),
+        generator.inner(),
+        account.as_deref(),
+        &date,
     )
     .await
 }
@@ -320,5 +354,180 @@ mod tests {
             .await
             .expect_err("multi-account without arg");
         assert!(err.contains("U1") && err.contains("U2"), "got: {err}");
+    }
+
+    // ---------------- generate_trade_review ----------------
+
+    use crate::ibkr::types::{ExecutionSide, IbkrExecution};
+    use crate::services::llm_service::{AnthropicHttp, AnthropicHttpError, LlmClock, LlmService};
+    use crate::services::trade_reviews::{TradeReviewGenerator, PROMPT_VERSION_RUST};
+    use async_trait::async_trait;
+    use chrono::TimeZone;
+    use serde_json::{json, Value};
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct EnqueuingHttp {
+        canned: Mutex<VecDeque<Result<Value, AnthropicHttpError>>>,
+    }
+    impl EnqueuingHttp {
+        fn enqueue_ok(&self, v: Value) {
+            self.canned.lock().unwrap().push_back(Ok(v));
+        }
+    }
+    #[async_trait]
+    impl AnthropicHttp for EnqueuingHttp {
+        async fn send_messages(
+            &self,
+            _api_key: &str,
+            _anthropic_version: &str,
+            _body: &Value,
+        ) -> Result<Value, AnthropicHttpError> {
+            self.canned
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("queue exhausted")
+        }
+    }
+
+    struct FixedClock(i64);
+    impl LlmClock for FixedClock {
+        fn now_unix(&self) -> i64 {
+            self.0
+        }
+    }
+
+    fn ibkr_fill(
+        id: &str,
+        side: ExecutionSide,
+        qty: f64,
+        price: f64,
+        time_h_utc: u32,
+        order_id: i32,
+    ) -> IbkrExecution {
+        IbkrExecution {
+            exec_id: id.into(),
+            account: "U1".into(),
+            symbol: "AAPL".into(),
+            contract_type: "STK".into(),
+            expiry: None,
+            strike: None,
+            right: None,
+            multiplier: None,
+            side,
+            qty,
+            avg_price: price,
+            currency: Some("USD".into()),
+            // 14:00–15:00 UTC ≈ 10:00–11:00 ET on 2026-05-04 (DST → -4).
+            exec_time: chrono::Utc
+                .with_ymd_and_hms(2026, 5, 4, time_h_utc, 0, 0)
+                .unwrap(),
+            order_id,
+            commission: Some(0.5),
+            realized_pnl: None,
+            commission_currency: Some("USD".into()),
+        }
+    }
+
+    async fn reader_with_fills(
+        account: &str,
+        fills: Vec<IbkrExecution>,
+    ) -> (Arc<MockIbkrClient>, Arc<dyn AccountReader>) {
+        let mock = Arc::new(MockIbkrClient::new());
+        mock.set_accounts(vec![account.into()]).await;
+        mock.set_connected(true).await;
+        mock.set_executions(fills).await;
+        let reader: Arc<dyn AccountReader> = Arc::clone(&mock) as Arc<dyn AccountReader>;
+        (mock, reader)
+    }
+
+    #[tokio::test]
+    async fn fetch_generate_trade_review_writes_row_and_returns_review() {
+        let (_tmp, db) = make_db();
+        let fills = vec![
+            ibkr_fill("e1", ExecutionSide::Bought, 100.0, 200.0, 14, 1),
+            ibkr_fill("e2", ExecutionSide::Sold, 100.0, 202.0, 15, 2),
+        ];
+        let (_mock, reader) = reader_with_fills("U1", fills).await;
+
+        let http = Arc::new(EnqueuingHttp::default());
+        http.enqueue_ok(json!({
+            "id": "msg_01",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 100, "output_tokens": 50},
+            "content": [{
+                "type": "tool_use",
+                "id": "toolu_01",
+                "name": "submit_trade_review",
+                "input": {"behavioral_tags": ["flat_close"], "narrative_md": "Decent."}
+            }]
+        }));
+
+        let llm = Arc::new(
+            LlmService::new("k".into(), Arc::clone(&db), 5.0)
+                .with_http(http as Arc<dyn AnthropicHttp>)
+                .with_clock(Arc::new(FixedClock(1_700_000_000))),
+        );
+        let generator = Arc::new(TradeReviewGenerator::new(
+            llm,
+            Arc::clone(&reader),
+            Arc::clone(&db),
+        ));
+
+        let res = fetch_generate_trade_review(reader.as_ref(), &generator, None, "2026-05-04")
+            .await
+            .expect("ok");
+        let review = res.expect("Some(review)");
+        assert_eq!(review.account, "U1");
+        assert_eq!(review.prompt_version, PROMPT_VERSION_RUST);
+        assert!(review.narrative_md.starts_with("Decent"));
+    }
+
+    #[tokio::test]
+    async fn fetch_generate_trade_review_no_fills_returns_none() {
+        let (_tmp, db) = make_db();
+        let (_mock, reader) = reader_with_fills("U1", vec![]).await;
+        let http = Arc::new(EnqueuingHttp::default()); // must not be called
+        let llm = Arc::new(
+            LlmService::new("k".into(), Arc::clone(&db), 5.0)
+                .with_http(http as Arc<dyn AnthropicHttp>)
+                .with_clock(Arc::new(FixedClock(1_700_000_000))),
+        );
+        let generator = Arc::new(TradeReviewGenerator::new(
+            llm,
+            Arc::clone(&reader),
+            Arc::clone(&db),
+        ));
+
+        let res = fetch_generate_trade_review(reader.as_ref(), &generator, None, "2026-05-04")
+            .await
+            .expect("ok");
+        assert!(res.is_none());
+    }
+
+    #[tokio::test]
+    async fn fetch_generate_trade_review_invalid_date_errors() {
+        let (_tmp, db) = make_db();
+        let (_mock, reader) = reader_with_fills("U1", vec![]).await;
+        let http = Arc::new(EnqueuingHttp::default());
+        let llm = Arc::new(
+            LlmService::new("k".into(), Arc::clone(&db), 5.0)
+                .with_http(http as Arc<dyn AnthropicHttp>)
+                .with_clock(Arc::new(FixedClock(1_700_000_000))),
+        );
+        let generator = Arc::new(TradeReviewGenerator::new(
+            llm,
+            Arc::clone(&reader),
+            Arc::clone(&db),
+        ));
+        let err = fetch_generate_trade_review(reader.as_ref(), &generator, None, "garbage")
+            .await
+            .expect_err("invalid date");
+        assert!(err.contains("YYYY-MM-DD"), "got: {err}");
     }
 }
