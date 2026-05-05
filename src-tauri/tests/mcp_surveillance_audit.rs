@@ -116,11 +116,12 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // get_prediction_history, get_cost_attribution) + AV strip-out
     // Phase 4 (1 write: set_fundamentals — operator-curated reference
     // data, never market actions) + Trade-history Phase 2 (2 reads:
-    // get_executions, get_trade_legs) = 29.
+    // get_executions, get_trade_legs) + Behavioral-assessment Phase 3
+    // (1 read: get_watchlist_briefing) = 30.
     assert_eq!(
         names.len(),
-        29,
-        "expected 29 registered MCP tools, got {}: {:?}",
+        30,
+        "expected 30 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
