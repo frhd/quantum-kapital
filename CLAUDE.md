@@ -17,6 +17,16 @@ Stack-specific rules:
 
 The `tauri` script is wrapped by `scripts/tauri.sh`: `pnpm tauri dev` sets `RUST_LOG=info,quantum_kapital_lib=debug,rmcp=info,ibapi=info` and tees combined stdout/stderr to `/tmp/qk-tauri.log` (truncated each session). Tail/grep that file when debugging — Claude Code reads it on demand. Other subcommands (`build`, `info`, `icon`) pass through untouched. Override the log path with `QK_TAURI_LOG=...`, the filter with `RUST_LOG=...`, or set `QK_TAURI_LOG_APPEND=1` to keep history across sessions.
 
+For UI design/debug without the Tauri shell, `pnpm dev:browser` boots Vite with `window.__TAURI_INTERNALS__` shimmed via `mockIPC` against fixtures in `src/test/browser-mocks/`. Used over the project-scoped Playwright MCP server. Details in `src/CLAUDE.md`.
+
+## Common commands
+
+Tests, lint, typecheck, and format commands live in the stack-specific files:
+
+- Backend (cargo test/fmt/clippy, single-test invocation): `src-tauri/CLAUDE.md`
+- Frontend (pnpm test/typecheck/lint/format): `src/CLAUDE.md`
+- Python agents (uv run, headless sweeps): `agent/README.md`
+
 ## Secrets
 
 Backend reads `src-tauri/.env`. The frontend never sees these — all external API calls go through Rust services.
@@ -32,7 +42,7 @@ Backend reads `src-tauri/.env`. The frontend never sees these — all external A
 
 The tracker pipeline (detectors → state machine → alerts) MUST NOT call order-placement code paths. Order commands exist in the IBKR adapter for manual UI use only. Wiring them into the tracker requires explicit project-level approval.
 
-The same rule binds the MCP server (`src-tauri/src/mcp/` + `bin/mcp-server.rs`): the external tool surface is **read-only plus an `ack_alert` rail** — no order tools, ever. Acks are audited through `services/mcp_audit/`.
+The same rule binds the MCP server (`src-tauri/src/mcp/` + `bin/mcp-server.rs`): the external tool surface is **read-only plus an `ack_alert` rail** — no order tools, ever. Acks are audited through `services/mcp_audit/`. Mechanism: `bin/mcp-server.rs` is a stdio↔unix-socket bridge spawned by external MCP clients; the in-process server lives in `src-tauri/src/mcp/` and is what the `agent/` subtree talks to. Tool registry, transport, and `ibkr_seam` details in `src-tauri/CLAUDE.md`.
 
 ## Test discipline
 
