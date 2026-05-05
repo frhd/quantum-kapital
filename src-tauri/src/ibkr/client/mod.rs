@@ -333,7 +333,7 @@ impl IbkrClient {
 
         match accounts {
             Ok(accounts) => {
-                tracing::info!("Retrieved accounts: {:?}", accounts);
+                tracing::debug!("Retrieved accounts: {:?}", accounts);
                 Ok(accounts)
             }
             Err(e) => Err(IbkrError::from(e)),
@@ -404,7 +404,7 @@ impl IbkrClient {
                     for update in stream {
                         match update {
                             ibapi::accounts::AccountUpdate::PortfolioValue(portfolio) => {
-                                tracing::info!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}",
+                                tracing::debug!("Portfolio position: symbol={}, position={}, market_price={}, market_value={}, unrealized_pnl={}",
                                     portfolio.contract.symbol, portfolio.position, portfolio.market_price,
                                     portfolio.market_value, portfolio.unrealized_pnl);
                                 let contract_type =
@@ -452,7 +452,7 @@ impl IbkrClient {
                                 });
                             }
                             ibapi::accounts::AccountUpdate::End => {
-                                tracing::info!("All portfolio positions received");
+                                tracing::debug!("All portfolio positions received");
                                 break;
                             }
                             _ => {} // Ignore other update types

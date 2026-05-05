@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::America::New_York;
 use ibapi::orders::{CommissionReport, ExecutionData, Executions as IBExecutions};
-use tracing::{debug, warn};
+use tracing::{trace, warn};
 
 use crate::ibkr::types::{ExecutionSide, IbkrExecution};
 
@@ -155,7 +155,7 @@ fn build_row(
 
     let (commission_amount, realized_pnl, commission_currency) = match commission {
         Some(report) => {
-            debug!(
+            trace!(
                 execution_id = %report.execution_id,
                 commission = report.commission,
                 "merging commission report into fill"
