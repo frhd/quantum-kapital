@@ -29,6 +29,10 @@ export interface GetTraderProfileOpts {
   account?: string | null
 }
 
+export interface GenerateTradeReviewOpts {
+  account?: string | null
+}
+
 export const assessmentsApi = {
   /** Returns the structured trade review for `date` (ET, `YYYY-MM-DD`),
    *  or `null` if no row was written. Defaults to the latest
@@ -41,6 +45,25 @@ export const assessmentsApi = {
       date,
       account: opts.account ?? null,
       promptVersion: opts.promptVersion ?? null,
+    })
+  },
+
+  /** Generate a fresh trade review for `date` (ET, `YYYY-MM-DD`) by
+   *  pulling the day's fills, FIFO-matching, asking the LLM to pick
+   *  behavioral tags + write a narrative, and persisting via the
+   *  TradeReviewStore. Idempotent — re-running for the same date
+   *  overwrites the existing row.
+   *
+   *  Returns the populated review, or `null` if no fills exist for
+   *  the day (the backend treats "no fills" as a non-error empty
+   *  result so the UI can render a distinct state). */
+  generateTradeReview: async (
+    date: string,
+    opts: GenerateTradeReviewOpts = {},
+  ): Promise<TradeReview | null> => {
+    return invoke<TradeReview | null>("generate_trade_review", {
+      date,
+      account: opts.account ?? null,
     })
   },
 
