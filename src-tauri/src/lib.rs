@@ -449,7 +449,12 @@ pub fn run() {
                 Arc::clone(&executions_store),
                 executions_ingestor_fetcher,
             ));
-            let _executions_ingestor_handle = Arc::clone(&executions_ingestor).spawn();
+            {
+                let ingestor = Arc::clone(&executions_ingestor);
+                tauri::async_runtime::spawn(async move {
+                    let _handle = ingestor.spawn();
+                });
+            }
             // Detached: the StreamHandle stops cleanly when the tokio
             // runtime tears down. A future refactor can store it on
             // `IbkrState` if explicit start/stop is needed.
