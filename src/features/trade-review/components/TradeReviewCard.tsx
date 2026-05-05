@@ -117,9 +117,7 @@ export function TradeReviewCard({ date: dateProp, account }: TradeReviewCardProp
                 account: account ?? null,
               })
               if (generated === null) {
-                throw new Error(
-                  `No fills found for ${date} on this account — nothing to review.`,
-                )
+                throw new Error(`No fills found for ${date} on this account — nothing to review.`)
               }
               await refresh()
             }}

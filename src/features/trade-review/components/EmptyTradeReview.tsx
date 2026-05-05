@@ -29,8 +29,8 @@ export function EmptyTradeReview({ date, onGenerate }: EmptyTradeReviewProps) {
       <CardContent className="text-muted-foreground space-y-3 py-12 text-center text-sm">
         <p>No trade review for {date} yet.</p>
         <p className="text-muted-foreground/70 text-xs">
-          Reviews aren't written automatically — generate one now to pull the day's fills, FIFO-match
-          them, and burn an LLM call for the narrative.
+          Reviews aren't written automatically — generate one now to pull the day's fills,
+          FIFO-match them, and burn an LLM call for the narrative.
         </p>
         <div className="flex justify-center">
           <Button size="sm" onClick={() => void handleClick()} disabled={generating}>
