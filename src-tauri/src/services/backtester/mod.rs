@@ -24,12 +24,20 @@ pub mod walk_forward;
 #[cfg(test)]
 mod tests;
 
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 
 use chrono::Utc;
 use rusqlite::params;
 use thiserror::Error;
 use tracing::{info, warn};
+
+static RUN_COUNTER: AtomicU16 = AtomicU16::new(0);
+
+fn next_run_counter() -> u16 {
+    // Wraps after 65k runs in the same process — fine for a backtester.
+    RUN_COUNTER.fetch_add(1, Ordering::Relaxed)
+}
 
 use crate::services::event_calendar::EventCalendarService;
 use crate::services::tca::AttributionService;
@@ -118,8 +126,17 @@ impl Backtester {
     pub async fn run(&self, spec: BacktestSpec) -> Result<BacktestResult> {
         spec.validate()?;
         let spec_hash = spec.spec_hash();
-        let run_id = format!("bt_{}_{}", Utc::now().timestamp_millis(), &spec_hash[..8]);
         let started_at = Utc::now();
+        // run_id includes ms timestamp + a process-local counter so
+        // two reruns inside the same millisecond don't collide on
+        // the `backtest_runs` PK.
+        let counter = next_run_counter();
+        let run_id = format!(
+            "bt_{}_{:04x}_{}",
+            started_at.timestamp_millis(),
+            counter,
+            &spec_hash[..8]
+        );
 
         // Open the run row up front so a crash mid-run leaves an
         // explicit `running` / `errored` trace, not a silent gap.

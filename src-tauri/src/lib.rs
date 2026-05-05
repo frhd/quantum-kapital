@@ -8,12 +8,23 @@ mod storage;
 mod strategies;
 mod utils;
 
-// Targeted re-exports for the `flex_backfill` binary in `bin/flex_backfill.rs`.
-// Keeps `ibkr` / `services` / `storage` private to the lib while letting the
-// one-shot importer share the live ingestor's types and store.
-pub use ibkr::types::{ExecutionSide, IbkrExecution};
+// Targeted re-exports for the `flex_backfill` and `qk-backtest`
+// binaries in `bin/`. Keeps `ibkr` / `services` / `storage` private
+// to the lib while letting the one-shot binaries share the live
+// ingestor's types and store.
+pub use ibkr::types::{ExecutionSide, IbkrExecution, StrategyTag};
+pub use services::backtester::{
+    BacktestResult, BacktestSpec, Backtester, DbBarsReader, FillModelKind, PositionSizingMode,
+    WalkForwardSplits,
+};
+pub use services::event_calendar::{
+    CompositeEarningsCalendar, EarningsCacheStore, EarningsCalendar, EarningsOverridesStore,
+    EventCalendarService, FomcCalendar, NoOpUpstream,
+};
 pub use services::executions::ExecutionsStore;
+pub use services::tca::AttributionService;
 pub use storage::Db;
+pub use strategies::{registry_from_config, DetectorsConfig};
 
 use std::sync::Arc;
 
@@ -26,10 +37,6 @@ use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketSca
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
-use services::event_calendar::{
-    CompositeEarningsCalendar, EarningsCacheStore, EarningsCalendar, EarningsOverridesStore,
-    EventCalendarService, FomcCalendar, NoOpUpstream,
-};
 use services::executions::{ExecutionsIngestor, LiveExecutionsFetcher};
 use services::financial_data_service::FinancialDataService;
 use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
@@ -59,7 +66,6 @@ use services::tca::TcaService;
 use services::thesis_generator::ThesisGenerator;
 use services::ticker_primer::TickerPrimerService;
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
-use strategies::registry_from_config;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -610,6 +616,25 @@ pub fn run() {
                 bracket_account_resolver,
             ));
 
+            // Quant-decisions Phase 6 — backtester. Read-only over the
+            // shared bars_cache; reuses the live `DetectorRegistry` so
+            // backtest and production share the same code path. The
+            // event-calendar handle wires the P5 blackout gate; the
+            // TCA service feeds the calibrated fill model. Constructed
+            // before `app.manage(db)` so `db` can still be moved.
+            let backtester = Arc::new(
+                Backtester::new(
+                    Arc::clone(&db),
+                    Arc::new(DbBarsReader::new(Arc::clone(&db))),
+                    Arc::new(registry_from_config(&config.detectors)),
+                    Arc::new(config.detectors.clone()),
+                )
+                .with_event_calendar(Arc::clone(&event_calendar))
+                .with_tca_attribution(Arc::new(
+                    services::tca::AttributionService::new(Arc::clone(&db)),
+                )),
+            );
+
             app.manage(settings_state);
             app.manage(ibkr_state);
             app.manage(db);
@@ -648,6 +673,7 @@ pub fn run() {
             app.manage(event_calendar);
             app.manage(earnings_overrides);
             app.manage(earnings_cache);
+            app.manage(backtester);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -728,6 +754,10 @@ pub fn run() {
             ibkr::commands::order_ticket_take_setup,
             ibkr::commands::order_ticket_status,
             ibkr::commands::order_ticket_cancel_bracket,
+            ibkr::commands::backtest_run,
+            ibkr::commands::backtest_get_run,
+            ibkr::commands::backtest_list_runs,
+            ibkr::commands::backtest_compare,
             ibkr::commands::event_calendar_lookup,
             ibkr::commands::event_calendar_force_refresh,
             ibkr::commands::setup_override_blackout,

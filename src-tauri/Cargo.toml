@@ -84,3 +84,7 @@ required-features = ["ibkr-spike"]
 [[bin]]
 name = "flex_backfill"
 path = "src/bin/flex_backfill.rs"
+
+[[bin]]
+name = "qk-backtest"
+path = "src/bin/qk-backtest.rs"
