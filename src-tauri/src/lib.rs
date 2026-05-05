@@ -26,6 +26,10 @@ use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketSca
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
+use services::event_calendar::{
+    CompositeEarningsCalendar, EarningsCacheStore, EarningsCalendar, EarningsOverridesStore,
+    EventCalendarService, FomcCalendar, NoOpUpstream,
+};
 use services::executions::{ExecutionsIngestor, LiveExecutionsFetcher};
 use services::financial_data_service::FinancialDataService;
 use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
@@ -54,10 +58,6 @@ use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::tca::TcaService;
 use services::thesis_generator::ThesisGenerator;
 use services::ticker_primer::TickerPrimerService;
-use services::event_calendar::{
-    CompositeEarningsCalendar, EarningsCacheStore, EarningsCalendar, EarningsOverridesStore,
-    EventCalendarService, FomcCalendar, NoOpUpstream,
-};
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
 use strategies::registry_from_config;
 use tauri::Manager;
@@ -303,8 +303,7 @@ pub fn run() {
             // (NoOp stub in P5 — AV wiring deferred per the
             // QUESTIONS.md audit). FOMC calendar is loaded from the
             // embedded `data/fomc_dates.json`.
-            let earnings_overrides =
-                Arc::new(EarningsOverridesStore::new(Arc::clone(&db)));
+            let earnings_overrides = Arc::new(EarningsOverridesStore::new(Arc::clone(&db)));
             let earnings_cache = Arc::new(EarningsCacheStore::new(Arc::clone(&db)));
             let upstream_earnings: Arc<dyn services::event_calendar::UpstreamEarningsFetcher> =
                 Arc::new(NoOpUpstream);

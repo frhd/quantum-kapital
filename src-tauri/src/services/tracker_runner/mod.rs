@@ -593,9 +593,7 @@ impl TrackerRunner {
             return Ok(None);
         }
         let reason = match blackout.kind {
-            crate::services::event_calendar::BlackoutKind::Earnings => {
-                SkipReason::EarningsBlackout
-            }
+            crate::services::event_calendar::BlackoutKind::Earnings => SkipReason::EarningsBlackout,
             crate::services::event_calendar::BlackoutKind::Fomc => SkipReason::FomcBlackout,
         };
         let window_json = serde_json::to_value(blackout)

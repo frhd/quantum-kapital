@@ -62,11 +62,7 @@ pub trait EarningsCalendar: Send + Sync {
 /// later behind the same trait.
 #[async_trait]
 pub trait UpstreamEarningsFetcher: Send + Sync {
-    async fn fetch(
-        &self,
-        symbol: &str,
-        now: DateTime<Utc>,
-    ) -> Result<Option<EarningsEntry>>;
+    async fn fetch(&self, symbol: &str, now: DateTime<Utc>) -> Result<Option<EarningsEntry>>;
 }
 
 /// Default upstream stub. Returns `Ok(None)` for every symbol so the
@@ -76,11 +72,7 @@ pub struct NoOpUpstream;
 
 #[async_trait]
 impl UpstreamEarningsFetcher for NoOpUpstream {
-    async fn fetch(
-        &self,
-        _symbol: &str,
-        _now: DateTime<Utc>,
-    ) -> Result<Option<EarningsEntry>> {
+    async fn fetch(&self, _symbol: &str, _now: DateTime<Utc>) -> Result<Option<EarningsEntry>> {
         Ok(None)
     }
 }
@@ -200,11 +192,7 @@ mod tests {
 
     #[async_trait]
     impl UpstreamEarningsFetcher for FixedUpstream {
-        async fn fetch(
-            &self,
-            symbol: &str,
-            _now: DateTime<Utc>,
-        ) -> Result<Option<EarningsEntry>> {
+        async fn fetch(&self, symbol: &str, _now: DateTime<Utc>) -> Result<Option<EarningsEntry>> {
             let value = self.entry.lock().unwrap().clone();
             if let Some(entry) = &value {
                 if entry.symbol == symbol {
@@ -322,7 +310,10 @@ mod tests {
 
         let _ = composite.next_earnings_date("NVDA", now()).await.unwrap();
         let row = cache.get("NVDA").await.unwrap().expect("cache populated");
-        assert_eq!(row.next_earnings_date, NaiveDate::from_ymd_opt(2026, 8, 28).unwrap());
+        assert_eq!(
+            row.next_earnings_date,
+            NaiveDate::from_ymd_opt(2026, 8, 28).unwrap()
+        );
     }
 
     #[tokio::test]

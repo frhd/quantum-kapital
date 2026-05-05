@@ -287,13 +287,11 @@ impl EarningsCacheStore {
 }
 
 fn parse_date(s: &str) -> Result<NaiveDate, StorageError> {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|e| {
-        StorageError::Migration(format!("event_calendar: bad date '{s}': {e}"))
-    })
+    NaiveDate::parse_from_str(s, "%Y-%m-%d")
+        .map_err(|e| StorageError::Migration(format!("event_calendar: bad date '{s}': {e}")))
 }
 
 fn parse_confidence(s: &str) -> Result<BlackoutConfidence, StorageError> {
-    BlackoutConfidence::parse(s).ok_or_else(|| {
-        StorageError::Migration(format!("event_calendar: bad confidence '{s}'"))
-    })
+    BlackoutConfidence::parse(s)
+        .ok_or_else(|| StorageError::Migration(format!("event_calendar: bad confidence '{s}'")))
 }

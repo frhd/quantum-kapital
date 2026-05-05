@@ -1,3 +1,13 @@
+// Phase 5 introduces a wide public surface (overrides upsert / clear,
+// cache upsert / clear_all, composite force_refresh, accessor helpers
+// on the service) that production code will only fully consume once
+// the AV upstream wiring lands and the MCP rail exposes the manual-
+// override tools. Until then the API surface stays in place so the
+// trait seams + tests are exercised; the dead-code allow-list keeps
+// pre-commit's `-D warnings` happy without sprinkling per-method
+// allow attributes through the file.
+#![allow(dead_code, unused_imports)]
+
 //! Phase 5 — `EventCalendarService`: the deterministic event-blackout
 //! gate. The runner consults this between detector hit and persistence
 //! so detectors don't fire setups inside earnings or FOMC windows
@@ -31,8 +41,8 @@ pub mod types;
 mod tests;
 
 pub use earnings::{
-    CompositeEarningsCalendar, EarningsCalendar, EarningsEntry, EarningsError,
-    NoOpUpstream, UpstreamEarningsFetcher,
+    CompositeEarningsCalendar, EarningsCalendar, EarningsEntry, EarningsError, NoOpUpstream,
+    UpstreamEarningsFetcher,
 };
 pub use earnings_store::{EarningsCacheStore, EarningsOverridesStore, EarningsRow, OverrideRow};
 pub use fomc::{FomcCalendar, FomcError};
@@ -162,11 +172,7 @@ impl EventCalendarService {
         Ok(None)
     }
 
-    pub async fn lookup(
-        &self,
-        symbol: &str,
-        at: DateTime<Utc>,
-    ) -> Result<EventCalendarLookup> {
+    pub async fn lookup(&self, symbol: &str, at: DateTime<Utc>) -> Result<EventCalendarLookup> {
         let earnings = self.earnings.next_earnings_date(symbol, at).await?;
         let next_earnings = earnings.map(|e| {
             let today = et_date(at);

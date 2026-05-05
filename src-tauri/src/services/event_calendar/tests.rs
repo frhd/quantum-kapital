@@ -56,8 +56,8 @@ fn permissive_policy() -> BlackoutPolicy {
 }
 
 fn at_et_noon(d: NaiveDate) -> chrono::DateTime<Utc> {
-    use chrono::{NaiveTime, TimeZone};
     use crate::utils::market_calendar::et_offset;
+    use chrono::{NaiveTime, TimeZone};
     let naive = d.and_time(NaiveTime::from_hms_opt(12, 0, 0).unwrap());
     et_offset()
         .from_local_datetime(&naive)
@@ -73,13 +73,7 @@ async fn earnings_4_bd_before_pivot_is_inside_5_bd_window() {
 
     let pivot = NaiveDate::from_ymd_opt(2026, 5, 14).unwrap(); // Thursday
     overrides
-        .upsert(
-            "AAPL",
-            pivot,
-            BlackoutConfidence::Confirmed,
-            "test",
-            None,
-        )
+        .upsert("AAPL", pivot, BlackoutConfidence::Confirmed, "test", None)
         .await
         .unwrap();
 
@@ -87,9 +81,11 @@ async fn earnings_4_bd_before_pivot_is_inside_5_bd_window() {
     // start is 2026-05-07 (5 BD before). 2026-05-08 should be inside.
     let at = at_et_noon(NaiveDate::from_ymd_opt(2026, 5, 8).unwrap());
     let policy = permissive_policy();
-    let blackout = svc.is_blackout("AAPL", at, &policy).await.unwrap().expect(
-        "must be inside earnings window 4 BD before pivot",
-    );
+    let blackout = svc
+        .is_blackout("AAPL", at, &policy)
+        .await
+        .unwrap()
+        .expect("must be inside earnings window 4 BD before pivot");
     assert_eq!(blackout.kind, BlackoutKind::Earnings);
     assert_eq!(blackout.pivot_date, pivot);
     assert_eq!(blackout.source, "manual");
@@ -102,13 +98,7 @@ async fn earnings_6_bd_before_pivot_is_outside_window() {
 
     let pivot = NaiveDate::from_ymd_opt(2026, 5, 14).unwrap();
     overrides
-        .upsert(
-            "AAPL",
-            pivot,
-            BlackoutConfidence::Confirmed,
-            "test",
-            None,
-        )
+        .upsert("AAPL", pivot, BlackoutConfidence::Confirmed, "test", None)
         .await
         .unwrap();
 
@@ -116,7 +106,11 @@ async fn earnings_6_bd_before_pivot_is_outside_window() {
     // before 2026-05-14 (skipping no holidays).
     let at = at_et_noon(NaiveDate::from_ymd_opt(2026, 5, 6).unwrap());
     let policy = permissive_policy();
-    assert!(svc.is_blackout("AAPL", at, &policy).await.unwrap().is_none());
+    assert!(svc
+        .is_blackout("AAPL", at, &policy)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
@@ -140,7 +134,10 @@ async fn earnings_window_respects_holidays() {
     let policy = permissive_policy();
     let at_in = at_et_noon(NaiveDate::from_ymd_opt(2026, 5, 21).unwrap());
     assert!(
-        svc.is_blackout("AAPL", at_in, &policy).await.unwrap().is_some(),
+        svc.is_blackout("AAPL", at_in, &policy)
+            .await
+            .unwrap()
+            .is_some(),
         "2026-05-21 is the 5-BD-before-pivot window-start (Memorial Day skipped)"
     );
     // One BD earlier (2026-05-20 Wed) is outside the window.
@@ -169,31 +166,39 @@ async fn earnings_post_window_includes_t_plus_1_bd() {
     // window includes 2026-05-15 in full.
     let at = at_et_noon(NaiveDate::from_ymd_opt(2026, 5, 15).unwrap());
     let policy = permissive_policy();
-    assert!(svc.is_blackout("AAPL", at, &policy).await.unwrap().is_some());
+    assert!(svc
+        .is_blackout("AAPL", at, &policy)
+        .await
+        .unwrap()
+        .is_some());
 
     // 2 BD after pivot is Monday 2026-05-18. With bd_post = 1 we are
     // outside the window.
     let at = at_et_noon(NaiveDate::from_ymd_opt(2026, 5, 18).unwrap());
-    assert!(svc.is_blackout("AAPL", at, &policy).await.unwrap().is_none());
+    assert!(svc
+        .is_blackout("AAPL", at, &policy)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
 async fn fomc_window_returns_blackout_at_14_30_et() {
     let (_tmp, db) = open_db();
-    let (svc, _o, _c) = build_service(
-        db,
-        vec![NaiveDate::from_ymd_opt(2026, 5, 6).unwrap()],
-    );
+    let (svc, _o, _c) = build_service(db, vec![NaiveDate::from_ymd_opt(2026, 5, 6).unwrap()]);
 
     let at = at_et_noon(NaiveDate::from_ymd_opt(2026, 5, 6).unwrap()); // 12:00 ET — outside FOMC
     let policy = permissive_policy();
     assert!(
-        svc.is_blackout("AAPL", at, &policy).await.unwrap().is_none(),
+        svc.is_blackout("AAPL", at, &policy)
+            .await
+            .unwrap()
+            .is_none(),
         "noon ET on FOMC day is outside the 14:00-16:00 ET window"
     );
 
-    use chrono::{NaiveTime, TimeZone};
     use crate::utils::market_calendar::et_offset;
+    use chrono::{NaiveTime, TimeZone};
     let naive = NaiveDate::from_ymd_opt(2026, 5, 6)
         .unwrap()
         .and_time(NaiveTime::from_hms_opt(14, 30, 0).unwrap());
@@ -251,7 +256,10 @@ async fn disabled_earnings_policy_short_circuits() {
     };
     let at = Utc.with_ymd_and_hms(2026, 5, 6, 14, 0, 0).unwrap();
     assert!(
-        svc.is_blackout("ZZZZ", at, &policy).await.unwrap().is_none(),
+        svc.is_blackout("ZZZZ", at, &policy)
+            .await
+            .unwrap()
+            .is_none(),
         "earnings disabled → no earnings blackout, even with skip_if_unknown"
     );
 }
@@ -259,10 +267,7 @@ async fn disabled_earnings_policy_short_circuits() {
 #[tokio::test]
 async fn fomc_disabled_policy_skips_market_wide_blackout() {
     let (_tmp, db) = open_db();
-    let (svc, _o, _c) = build_service(
-        db,
-        vec![NaiveDate::from_ymd_opt(2026, 5, 6).unwrap()],
-    );
+    let (svc, _o, _c) = build_service(db, vec![NaiveDate::from_ymd_opt(2026, 5, 6).unwrap()]);
 
     let policy = BlackoutPolicy {
         earnings: EarningsPolicy {
@@ -273,8 +278,8 @@ async fn fomc_disabled_policy_skips_market_wide_blackout() {
         fomc: super::types::FomcPolicy { enabled: false },
     };
 
-    use chrono::{NaiveTime, TimeZone};
     use crate::utils::market_calendar::et_offset;
+    use chrono::{NaiveTime, TimeZone};
     let naive = NaiveDate::from_ymd_opt(2026, 5, 6)
         .unwrap()
         .and_time(NaiveTime::from_hms_opt(14, 30, 0).unwrap());
@@ -283,7 +288,11 @@ async fn fomc_disabled_policy_skips_market_wide_blackout() {
         .single()
         .unwrap()
         .with_timezone(&Utc);
-    assert!(svc.is_blackout("AAPL", at, &policy).await.unwrap().is_none());
+    assert!(svc
+        .is_blackout("AAPL", at, &policy)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]

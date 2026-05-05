@@ -175,9 +175,84 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   `formula_version: "v1" | "v2"` and decide which scoring fields to
   display from the re-fetched review.
 
-## Phase 5 (TBD)
+## Phase 5 (2026-05-06)
 
-- *Reserved for AV fundamentals retirement audit result.* P5 inspects whether AV fundamentals (revenue/EPS/sector) are load-bearing for any consumer beyond earnings-date lookup. If not, AV fundamentals fallback retires in this phase's diff.
+- *AV fundamentals retirement audit — outcome: KEEP.* Phase 5 inspected
+  whether AV fundamentals (revenue/EPS/sector) are load-bearing for any
+  consumer beyond earnings-date lookup. Findings:
+    - `services::projection_service` reads `historical` (revenue, net
+      income, EPS) and `analyst_estimates` from `FundamentalData` to
+      build the bear/base/bull scenarios that drive `analysis.rs`'s
+      projection-results bundle. UI consumes via
+      `ibkr_generate_projection_results`. Load-bearing.
+    - `ibkr::commands::analysis::overlay_live_price` writes the IBKR
+      live quote into `current_metrics.price` before projection — the
+      rest of `current_metrics` (pe_ratio, shares_outstanding) is
+      sourced from AV's OVERVIEW. Projection math depends on
+      `shares_outstanding`. Load-bearing.
+    - The MCP `get_fundamentals` tool exposes the full `FundamentalData`
+      shape to external clients. Load-bearing.
+  AV is **retained** for the OVERVIEW + INCOME_STATEMENT + EARNINGS
+  endpoints (the existing rate-limited path through
+  `FinancialDataService`). Manual store remains the override layer.
+  Re-open this audit if a future migration moves projections to a paid
+  fundamentals provider; until then the entire AV-fundamentals stack
+  (adapter + ledger + cache + composite provider) stays in place
+  unchanged.
+
+- *AV upstream wiring for the earnings calendar deferred.* P5 ships
+  `services/event_calendar/` with a trait seam (`UpstreamEarningsFetcher`)
+  and a `NoOpUpstream` default. The composite calendar still works
+  end-to-end via the manual-overrides table + the cache table, which is
+  what the integration test exercises. The AV-backed
+  `UpstreamEarningsFetcher` impl (extracting `quarterlyEarnings[*].
+  reportedDate` from the existing `fetch_earnings` path) didn't land
+  in P5 because the next-quarter `reportedDate` field is sparsely
+  populated by AV — the manual-store path is the load-bearing one for
+  now. Wire the AV adapter when the operator finds manual-store
+  maintenance painful, OR when P10 walk-forward refit needs a programmatic
+  earnings cache for backtest fixtures. The trait + cache shape are
+  ready; only the adapter impl is missing.
+
+- *Default `skip_if_unknown_earnings = true` for breakout +
+  parabolic-short.* Master plan committed this as the conservative
+  policy. Concrete consequence: until the manual store has earnings
+  rows for a watchlist symbol, every breakout / parabolic-short hit on
+  that symbol is skipped with `source: "unknown"` in the blackout
+  descriptor. Operators who want the gate to be permissive until
+  upstream is wired can set `skip_if_unknown_earnings = false` per
+  detector in settings.json. Logged here so the dogfooding curve
+  doesn't surprise — populate `event_calendar_overrides` for active
+  watchlist symbols, OR flip the default per-detector.
+
+- *Override path leaks `&'static str` for the strategy field.*
+  `ibkr::commands::event_calendar::setup_override_blackout` reconstructs
+  a `SetupCandidate` from a stored `Setup`, which requires a `&'static
+  str` strategy. The override path is rare (per-setup, human-driven)
+  so we `Box::leak` the strategy name there — same pattern as
+  `risk_recompute_setup`. If a future feature triggers the override
+  path at scanner cadence the leak becomes load-bearing; until then
+  the budget is dominated by the surrounding LLM costs.
+
+- *FOMC dataset is hardcoded JSON, not a live feed.* `data/fomc_dates.json`
+  carries 2026 + 2027 meeting dates. The gate emits a `warn!` log when
+  `last_meeting < 90 days from now`. Refresh the file when the Fed
+  publishes a new annual schedule (typically each summer). Mirroring
+  the holidays.rs convention — once a year, by hand.
+
+- *SetupCard + SkippedSetupsPanel still not wired into a parent
+  Tracker tab.* Same pre-existing flag from P1/P3 — the components
+  ship under P5 but no parent component imports them yet. The
+  Tracker tab currently renders setups as row decorations in
+  `Watchlist.tsx`. Phase that owns the trader-facing card surface
+  should pick up SetupCard + SkippedSetupsPanel together when the
+  watchlist-row refactor lands.
+
+- *Pre-existing `decay_watcher` flake still failing.* P1 and P2 both
+  logged `services::decay_watcher::tests::respects_budget_kill_switch`
+  ("MockHttp queue exhausted"). P5 confirms the same panic on
+  baseline; not introduced by event-blackout work. Left for the
+  decay-watcher owner.
 
 ## Phase 6 (TBD)
 

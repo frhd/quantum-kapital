@@ -131,6 +131,15 @@ export interface Setup {
    * "ungated" so the trader knows sizing didn't run.
    */
   sizing?: import("../../shared/api/riskEngine").Sizing | null
+  /**
+   * Quant-decisions Phase 5 — non-null when the runner gated this
+   * setup before sizing (earnings or FOMC blackout). UI uses this to
+   * render the SkippedSetupsPanel. `skip_window_json` carries the
+   * full descriptor `{ kind, start, end, pivot_date, reason, source,
+   * confidence }`.
+   */
+  skipped_reason?: import("../../shared/api/eventCalendar").SkipReason | null
+  skip_window_json?: import("../../shared/api/eventCalendar").BlackoutWindow | null
 }
 
 // --- Phase 21: Alert feed ---

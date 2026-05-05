@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, CalendarClock } from "lucide-react"
+import { describeSkip } from "../../../shared/api/eventCalendar"
 import {
   formatDollarRisk,
   formatEquity,
@@ -91,15 +92,29 @@ export function SetupCard({ setup, equityFetchedAt }: SetupCardProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const stale = isStale(equityFetchedAt)
   const sizingMissing = !setup.sizing || !!setup.sizing.skipped_reason
-  const takeDisabled = sizingMissing || stale
+  const blackoutSkipped = !!setup.skipped_reason
+  const takeDisabled = sizingMissing || stale || blackoutSkipped
   return (
     <div
-      className="border-border bg-card/50 flex flex-col gap-1.5 rounded-md border p-2"
+      className={cn(
+        "border-border bg-card/50 flex flex-col gap-1.5 rounded-md border p-2",
+        blackoutSkipped && "border-amber-500/40 bg-amber-500/5",
+      )}
       data-testid="setup-card"
     >
       <div className="flex items-center justify-between gap-2">
         <SetupBadge setup={setup} />
-        {stale && (
+        {blackoutSkipped && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] tracking-wide text-amber-300 uppercase"
+            title={setup.skip_window_json?.reason ?? ""}
+            data-testid="blackout-skipped-badge"
+          >
+            <CalendarClock className="h-3 w-3" />
+            skipped — {describeSkip(setup)}
+          </span>
+        )}
+        {!blackoutSkipped && stale && (
           <span
             className="inline-flex items-center gap-1 text-[10px] tracking-wide text-amber-400 uppercase"
             title={`Equity snapshot fetched ${equityFetchedAt} — older than 1 trading day`}
@@ -110,7 +125,11 @@ export function SetupCard({ setup, equityFetchedAt }: SetupCardProps) {
           </span>
         )}
       </div>
-      {setup.sizing ? (
+      {blackoutSkipped ? (
+        <span className="text-muted-foreground text-[11px] italic" data-testid="sizing-blackout">
+          gated by event blackout — sizing not run
+        </span>
+      ) : setup.sizing ? (
         <SizingRow sizing={setup.sizing} />
       ) : (
         <span className="text-muted-foreground text-[11px] italic" data-testid="sizing-ungated">
