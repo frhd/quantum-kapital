@@ -6,9 +6,9 @@
 # overwrites that day's agent section without touching user notes.
 #
 # Usage:
-#   ./loop/eod_review_dev.sh             # real run
-#   ./loop/eod_review_dev.sh --dry-run   # skips the journal write
-#   ./loop/eod_review_dev.sh --force     # run on weekends/holidays
+#   ./agent/scripts/eod_review_dev.sh             # real run
+#   ./agent/scripts/eod_review_dev.sh --dry-run   # skips the journal write
+#   ./agent/scripts/eod_review_dev.sh --force     # run on weekends/holidays
 #
 # Any extra args are forwarded into the Python entrypoint.
 

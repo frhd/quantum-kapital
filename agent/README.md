@@ -34,7 +34,7 @@ pulls `anthropic` + `mcp`.
 
 ```sh
 # From the repo root (resolves config.toml's relative server_bin path).
-./loop/morning_sweep_dev.sh
+./agent/scripts/morning_sweep_dev.sh
 
 # Or directly:
 cd agent && uv run morning_sweep --dry-run
@@ -64,7 +64,7 @@ so they need neither the binary nor an API key.
 A starter crontab line lives in `agent/cron/morning_sweep.cron`. Open it,
 substitute `<repo>` and `<account>`, and copy the line into `crontab -e`.
 
-The dev-mode wrapper (`loop/morning_sweep_dev.sh`) sources `agent/.env`,
+The dev-mode wrapper (`agent/scripts/morning_sweep_dev.sh`) sources `agent/.env`,
 activates the venv, and calls the loop. The cron line invokes the same
 script. macOS users with `launchd` can convert the cron line; the script is
 the same.

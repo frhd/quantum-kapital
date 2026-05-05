@@ -6,9 +6,9 @@
 # overwrites that day's pack.
 #
 # Usage:
-#   ./loop/morning_sweep_dev.sh             # real run
-#   ./loop/morning_sweep_dev.sh --dry-run   # skips the morning_pack DB write
-#   ./loop/morning_sweep_dev.sh --shadow    # tags pack as shadow output
+#   ./agent/scripts/morning_sweep_dev.sh             # real run
+#   ./agent/scripts/morning_sweep_dev.sh --dry-run   # skips the morning_pack DB write
+#   ./agent/scripts/morning_sweep_dev.sh --shadow    # tags pack as shadow output
 #
 # Any extra args are forwarded into the Python entrypoint.
 
