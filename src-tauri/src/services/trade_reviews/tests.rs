@@ -52,7 +52,10 @@ async fn store_writes_and_reads_review() {
     let outcome = store.write(req.clone()).await.expect("write ok");
     assert_eq!(outcome.review.behavioral_tags, req.behavioral_tags);
     assert_eq!(outcome.review.narrative_md, "Solid disciplined day.");
-    assert!(matches!(outcome.review.grade, GradeLetter::B | GradeLetter::A));
+    assert!(matches!(
+        outcome.review.grade,
+        GradeLetter::B | GradeLetter::A
+    ));
 
     let row = store
         .read(req.date, &req.account, req.prompt_version)

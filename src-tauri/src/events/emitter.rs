@@ -132,6 +132,15 @@ pub enum AppEvent {
         date: NaiveDate,
         idea_count: usize,
     },
+    /// Phase 4 (behavioral assessment) — emitted after `write_trade_review`
+    /// upserts a structured trade review. The frontend re-queries
+    /// `get_trade_review(date)` to refresh the daily card.
+    TradeReviewWritten {
+        date: NaiveDate,
+        account: String,
+        prompt_version: i32,
+        grade: String,
+    },
     /// Emitted after `ack_alert` records a decision. The UI flips the
     /// alert's row treatment (e.g. greying acted/passed alerts) without
     /// reloading the whole feed.
@@ -208,6 +217,7 @@ impl AppEvent {
             AppEvent::MorningPackReady { .. } => "morning-pack-ready",
             AppEvent::ResearchNoteWritten { .. } => "research-note-written",
             AppEvent::AgentMorningPackWritten { .. } => "agent-morning-pack-written",
+            AppEvent::TradeReviewWritten { .. } => "trade-review-written",
             AppEvent::AlertDecisionRecorded { .. } => "alert-decision-recorded",
             AppEvent::AlertEnriched { .. } => "alert-enriched",
             AppEvent::AlertDiveSkipped { .. } => "alert-dive-skipped",

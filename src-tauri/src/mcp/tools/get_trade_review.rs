@@ -43,9 +43,7 @@ impl McpHandler {
         let date = match NaiveDate::parse_from_str(&args.date, "%Y-%m-%d") {
             Ok(d) => d,
             Err(e) => {
-                return map_tool_result::<(), String>(Err(format!(
-                    "date must be YYYY-MM-DD: {e}"
-                )));
+                return map_tool_result::<(), String>(Err(format!("date must be YYYY-MM-DD: {e}")));
             }
         };
 
@@ -93,7 +91,9 @@ mod tests {
     };
     use std::sync::Arc;
 
-    async fn handler_with_account(account: &str) -> (tempfile::NamedTempFile, crate::mcp::handler::McpHandler) {
+    async fn handler_with_account(
+        account: &str,
+    ) -> (tempfile::NamedTempFile, crate::mcp::handler::McpHandler) {
         let (tmp, db) = make_db();
         let mock = Arc::new(MockIbkrClient::new());
         mock.set_accounts(vec![account.to_string()]).await;
@@ -101,7 +101,11 @@ mod tests {
         (tmp, handler)
     }
 
-    fn sample_request(date: NaiveDate, account: &str, prompt_version: i32) -> WriteTradeReviewRequest {
+    fn sample_request(
+        date: NaiveDate,
+        account: &str,
+        prompt_version: i32,
+    ) -> WriteTradeReviewRequest {
         WriteTradeReviewRequest {
             date,
             account: account.into(),
@@ -219,6 +223,9 @@ mod tests {
         let audits = crate::services::mcp_audit::list(&handler.db, 10, 0)
             .await
             .unwrap();
-        assert!(audits.is_empty(), "read tool must not write audit rows; got {audits:?}");
+        assert!(
+            audits.is_empty(),
+            "read tool must not write audit rows; got {audits:?}"
+        );
     }
 }

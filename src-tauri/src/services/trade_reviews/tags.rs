@@ -84,7 +84,12 @@ mod tests {
         sorted.sort();
         let mut dedup = sorted.clone();
         dedup.dedup();
-        assert_eq!(dedup.len(), sorted.len(), "ALL has duplicates: {:?}", sorted);
+        assert_eq!(
+            dedup.len(),
+            sorted.len(),
+            "ALL has duplicates: {:?}",
+            sorted
+        );
     }
 
     #[test]

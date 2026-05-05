@@ -172,6 +172,7 @@ impl McpHandler {
             + Self::archive_ticker_router()
             + Self::write_research_note_router()
             + Self::write_morning_pack_router()
+            + Self::write_trade_review_router()
             + Self::ack_alert_router()
             + Self::mark_alert_enriched_router()
             + Self::get_sentiment_router()

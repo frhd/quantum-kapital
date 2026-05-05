@@ -215,7 +215,8 @@ impl TradeReviewStore {
         let n: i64 = self
             .db
             .with_conn(|conn| {
-                let n: i64 = conn.query_row("SELECT COUNT(*) FROM day_reviews", [], |r| r.get(0))?;
+                let n: i64 =
+                    conn.query_row("SELECT COUNT(*) FROM day_reviews", [], |r| r.get(0))?;
                 Ok(n)
             })
             .await?;
@@ -265,10 +266,7 @@ fn parse_row(raw: RawRow) -> Result<TradeReview, TradeReviewError> {
         .map_err(|e| TradeReviewError::InvalidRow(format!("date `{}`: {e}", raw.date)))?;
     let generated_at = DateTime::parse_from_rfc3339(&raw.generated_at)
         .map_err(|e| {
-            TradeReviewError::InvalidRow(format!(
-                "generated_at `{}`: {e}",
-                raw.generated_at
-            ))
+            TradeReviewError::InvalidRow(format!("generated_at `{}`: {e}", raw.generated_at))
         })?
         .with_timezone(&Utc);
     let grade = GradeLetter::parse(&raw.grade)

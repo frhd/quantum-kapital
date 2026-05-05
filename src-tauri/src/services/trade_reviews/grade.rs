@@ -114,7 +114,11 @@ mod tests {
             BehavioralTag::ThesisMatchExecuted,
         ];
         let g = compute_grade(&s, &tags);
-        assert!(matches!(g.grade, GradeLetter::A | GradeLetter::B), "grade={:?}", g.grade);
+        assert!(
+            matches!(g.grade, GradeLetter::A | GradeLetter::B),
+            "grade={:?}",
+            g.grade
+        );
     }
 
     #[test]
@@ -134,7 +138,11 @@ mod tests {
             BehavioralTag::PostLossRevenge,
         ];
         let g = compute_grade(&s, &tags);
-        assert!(matches!(g.grade, GradeLetter::D | GradeLetter::F), "grade={:?}", g.grade);
+        assert!(
+            matches!(g.grade, GradeLetter::D | GradeLetter::F),
+            "grade={:?}",
+            g.grade
+        );
     }
 
     #[test]

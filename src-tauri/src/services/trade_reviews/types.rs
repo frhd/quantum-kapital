@@ -58,6 +58,7 @@ pub struct TradeReview {
 
 impl TradeReview {
     /// Convenience: re-pack `(grade, grade_score)` as a [`Grade`] struct.
+    #[allow(dead_code)] // used by FE wrappers in Phase 7
     pub fn computed_grade(&self) -> Grade {
         Grade {
             grade: self.grade,

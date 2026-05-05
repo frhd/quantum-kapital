@@ -48,6 +48,7 @@ pub mod watchlist;
 pub mod write_morning_pack;
 pub mod write_research_note;
 pub(crate) mod write_support;
+pub mod write_trade_review;
 
 use std::fmt::Display;
 

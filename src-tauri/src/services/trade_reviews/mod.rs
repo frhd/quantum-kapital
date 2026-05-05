@@ -18,7 +18,11 @@ pub mod types;
 #[cfg(test)]
 mod tests;
 
+#[allow(unused_imports)] // public API surface — used by mcp tools and (future) FE wrappers
 pub use grade::{compute_grade, Grade, GradeLetter};
+#[allow(unused_imports)]
 pub use store::{TradeReviewError, TradeReviewStore, WriteOutcome};
+#[allow(unused_imports)]
 pub use tags::BehavioralTag;
+#[allow(unused_imports)]
 pub use types::{LegObservation, LegSummary, TradeReview, WriteTradeReviewRequest};
