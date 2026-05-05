@@ -36,7 +36,9 @@ mod tests;
 pub use atr_scaled::AtrScaled;
 pub use static_2r_3r::StaticTwoRThreeR;
 pub use time_stop::TimeStopSpec;
-pub use trailing::{ChandelierState, TrailSpec};
+pub use trailing::{
+    chandelier_stop, has_reached_r, updated_extreme, ChandelierState, TrailKind, TrailSpec,
+};
 
 /// Stable string ids written to `setups.exit_policy_version`. Master
 /// invariant 5: never translate between versions at read time — newer

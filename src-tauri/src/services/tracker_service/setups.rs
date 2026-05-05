@@ -265,6 +265,63 @@ impl TrackerService {
             .ok_or_else(|| TrackerError::NotFound(format!("setup#{id}")))
     }
 
+    /// Phase 7 — persist the exit plan computed by the per-detector
+    /// `ExitPolicy` at signal time. Stored alongside the version
+    /// string so a post-hoc audit can tell which policy ran. Pre-P7
+    /// rows have NULL in both columns; the `OrderTicket` falls back
+    /// to the legacy static ladder for those.
+    pub async fn update_setup_exit_plan(
+        &self,
+        id: i64,
+        policy_version: String,
+        exit_plan_json: serde_json::Value,
+    ) -> Result<()> {
+        let plan_str = serde_json::to_string(&exit_plan_json)?;
+        let updated = self
+            .db
+            .with_conn(move |conn| {
+                let n = conn.execute(
+                    "UPDATE setups SET exit_policy_version = ?1, exit_plan_json = ?2 \
+                     WHERE id = ?3 AND archived_at IS NULL",
+                    rusqlite::params![policy_version, plan_str, id],
+                )?;
+                Ok(n)
+            })
+            .await?;
+        if updated == 0 {
+            return Err(TrackerError::NotFound(format!("setup#{id}")));
+        }
+        Ok(())
+    }
+
+    /// Phase 7 — read back the exit plan written by
+    /// `update_setup_exit_plan`. Returns `None` for pre-P7 rows (the
+    /// legacy static ladder applies); errors only on JSON-decode
+    /// failure or storage error.
+    pub async fn get_setup_exit_plan(
+        &self,
+        id: i64,
+    ) -> Result<Option<crate::strategies::exits::ExitPlan>> {
+        let raw: Option<(Option<String>, Option<String>)> = self
+            .db
+            .with_conn(move |conn| {
+                conn.query_row(
+                    "SELECT exit_policy_version, exit_plan_json FROM setups \
+                     WHERE id = ?1 AND archived_at IS NULL",
+                    rusqlite::params![id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()
+                .map_err(StorageError::from)
+            })
+            .await?;
+        let Some((_version, Some(plan_str))) = raw else {
+            return Ok(None);
+        };
+        let plan = serde_json::from_str(&plan_str)?;
+        Ok(Some(plan))
+    }
+
     /// Persist a generated LLM thesis on a `setups` row. `thesis_md` is
     /// the human-readable markdown body; `thesis_json` is the full
     /// structured tool-output (conviction, invalidation_levels,

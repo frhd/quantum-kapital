@@ -31,6 +31,8 @@ use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
 use crate::services::tracker_state_machine::TrackerStateMachine;
 use crate::storage::Db;
+use crate::strategies::exits::{ExitPolicy, ExitPolicyContext, ExitPolicyRegistry};
+use crate::strategies::indicators::atr;
 use crate::strategies::{DetectorRegistry, DetectorsConfig, MarketContext, SkipReason};
 
 #[cfg(test)]
@@ -166,6 +168,12 @@ pub struct TrackerRunner {
     /// policy for the candidate's `strategy`. Held alongside the gate
     /// so a single `with_event_calendar` call wires both pieces.
     detectors_config: Option<DetectorsConfig>,
+    /// Phase 7 — optional per-detector exit-policy registry. When
+    /// wired, each persisted setup gets an `ExitPlan` computed from
+    /// the candidate + ATR(20) and written to `exit_plan_json` /
+    /// `exit_policy_version`. When `None`, those columns stay NULL
+    /// and `OrderTicket` falls back to the legacy static ladder.
+    exit_policies: Option<ExitPolicyRegistry>,
 }
 
 impl TrackerRunner {
@@ -191,7 +199,18 @@ impl TrackerRunner {
             risk_engine: None,
             event_calendar: None,
             detectors_config: None,
+            exit_policies: None,
         }
+    }
+
+    /// Phase 7 — attach a per-detector exit-policy registry. When
+    /// wired, each persisted setup gets an `ExitPlan` written
+    /// alongside its sizing; `OrderTicket::with_brackets` reads it
+    /// back at confirm time so the bracket placer materializes the
+    /// policy-driven ladder instead of the legacy static one.
+    pub fn with_exit_policies(mut self, registry: ExitPolicyRegistry) -> Self {
+        self.exit_policies = Some(registry);
+        self
     }
 
     /// Attach a [`RiskEngine`]. Once wired, every persisted setup is
@@ -393,6 +412,57 @@ impl TrackerRunner {
                                         "risk_engine sizing failed for {} setup#{}: {e}",
                                         ctx_owned.symbol, setup.id
                                     ),
+                                }
+                            }
+                            // Phase 7 — compute and persist the per-detector
+                            // exit plan. ATR(20) sourced from the runner's
+                            // already-fetched daily bars; missing-ATR drops
+                            // the v2 policy back to v1 static via the
+                            // policy's own AtrUnavailable error path.
+                            if let Some(registry) = &self.exit_policies {
+                                let policy = registry.for_strategy(&setup.strategy);
+                                let atr_value = atr(&ctx_owned.daily_bars, 20);
+                                let plan_ctx = ExitPolicyContext {
+                                    direction: setup.direction,
+                                    trigger_price: setup.trigger_price,
+                                    stop_price: setup.stop_price,
+                                    atr: atr_value,
+                                    strategy: candidate.strategy,
+                                };
+                                let plan = match policy.build_plan(&plan_ctx) {
+                                    Ok(p) => Some(p),
+                                    Err(e) => {
+                                        // ATR-scaled refused (typically
+                                        // ATR-unavailable): try the static
+                                        // fallback so the setup still gets a
+                                        // plan persisted instead of silently
+                                        // landing under the legacy ladder.
+                                        warn!(
+                                            "exit-policy {} refused for {} setup#{}: {e} — \
+                                             falling back to v1_static",
+                                            policy.version(),
+                                            ctx_owned.symbol,
+                                            setup.id,
+                                        );
+                                        crate::strategies::exits::StaticTwoRThreeR
+                                            .build_plan(&plan_ctx)
+                                            .ok()
+                                    }
+                                };
+                                if let Some(plan) = plan {
+                                    let plan_json =
+                                        serde_json::to_value(&plan).unwrap_or(serde_json::Value::Null);
+                                    let version = plan.policy_version.clone();
+                                    if let Err(e) = self
+                                        .tracker
+                                        .update_setup_exit_plan(setup.id, version, plan_json)
+                                        .await
+                                    {
+                                        warn!(
+                                            "update_setup_exit_plan failed for {} setup#{}: {e}",
+                                            ctx_owned.symbol, setup.id
+                                        );
+                                    }
                                 }
                             }
                             // Phase 12: hand the persisted hit to the state

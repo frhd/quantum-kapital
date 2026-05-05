@@ -112,6 +112,27 @@ pub struct BracketReceipt {
     pub target_order_ids: Vec<i32>,
 }
 
+/// Phase 7 — request shape for `IbkrClient::modify_stop_price`. Re-
+/// submits an existing stop child with a new `aux_price`. The
+/// `BracketReviser` builds these from a `BracketGroupRecord` plus
+/// the freshly-computed chandelier stop.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModifyStopRequest {
+    pub stop_order_id: i32,
+    pub parent_id: i32,
+    pub symbol: String,
+    /// Action of the *stop child*, not the parent: short brackets
+    /// have a stop with action=BUY; long brackets stop with
+    /// action=SELL.
+    pub action: OrderAction,
+    pub qty: f64,
+    pub new_stop_price: f64,
+    /// OCA group the stop child belongs to. Mirrors the format from
+    /// `place_bracket` (`"br-{parent_id}"`); included so the modify
+    /// keeps the OCA semantics (target fill auto-cancels stop).
+    pub oca_group: String,
+}
+
 #[cfg(test)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {

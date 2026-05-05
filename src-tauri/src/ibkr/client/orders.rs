@@ -3,7 +3,8 @@ use ibapi::orders::Order;
 
 use crate::ibkr::error::{IbkrError, Result};
 use crate::ibkr::types::{
-    BracketReceipt, BracketRequest, IbkrExecution, OrderAction, OrderRequest, OrderType,
+    BracketReceipt, BracketRequest, IbkrExecution, ModifyStopRequest, OrderAction, OrderRequest,
+    OrderType,
 };
 
 use super::executions_merge::merge_commission_reports;
@@ -153,6 +154,50 @@ impl IbkrClient {
                 stop_order_id: stop_id,
                 target_order_ids: target_ids,
             })
+        })
+        .await
+        .map_err(|e| IbkrError::Unknown(e.to_string()))?
+    }
+
+    /// Phase 7 — modify an existing stop child's `aux_price`. Used by
+    /// `BracketReviser` to step the trail as the position moves in
+    /// the trader's favor. IBKR's API treats `place_order(order_id,
+    /// contract, order)` as both a place AND a modify when the
+    /// `order_id` is already known to the gateway, so this builds a
+    /// fresh `Order` with the same OCA group / parent linkage and
+    /// the new `aux_price`, then re-submits at the existing
+    /// `order_id`.
+    ///
+    /// Submitted with `transmit=true` so the modify takes effect
+    /// immediately. If `order_id` is unknown to the gateway IBKR
+    /// will reject with `OrderRejected`; callers must verify the
+    /// bracket is still open before modifying.
+    pub async fn modify_stop_price(&self, req: ModifyStopRequest) -> Result<()> {
+        let client_clone = self.ibapi_client().await?;
+
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            use ibapi::orders::Action;
+
+            let contract = Contract::stock(&req.symbol).build();
+            let action = match req.action {
+                OrderAction::Buy => Action::Buy,
+                OrderAction::Sell => Action::Sell,
+            };
+            let stop = Order {
+                action,
+                total_quantity: req.qty,
+                order_type: "STP".to_string(),
+                aux_price: Some(req.new_stop_price),
+                parent_id: req.parent_id,
+                oca_group: req.oca_group,
+                oca_type: ibapi::orders::OcaType::CancelWithBlock,
+                transmit: true,
+                ..Order::default()
+            };
+            client_clone
+                .place_order(req.stop_order_id, &contract, &stop)
+                .map_err(IbkrError::from)?;
+            Ok(())
         })
         .await
         .map_err(|e| IbkrError::Unknown(e.to_string()))?

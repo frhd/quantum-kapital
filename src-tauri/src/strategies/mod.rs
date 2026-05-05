@@ -6,7 +6,7 @@
 mod candidate;
 mod config;
 mod context;
-mod indicators;
+pub mod indicators;
 mod registry;
 mod trait_def;
 

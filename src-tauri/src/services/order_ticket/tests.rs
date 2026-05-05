@@ -637,6 +637,107 @@ fn build_ladder_rejects_zero_qty() {
     assert!(err.contains("parent_qty"));
 }
 
+// ---------------- Phase 7 — exit-plan → target-spec materialization ----------------
+
+#[test]
+fn target_specs_from_plan_allocates_whole_shares_with_remainder_to_last() {
+    use crate::strategies::exits::{ExitPlan, ExitTargetSpec, V2_ATR_SCALED};
+    let plan = ExitPlan {
+        policy_version: V2_ATR_SCALED.to_string(),
+        targets: vec![
+            ExitTargetSpec {
+                label: "1xATR".into(),
+                price: 102.0,
+                qty_pct: 50,
+                r_multiple: Some(1.0),
+                atr_multiple: Some(1.0),
+            },
+            ExitTargetSpec {
+                label: "2xATR".into(),
+                price: 104.0,
+                qty_pct: 30,
+                r_multiple: Some(2.0),
+                atr_multiple: Some(2.0),
+            },
+            ExitTargetSpec {
+                label: "4xATR runner".into(),
+                price: 108.0,
+                qty_pct: 20,
+                r_multiple: Some(4.0),
+                atr_multiple: Some(4.0),
+            },
+        ],
+        trail: None,
+        time_stop: None,
+        atr_at_signal: Some(1.0),
+    };
+    // Parent qty 7: 50%→3, 30%→2, 20% absorbs → 7-3-2 = 2.
+    let specs = super::target_specs_from_plan(&plan, 7).unwrap();
+    assert_eq!(specs.len(), 3);
+    let total: u32 = specs.iter().map(|s| s.qty).sum();
+    assert_eq!(total, 7);
+    assert!((specs[0].price - 102.0).abs() < 1e-9);
+    assert_eq!(specs[2].qty_pct, 20);
+}
+
+#[test]
+fn target_specs_from_plan_drops_zero_qty_rungs() {
+    use crate::strategies::exits::{ExitPlan, ExitTargetSpec, V2_ATR_SCALED};
+    let plan = ExitPlan {
+        policy_version: V2_ATR_SCALED.to_string(),
+        targets: vec![
+            ExitTargetSpec {
+                label: "1".into(),
+                price: 102.0,
+                qty_pct: 50,
+                r_multiple: None,
+                atr_multiple: None,
+            },
+            ExitTargetSpec {
+                label: "2".into(),
+                price: 104.0,
+                qty_pct: 30,
+                r_multiple: None,
+                atr_multiple: None,
+            },
+            ExitTargetSpec {
+                label: "3".into(),
+                price: 108.0,
+                qty_pct: 20,
+                r_multiple: None,
+                atr_multiple: None,
+            },
+        ],
+        trail: None,
+        time_stop: None,
+        atr_at_signal: Some(1.0),
+    };
+    // Parent qty 1 — 50% rounds to 0; 30% rounds to 0; 20% rung
+    // absorbs everything (1 share). Two zero-qty rungs dropped.
+    let specs = super::target_specs_from_plan(&plan, 1).unwrap();
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].qty, 1);
+}
+
+#[test]
+fn target_specs_from_plan_rejects_pcts_not_summing_to_100() {
+    use crate::strategies::exits::{ExitPlan, ExitTargetSpec, V2_ATR_SCALED};
+    let plan = ExitPlan {
+        policy_version: V2_ATR_SCALED.to_string(),
+        targets: vec![ExitTargetSpec {
+            label: "x".into(),
+            price: 100.0,
+            qty_pct: 50,
+            r_multiple: None,
+            atr_multiple: None,
+        }],
+        trail: None,
+        time_stop: None,
+        atr_at_signal: None,
+    };
+    assert!(super::target_specs_from_plan(&plan, 10).is_err());
+}
+
 // ---------------- tracer-bullet ----------------
 //
 // Master plan exit criterion: setup detection → P1 sizing → P2

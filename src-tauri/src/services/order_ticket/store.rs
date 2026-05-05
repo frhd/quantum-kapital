@@ -104,6 +104,97 @@ impl BracketGroupStore {
             .await
     }
 
+    /// Phase 7 — list every bracket whose `last_status` is in the
+    /// supplied set. Powers the `BracketReviser`'s sweep. Newest
+    /// first. `statuses` may be empty → returns Vec::new().
+    pub async fn list_by_statuses(
+        &self,
+        statuses: Vec<crate::services::order_ticket::types::BracketStatus>,
+    ) -> StorageResult<Vec<BracketGroupRecord>> {
+        if statuses.is_empty() {
+            return Ok(Vec::new());
+        }
+        let status_strs: Vec<String> =
+            statuses.into_iter().map(|s| s.as_str().to_string()).collect();
+        self.db
+            .with_conn(move |conn| {
+                let placeholders = (0..status_strs.len())
+                    .map(|i| format!("?{}", i + 1))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let sql = format!(
+                    "SELECT \
+                        parent_order_id, setup_id, intent_id, account, symbol, \
+                        direction, parent_qty, system_qty, qty_override_reason, \
+                        entry_limit_cents, stop_order_id, stop_price_cents, \
+                        target_order_ids_json, targets_json, \
+                        placed_at, last_status, last_status_at \
+                     FROM bracket_groups WHERE last_status IN ({placeholders}) \
+                     ORDER BY placed_at DESC"
+                );
+                let mut stmt = conn.prepare(&sql)?;
+                let params_dyn: Vec<&dyn rusqlite::ToSql> = status_strs
+                    .iter()
+                    .map(|s| s as &dyn rusqlite::ToSql)
+                    .collect();
+                let rows = stmt
+                    .query_map(params_dyn.as_slice(), map_row)?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(rows)
+            })
+            .await
+    }
+
+    /// Phase 7 — write the runtime trail state + the new stop price
+    /// for `parent_order_id`. Atomic: stop price (in cents) and the
+    /// JSON-encoded chandelier state move together so the reviser's
+    /// next poll sees a consistent picture.
+    pub async fn update_trail_state(
+        &self,
+        parent_order_id: i32,
+        new_stop_price: f64,
+        state: &crate::strategies::exits::ChandelierState,
+    ) -> StorageResult<bool> {
+        let new_stop_cents = (new_stop_price * 100.0).round() as i64;
+        let state_json = serde_json::to_string(state)
+            .map_err(|e| crate::storage::error::StorageError::Migration(e.to_string()))?;
+        self.db
+            .with_conn(move |conn| {
+                let n = conn.execute(
+                    "UPDATE bracket_groups \
+                     SET stop_price_cents = ?1, trail_state_json = ?2 \
+                     WHERE parent_order_id = ?3",
+                    rusqlite::params![new_stop_cents, state_json, parent_order_id],
+                )?;
+                Ok(n > 0)
+            })
+            .await
+    }
+
+    /// Phase 7 — read back the persisted trail state for a bracket.
+    /// `Ok(None)` ↔ no trail state yet (the reviser hasn't seeded it).
+    pub async fn get_trail_state(
+        &self,
+        parent_order_id: i32,
+    ) -> StorageResult<Option<crate::strategies::exits::ChandelierState>> {
+        let raw: Option<Option<String>> = self
+            .db
+            .with_conn(move |conn| {
+                conn.query_row(
+                    "SELECT trail_state_json FROM bracket_groups WHERE parent_order_id = ?1",
+                    rusqlite::params![parent_order_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(Into::into)
+            })
+            .await?;
+        let Some(Some(s)) = raw else { return Ok(None) };
+        let st = serde_json::from_str(&s)
+            .map_err(|e| crate::storage::error::StorageError::Migration(e.to_string()))?;
+        Ok(Some(st))
+    }
+
     /// Update `last_status` + `last_status_at`. Used by the cancel
     /// command and (later) the fill-status reconciler.
     pub async fn update_status(

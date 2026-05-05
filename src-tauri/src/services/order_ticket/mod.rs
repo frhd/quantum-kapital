@@ -21,11 +21,12 @@ use tracing::warn;
 use crate::events::{AppEvent, EventEmitter};
 use crate::ibkr::client::IbkrClient;
 use crate::ibkr::error::IbkrError;
-use crate::ibkr::types::{BracketReceipt, BracketRequest, OrderAction};
+use crate::ibkr::types::{BracketReceipt, BracketRequest, ModifyStopRequest, OrderAction};
 use crate::services::risk_engine::{EquitySnapshotError, EquitySnapshotService};
 use crate::services::tca::{IntendedPriceSource, IntentSide, NewOrderIntent, TcaError, TcaService};
 use crate::services::tracker_service::{TrackerError, TrackerService};
 use crate::storage::error::StorageError;
+use crate::strategies::exits::ExitPlan;
 use crate::strategies::Direction;
 
 mod store;
@@ -60,6 +61,23 @@ impl BracketPlacer for IbkrClient {
         req: BracketRequest,
     ) -> std::result::Result<BracketReceipt, IbkrError> {
         IbkrClient::place_bracket(self, req).await
+    }
+}
+
+/// Phase 7 — trait seam over IBKR stop-modify. Production: real
+/// `IbkrClient` re-submits the stop child via `place_order` with the
+/// existing `order_id`. Tests: `MockBracketModifier` records calls
+/// and returns canned outcomes so the reviser is exercisable
+/// without a live IBKR connection.
+#[async_trait]
+pub trait BracketModifier: Send + Sync {
+    async fn modify_stop(&self, req: ModifyStopRequest) -> std::result::Result<(), IbkrError>;
+}
+
+#[async_trait]
+impl BracketModifier for IbkrClient {
+    async fn modify_stop(&self, req: ModifyStopRequest) -> std::result::Result<(), IbkrError> {
+        IbkrClient::modify_stop_price(self, req).await
     }
 }
 
@@ -217,15 +235,29 @@ impl OrderTicket {
             });
         }
 
-        // Compute the static 50/30/20 target ladder. Master decision:
-        // runner gets a hard 3R limit until P7 trailing lands.
-        let targets = build_static_target_ladder(
-            setup.direction,
-            setup.trigger_price,
-            stop_price,
-            parent_qty,
-        )
-        .map_err(|m| OrderTicketError::InvalidGeometry(m.to_string()))?;
+        // Phase 7 — prefer the per-detector exit plan persisted by
+        // the runner. Falls back to the static 50/30/20 ladder for
+        // pre-P7 rows (NULL plan column) and for runs where the
+        // policy refused (e.g. ATR unavailable). The fallback path
+        // matches Phase 3's behavior exactly so pre-P7 setups stay
+        // shippable under the same wire shape.
+        let exit_plan = self
+            .tracker
+            .get_setup_exit_plan(args.setup_id)
+            .await
+            .ok()
+            .flatten();
+        let targets = match exit_plan.as_ref() {
+            Some(plan) => target_specs_from_plan(plan, parent_qty)
+                .map_err(|m| OrderTicketError::InvalidGeometry(m.to_string()))?,
+            None => build_static_target_ladder(
+                setup.direction,
+                setup.trigger_price,
+                stop_price,
+                parent_qty,
+            )
+            .map_err(|m| OrderTicketError::InvalidGeometry(m.to_string()))?,
+        };
 
         // Record the Phase 2 intent before sending. The intent links
         // the future fill back to `setup_id` for attribution; even if
@@ -416,6 +448,64 @@ pub(crate) fn build_static_target_ladder(
             qty,
             qty_pct: pct,
         });
+    }
+    Ok(specs)
+}
+
+/// Phase 7 — materialize whole-share `TargetSpec` rungs from a frozen
+/// `ExitPlan`. Mirrors the qty-allocation rules in
+/// `build_static_target_ladder`: floor-divide each rung's pct against
+/// `parent_qty`; the last non-zero rung absorbs the rounding
+/// remainder so the bracket sums to `parent_qty` exactly. Zero-qty
+/// rungs (when parent_qty is too small for the pct to round to a
+/// share) are dropped so the bracket sees a tighter ladder rather
+/// than a phantom zero-leg.
+pub(crate) fn target_specs_from_plan(
+    plan: &ExitPlan,
+    parent_qty: u32,
+) -> std::result::Result<Vec<TargetSpec>, &'static str> {
+    if parent_qty == 0 {
+        return Err("parent_qty must be > 0");
+    }
+    if plan.targets.is_empty() {
+        return Err("exit plan has no target rungs");
+    }
+    // Pre-validate prices early so a bad plan fails before partial
+    // allocation runs.
+    for t in &plan.targets {
+        if !t.price.is_finite() {
+            return Err("target price not finite");
+        }
+    }
+    let pct_total: u32 = plan.targets.iter().map(|t| t.qty_pct as u32).sum();
+    if pct_total != 100 {
+        return Err("exit plan target pcts must sum to 100");
+    }
+
+    let mut allocated: u32 = 0;
+    let mut specs: Vec<TargetSpec> = Vec::with_capacity(plan.targets.len());
+    let last_idx = plan.targets.len() - 1;
+    for (idx, t) in plan.targets.iter().enumerate() {
+        let qty = if idx == last_idx {
+            parent_qty.saturating_sub(allocated)
+        } else {
+            let raw = (u64::from(parent_qty) * u64::from(t.qty_pct)) / 100;
+            let q = raw as u32;
+            allocated = allocated.saturating_add(q);
+            q
+        };
+        if qty == 0 {
+            continue;
+        }
+        specs.push(TargetSpec {
+            label: t.label.clone(),
+            price: t.price,
+            qty,
+            qty_pct: t.qty_pct,
+        });
+    }
+    if specs.is_empty() {
+        return Err("exit plan resolved to zero rungs after qty allocation");
     }
     Ok(specs)
 }
