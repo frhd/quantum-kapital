@@ -1,6 +1,7 @@
 pub mod agent_morning_packs;
 pub mod alerts;
 pub mod auto_scanner;
+pub mod backtester;
 pub mod cache_service;
 pub mod candidate_promoter;
 pub mod candidate_scheduler;
