@@ -37,4 +37,5 @@ pub mod tracker_service;
 pub mod tracker_state_machine;
 pub mod trade_legs;
 pub mod trade_reviews;
+pub mod trader_profile;
 pub mod watchlist_briefing;

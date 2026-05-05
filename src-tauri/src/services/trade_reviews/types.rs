@@ -15,9 +15,16 @@ use super::grade::{Grade, GradeLetter};
 use super::tags::BehavioralTag;
 
 /// Per-leg observation surfaced into the review's `leg_observations`.
+///
+/// `symbol` is optional for backward compatibility with rows authored
+/// before Phase 6, but the EOD review writer is expected to populate it
+/// going forward so the Phase 6 trader-profile aggregator can name the
+/// instrument in `RecentIncident`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct LegObservation {
     pub leg_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
     pub observation_md: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tag: Option<BehavioralTag>,

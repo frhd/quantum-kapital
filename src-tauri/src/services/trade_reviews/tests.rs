@@ -35,6 +35,7 @@ fn sample_request() -> WriteTradeReviewRequest {
         behavioral_tags: vec![BehavioralTag::FlatClose, BehavioralTag::DisciplineOnLoser],
         leg_observations: vec![LegObservation {
             leg_id: "L1".into(),
+            symbol: Some("AAPL".into()),
             observation_md: "Best leg of the day.".into(),
             tag: Some(BehavioralTag::DisciplineOnLoser),
         }],
