@@ -8,6 +8,13 @@ mod storage;
 mod strategies;
 mod utils;
 
+// Targeted re-exports for the `flex_backfill` binary in `bin/flex_backfill.rs`.
+// Keeps `ibkr` / `services` / `storage` private to the lib while letting the
+// one-shot importer share the live ingestor's types and store.
+pub use ibkr::types::{ExecutionSide, IbkrExecution};
+pub use services::executions::ExecutionsStore;
+pub use storage::Db;
+
 use std::sync::Arc;
 
 use std::time::Duration;
@@ -19,7 +26,7 @@ use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketSca
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
-use services::executions::{ExecutionsIngestor, ExecutionsStore, LiveExecutionsFetcher};
+use services::executions::{ExecutionsIngestor, LiveExecutionsFetcher};
 use services::financial_data_service::FinancialDataService;
 use services::fundamentals_provider::alpha_vantage::AlphaVantageFundamentalsProvider;
 use services::fundamentals_provider::av_call_ledger::AvCallLedger;
@@ -45,7 +52,6 @@ use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::thesis_generator::ThesisGenerator;
 use services::ticker_primer::TickerPrimerService;
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
-use storage::Db;
 use strategies::registry_from_config;
 use tauri::Manager;
 

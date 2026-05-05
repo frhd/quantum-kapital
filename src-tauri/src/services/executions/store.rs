@@ -21,6 +21,13 @@ pub struct RecordSummary {
     pub skipped_redundant: usize,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct BackfillSummary {
+    pub inserted: usize,
+    pub skipped_existing: usize,
+    pub skipped_live_match: usize,
+}
+
 #[derive(Clone)]
 pub struct ExecutionsStore {
     db: Arc<Db>,
@@ -111,6 +118,98 @@ impl ExecutionsStore {
                             summary.skipped_redundant += 1;
                         }
                     }
+                }
+                tx.commit()?;
+                Ok(summary)
+            })
+            .await
+    }
+
+    /// UPSERT a batch of Flex-Web-Service backfill rows.
+    ///
+    /// Each row's `exec_id` MUST be prefixed with `flex:` (e.g. `flex:8849853516`)
+    /// so it can never collide with a live `reqExecutions` exec_id.
+    ///
+    /// Three outcomes per row:
+    /// - `exec_id` already in the store ⇒ no-op (idempotent re-run).
+    /// - A `source='live'` row matches the same fill by composite key
+    ///   `(account, symbol, side, qty, avg_price)` within ±60s of `exec_time`
+    ///   ⇒ skip — the live row is authoritative.
+    /// - Otherwise ⇒ INSERT with `source='flex'`.
+    pub async fn record_backfill(&self, rows: &[IbkrExecution]) -> StorageResult<BackfillSummary> {
+        if rows.is_empty() {
+            return Ok(BackfillSummary::default());
+        }
+        let owned: Vec<IbkrExecution> = rows.to_vec();
+        self.db
+            .with_conn(move |conn| {
+                let tx = conn.transaction()?;
+                let mut summary = BackfillSummary::default();
+                for row in &owned {
+                    let exists: i64 = tx.query_row(
+                        "SELECT COUNT(*) FROM executions WHERE exec_id = ?1",
+                        params![row.exec_id],
+                        |r| r.get(0),
+                    )?;
+                    if exists > 0 {
+                        summary.skipped_existing += 1;
+                        continue;
+                    }
+                    let exec_time_iso = row.exec_time.to_rfc3339();
+                    let live_match: i64 = tx.query_row(
+                        "SELECT COUNT(*) FROM executions
+                         WHERE source = 'live'
+                           AND account = ?1
+                           AND symbol = ?2
+                           AND side = ?3
+                           AND ABS(qty - ?4) < 1e-6
+                           AND ABS(avg_price - ?5) < 1e-6
+                           AND ABS((julianday(exec_time) - julianday(?6)) * 86400) < 60",
+                        params![
+                            row.account,
+                            row.symbol,
+                            side_to_str(&row.side),
+                            row.qty,
+                            row.avg_price,
+                            exec_time_iso,
+                        ],
+                        |r| r.get(0),
+                    )?;
+                    if live_match > 0 {
+                        summary.skipped_live_match += 1;
+                        continue;
+                    }
+                    tx.execute(
+                        "INSERT INTO executions (
+                            exec_id, account, symbol, contract_type, expiry,
+                            strike, \"right\", multiplier, side, qty, avg_price,
+                            currency, exec_time, order_id, commission,
+                            realized_pnl, commission_currency, source
+                         ) VALUES (
+                            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
+                            ?12, ?13, ?14, ?15, ?16, ?17, 'flex'
+                         )",
+                        params![
+                            row.exec_id,
+                            row.account,
+                            row.symbol,
+                            row.contract_type,
+                            row.expiry.map(|d| d.format("%Y-%m-%d").to_string()),
+                            row.strike,
+                            row.right,
+                            row.multiplier,
+                            side_to_str(&row.side),
+                            row.qty,
+                            row.avg_price,
+                            row.currency,
+                            exec_time_iso,
+                            row.order_id,
+                            row.commission,
+                            row.realized_pnl,
+                            row.commission_currency,
+                        ],
+                    )?;
+                    summary.inserted += 1;
                 }
                 tx.commit()?;
                 Ok(summary)

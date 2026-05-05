@@ -5,6 +5,8 @@ pub mod ingest;
 pub mod store;
 
 pub use ingest::{ExecutionsIngestor, LiveExecutionsFetcher};
+#[allow(unused_imports)]
+pub use store::BackfillSummary;
 pub use store::ExecutionsStore;
 
 #[cfg(test)]
