@@ -71,7 +71,7 @@ Locked once so phases don't re-debate. Overridable per-phase with a written just
 | 4 | [phase-4-r-grading.md](phase-4-r-grading.md) | 1, 2 | done (commit 47eb50f, 2026-05-06) |
 | 5 | [phase-5-event-blackouts.md](phase-5-event-blackouts.md) | none (foundation) | done (commit 1fc50e7, 2026-05-06) |
 | 6 | [phase-6-backtester.md](phase-6-backtester.md) | 2 | done (commit 0f8d86e, 2026-05-06) |
-| 7 | [phase-7-vol-adjusted-exits.md](phase-7-vol-adjusted-exits.md) | 6 | todo |
+| 7 | [phase-7-vol-adjusted-exits.md](phase-7-vol-adjusted-exits.md) | 6 | in-progress (started 2026-05-06) |
 | 8 | [phase-8-portfolio-risk.md](phase-8-portfolio-risk.md) | 1 | todo |
 | 9 | [phase-9-regime-gating.md](phase-9-regime-gating.md) | 6 | todo |
 | 10 | [phase-10-walk-forward-refit.md](phase-10-walk-forward-refit.md) | 6 | todo |
