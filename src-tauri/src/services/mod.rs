@@ -22,6 +22,7 @@ pub mod news_cache;
 pub mod news_interpreter;
 pub mod news_provider;
 pub mod outcome_extractor;
+pub mod playbooks;
 pub mod predictions;
 pub mod projection_service;
 pub mod quote_service;
