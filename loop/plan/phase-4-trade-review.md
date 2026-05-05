@@ -2,7 +2,7 @@
 
 > Part of [Behavioral assessment via MCP](master.md). See master for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-05)
 
 **Depends on:** 2 (`get_trade_legs` is the input)
 
