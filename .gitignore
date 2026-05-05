@@ -34,6 +34,9 @@ journal/
 # Git worktrees (isolated workspaces for parallel branches)
 .worktrees/
 
+# Superpowers brainstorming (visual companion mockups, ephemeral)
+.superpowers/
+
 # Vitest coverage output
 coverage/
 

@@ -22,7 +22,7 @@ use tokio::io::AsyncWriteExt;
 use super::backend::LlmBackend;
 use super::{LlmError, LlmRequest, LlmResponse, Role, ToolCall, ToolChoice, Usage};
 
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// Empty MCP-server set for the CLI subprocess. The CLI requires the
 /// `mcpServers` key — bare `{}` is rejected. Used with
