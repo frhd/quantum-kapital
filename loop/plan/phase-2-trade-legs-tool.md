@@ -2,7 +2,7 @@
 
 > Part of [Behavioral assessment via MCP](master.md). See master for invariants.
 
-**Status:** todo
+**Status:** in-progress (started 2026-05-05)
 
 **Depends on:** 1 (executions store must exist so multi-day queries work).
 
