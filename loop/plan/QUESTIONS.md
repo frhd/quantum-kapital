@@ -11,6 +11,23 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   "MockHttp queue exhausted" on baseline `main` (verified by stashing
   Phase 1 changes and re-running). Not introduced by P1; left as-is for
   P18-decay-watcher owner to fix.
+- *SetupCard not yet wired into a tab.* The new
+  `src/features/tracker/components/SetupCard.tsx` renders qty /
+  dollar-risk / R-per-share / stale-equity warning, but no parent
+  component imports it. The Tracker tab today shows setups as row
+  decorations in `Watchlist.tsx`; pulling in SetupCard requires a
+  watchlist-row refactor that's out of P1's scope. Phase that owns
+  the trader-facing card surface should pick this up.
+- *Conviction signal mapping — A=≥0.75, B=≥0.5, else C.* Locked here
+  so future grade tuning has a documented baseline. The master plan
+  decision was "sizing comes from LLM thesis", but P1 sources from
+  the detector's `conviction_signal` field since thesis runs after
+  insertion. Re-grading at thesis time is a future enhancement.
+- *`risk_recompute_setup` recovers the conviction signal from the
+  persisted grade*, mapping A→0.85, B→0.6, C→0.3. Recompute
+  preserves grade across config-knob refreshes; the original
+  detector signal is not stored on the row, so this is a one-way
+  mapping. Acceptable for P1 since recompute is a niche path.
 
 ## Phase 5 (TBD)
 
