@@ -21,6 +21,8 @@ mod tests;
 
 #[allow(unused_imports)]
 pub use generator::PROMPT_VERSION_RUST;
+#[allow(unused_imports)]
+pub use generator::{GenerateError, TradeReviewGenerator};
 #[allow(unused_imports)] // public API surface — used by mcp tools and (future) FE wrappers
 pub use grade::{compute_grade, Grade, GradeLetter};
 #[allow(unused_imports)]
