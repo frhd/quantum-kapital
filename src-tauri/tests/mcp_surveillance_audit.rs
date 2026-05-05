@@ -41,7 +41,7 @@ fn is_blocked(name: &str) -> bool {
     // a read, not a write — but the noun "executions" trips the
     // `contains("execute")` guard. Keep the broad guard for everything
     // else; allowlist by exact name here.
-    if matches!(n.as_str(), "get_executions") {
+    if matches!(n.as_str(), "get_executions" | "get_trade_legs") {
         return false;
     }
     n.starts_with("place_")
@@ -75,6 +75,7 @@ fn audit_predicates_block_known_order_names() {
         "get_positions",
         "get_account_summary",
         "get_executions",
+        "get_trade_legs",
         "run_scanner",
         "list_watchlist",
         "get_llm_budget_status",
@@ -114,12 +115,12 @@ async fn mcp_tool_registry_is_surveillance_only() {
     // append_journal_entry) + Phase 8 (3 reads: get_calibration_stats,
     // get_prediction_history, get_cost_attribution) + AV strip-out
     // Phase 4 (1 write: set_fundamentals — operator-curated reference
-    // data, never market actions) + Trade-history Phase 2 (1 read:
-    // get_executions) = 28.
+    // data, never market actions) + Trade-history Phase 2 (2 reads:
+    // get_executions, get_trade_legs) = 29.
     assert_eq!(
         names.len(),
-        28,
-        "expected 28 registered MCP tools, got {}: {:?}",
+        29,
+        "expected 29 registered MCP tools, got {}: {:?}",
         names.len(),
         names
     );
