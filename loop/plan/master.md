@@ -69,7 +69,7 @@ Locked once so phases don't re-debate. Overridable per-phase with a written just
 | 2 | [phase-2-tca-linkage.md](phase-2-tca-linkage.md) | none (foundation) | done (commit 1f9036b, 2026-05-05) |
 | 3 | [phase-3-bracket-on-activation.md](phase-3-bracket-on-activation.md) | 1, 2 | done (commit b3da8de, 2026-05-06) |
 | 4 | [phase-4-r-grading.md](phase-4-r-grading.md) | 1, 2 | done (commit 47eb50f, 2026-05-06) |
-| 5 | [phase-5-event-blackouts.md](phase-5-event-blackouts.md) | none (foundation) | todo |
+| 5 | [phase-5-event-blackouts.md](phase-5-event-blackouts.md) | none (foundation) | in-progress (started 2026-05-06) |
 | 6 | [phase-6-backtester.md](phase-6-backtester.md) | 2 | todo |
 | 7 | [phase-7-vol-adjusted-exits.md](phase-7-vol-adjusted-exits.md) | 6 | todo |
 | 8 | [phase-8-portfolio-risk.md](phase-8-portfolio-risk.md) | 1 | todo |
