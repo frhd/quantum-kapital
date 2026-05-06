@@ -536,9 +536,115 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   of 1035 lib tests pass on baseline against P8 changes; not
   introduced by P8.
 
-## Phase 9 (TBD)
+## Phase 9 (2026-05-06)
 
-- *Per-detector regime preference justifications.* For each detector, the on-regime vs all-regime backtest comparison that justifies the declared `preferred_regimes`. Linked to backtest run ids.
+- *Backtest-evidence comparison committed but not gathered.* The phase doc
+  exit criterion calls for "per-detector on-regime vs. all-regime
+  profit-factor, Sharpe, expectancy in R" with run-ids linked here.
+  P9 ships the gate, the classifier, the persistence rule, the per-
+  detector default filters, and the runner wiring — but the actual
+  backtest comparison waits on bars_cache being primed for SPY + VIX +
+  the regime universe over the full 18-month lookback (same operator
+  task P6 logged). When the operator runs the first sweep with the
+  P6 backtester and the regime gate enabled in tracker_runner,
+  document outcomes here keyed by `BacktestRun.id`. The defaults
+  baked into `RegimeConfig::default()` are the master plan's
+  decisions-to-make table; the operator can hand-tune via
+  `regime_set_config` once evidence justifies a wider or narrower
+  envelope.
+
+- *Trade-frequency floor (5 / month, 12-month window) check is a knob,
+  not a cron.* `RegimeConfig.min_monthly_trades_floor = 5` is
+  persisted but the actual "did detector X drop below floor?" check
+  is owned by Phase 10's walk-forward refit pass (per master phase
+  table). P9 does NOT auto-disable a starved detector. When P10
+  lands, the cron should: query `setups WHERE strategy = X AND
+  detected_at >= now - 30d`, count fired (not skipped) rows, compare
+  to floor; if violated, surface a warning + suggest widening the
+  filter. Wire the cron into `services/param_refit/` when that phase
+  begins.
+
+- *Per-detector regime preference justifications still open.* The
+  pre-P9 placeholder note belongs to P10 (refit) not P9 — P9's
+  defaults are the *baseline* documented in the master phase table.
+  The "justified by backtest" upgrade arrives in P10 with the first
+  walk-forward sweep.
+
+- *VIX bars require external priming.* `bars_cache` does not
+  auto-fetch VIX (IBKR exposes it as `IND` security type, not `STK`,
+  and the existing `HistoricalDataService` path only handles `STK`).
+  When VIX bars are absent, the classifier falls back to
+  `vol = Normal` and logs `missing: ["vix"]` on the snapshot row.
+  The operator must seed VIX into bars_cache (manually via IBKR's
+  `IND` request, or by a dedicated index-fetcher we haven't built).
+  Until then the vol axis is permanently neutral, which means
+  parabolic-short (which requires `vol in {Normal, High}`) only
+  runs when SPY classifies into a Down/Sideways trend. Logged so a
+  future operator pass doesn't read "vol always Normal" as a code
+  bug.
+
+- *Top-50 SP500 universe is a starter list, not the master plan's
+  top-200.* The plan committed "compute from bars_cache for the top
+  200 SP500 names". P9 ships ~50 names in `services/regime/inputs.rs::UNIVERSE`
+  to keep the 80% fresh-bar coverage threshold reachable from a
+  lightly-primed cache. Growing the universe to 200 requires (a) a
+  curated list (no embedded source today), (b) priming bars_cache
+  for those names, and (c) verifying the breadth/correlation values
+  don't drift meaningfully (since the math is mean-of-cohort, the
+  outcome should be similar). Operator task; logged so a future
+  pass doesn't read "only 50 names" as a regression.
+
+- *Survivorship bias in the universe — not corrected.* Same shape as
+  P6's bars_cache survivorship gotcha. The universe is fixed at
+  compile time; companies that exited the SP500 (e.g. dropped
+  index members) keep contributing. For backtests over multi-year
+  windows, the operator must override the universe to the
+  as-of-test-date set. Live classification doesn't suffer because
+  it only uses today's bars.
+
+- *RegimeIndicator + RegimeConfig editor not wired into a parent
+  tab.* Same flag P1, P3, P5, P6, P7, P8 logged. The new
+  `RegimeIndicator.tsx` ships under `src/features/portfolio/components/`
+  but no parent screen imports it. The natural home is the workspace
+  top bar alongside the existing DataTierBanner; a small refactor
+  that should land with the next workspace UI pass. The operator
+  config editor (a form bound to `regime_set_config`) isn't
+  shipped yet either — until it lands, knobs are tunable only by
+  hand-editing `~/.config/quantum-kapital/settings.json`.
+
+- *No 60-second / 15-minute scheduler wired.* Master decision: "daily
+  (close) and intraday (every 15 min during RTH)". P9 ships
+  `RegimeService::snapshot()` with single-flight, the EOD/intraday
+  source tags, and the `regime_force_recompute` Tauri command —
+  but does NOT register a `tokio::time::interval` tick or hook into
+  the existing intraday scheduler. Today the regime cache only
+  refreshes when the runner's first detector hit triggers an
+  `evaluate()`, which lazily computes via `current()`. Wire a
+  proper scheduler when the workspace UI lands the indicator OR
+  when P11 (tilt) needs the regime to be authoritatively up-to-date
+  on every tick. The existing `services/intraday_scheduler` is the
+  natural insertion point.
+
+- *Override-rate monitoring against `gate_overrides` not wired.*
+  Master cross-phase verification: "If any single gate has > 30%
+  override rate over 60 days of live use, the gate is too strict
+  OR the trader is rationalizing — review here." The audit rows
+  land in `gate_overrides` with `gate_kind = 'regime'`; the
+  60-day rollup view is a future trader-profile query. Logged so
+  the audit doesn't accumulate without a UI to surface it.
+
+- *Pre-existing `decay_watcher` flake still failing.* P1/P2/P5/P6/P7/P8
+  all logged this. P9 confirms the same panic on baseline against
+  `services::decay_watcher::tests::respects_budget_kill_switch`.
+  1066 of 1067 lib tests pass on baseline against P9 changes (32 of
+  them new regime tests).
+
+- *Paper-account E2E not run by Claude.* Same shape as P3, P6, P7.
+  The regime gate's user-visible effect (off-regime hits land in the
+  SkippedSetupsPanel with `kind = "off_regime"`) is exercised by
+  the integration test `evaluate_blocks_off_regime_detector`. A
+  live walk needs SPY/VIX bars in cache + an off-regime detector
+  candidate — operator validation when the workspace UI lands.
 
 ## Phase 10 (TBD)
 
