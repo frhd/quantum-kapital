@@ -75,7 +75,7 @@ Locked once so phases don't re-debate. Overridable per-phase with a written just
 | 8 | [phase-8-portfolio-risk.md](phase-8-portfolio-risk.md) | 1 | done (commit fa3e570, 2026-05-06) |
 | 9 | [phase-9-regime-gating.md](phase-9-regime-gating.md) | 6 | done (commit 5401de2, 2026-05-06) |
 | 10 | [phase-10-walk-forward-refit.md](phase-10-walk-forward-refit.md) | 6 | done (commit 7144182, 2026-05-06) |
-| 11 | [phase-11-tilt-circuit-breaker.md](phase-11-tilt-circuit-breaker.md) | 1, 4 | todo |
+| 11 | [phase-11-tilt-circuit-breaker.md](phase-11-tilt-circuit-breaker.md) | 1, 4 | in-progress (started 2026-05-06) |
 | 12 | [phase-12-options-and-mtf.md](phase-12-options-and-mtf.md) | 6, 7, 9 | punted |
 
 > When starting/exiting a phase, update **both** this row's `Status` AND the phase file's `**Status:**` header. Don't start a phase whose dependencies aren't `done`.
