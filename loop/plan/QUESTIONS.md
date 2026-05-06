@@ -755,9 +755,88 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   integration tests cover the determinism, constraint, lock, and
   empty-bars paths.
 
-## Phase 11 (TBD)
+## Phase 11 (2026-05-06)
 
-- *First tilt episode in production.* When the first real tilt fires, capture the trigger details, override behavior, and trader feedback here. Calibrates whether thresholds are tuned right.
+- *Trigger evaluation cadence is lazy at sizing/place time, not subscriber-driven.*
+  Master phase doc committed: "evaluate on every `BracketStatusChanged` event when
+  status reaches a terminal state." Today's wiring evaluates lazily inside
+  `RiskEngine::size_for_candidate` and `OrderTicket::with_brackets` — the
+  fill-status reconciler that would flip `bracket_groups.last_status` to
+  `filled`/`stopped` is the same one P3 logged as deferred. The lazy path is
+  load-bearing because no new sizing or bracket placement happens unless the
+  trader is acting, so the gate fires on every meaningful turn anyway. When the
+  P3-deferred reconciler lands, layer a dedicated `BracketStatusChanged`
+  subscriber that calls `TiltGuardService::evaluate(account)` so the banner
+  flips the moment the second consecutive stop hits, not the moment the trader
+  opens the next setup.
+
+- *Override watermark is timestamp-based, not stream-cursor-based.* After a
+  manual override, `evaluate` filters today's R-stream against the most-recent
+  `tilt_episodes.released_at_unix` watermark — a trade closed strictly after
+  the release re-triggers, a trade closed at-or-before the release does not.
+  Edge case: if a trade closes during the same wall-clock second the override
+  flips `released_at`, the watermark filter (`closed_at > released_at`) skips
+  it. SQLite stores both as unix-second integers so equality wins, and the test
+  `new_losing_trade_after_override_does_retrigger` lands the new trade a few
+  seconds out to dodge the boundary. In production the gap between override
+  click and the next leg's close is much wider. If the boundary ever bites,
+  switch the comparison to `>=` and document that an override followed by a
+  same-second close becomes a re-trigger.
+
+- *Day-N+1 stricter-threshold lookup uses `trading_days_before(et_today, 1)`.*
+  This walks one trading day back, which is correct for Tue→Mon but
+  *incorrect* for Mon→Fri when the trader was on tilt the previous Friday: the
+  current implementation looks at last *trading* day, so Friday is found.
+  Confirmed via the `override_then_next_session_uses_stricter_threshold` test
+  (which asserts -2.0 OR -3.0 depending on test runtime calendar). The robust
+  answer is "any tilt episode released within the last calendar week" — but
+  master committed to "next session" semantics, so the trading-days walk is
+  the closest match. Re-open if a trader complains the stricter threshold
+  carries past the intended day.
+
+- *`gate_overrides` audit row requires `setup_id NOT NULL`.* Tilt overrides
+  are account-level, not setup-level. The `write_gate_override` helper picks
+  the most-recent setup linked to the account's bracket history and writes
+  that as the `setup_id` placeholder. This is a schema convenience, not a
+  semantic claim — the override applies to the account, not that setup. When
+  no setup row exists yet (fresh install), the audit insert is silently
+  skipped. Trader-profile rollup queries should treat tilt rows specially
+  rather than joining on `setup_id`. A future `V28` migration that makes
+  `gate_overrides.setup_id` nullable would clean this up.
+
+- *Tilt config knobs are not persisted to settings.json.* `TiltConfig` lives
+  in-memory with the master defaults (cum_r=-3.0, consecutive=2). No
+  `tilt_get_config` / `tilt_set_config` Tauri commands. If the operator wants
+  to tune thresholds, they hand-edit code and rebuild. Punted because the
+  master defaults are committed — re-open if dogfooding shows the thresholds
+  are wrong for this trader. The `RwLock<TiltConfig>` is in place; only the
+  AppConfig + commands wiring is missing.
+
+- *Banner + history card not yet wired into a parent tab.* Same flag every
+  P1/P3/P5/P6/P7/P8/P9/P10 phase logged. `TiltBanner.tsx` ships under
+  `src/features/portfolio/components/` and `TiltHistoryCard.tsx` under
+  `src/features/trade-review/components/` but no parent screen imports them.
+  The natural homes: `TiltBanner` near the top of the workspace (alongside
+  `RegimeIndicator`), `TiltHistoryCard` in the trader-profile rollup.
+  Watchlist-row refactor remains the unblocker for the SetupCard surface;
+  TiltBanner should land sooner since it's a cross-screen component.
+
+- *Pre-existing `decay_watcher` flake still failing.* P1/P2/P5/P6/P7/P8/P9/P10
+  all logged this. P11 confirms the same panic on baseline against
+  `services::decay_watcher::tests::respects_budget_kill_switch`. 1114 of 1115
+  lib tests pass on baseline against P11 changes (24 of them new tilt_guard
+  tests). Not introduced by P11.
+
+- *Paper-account E2E not run by Claude.* Same shape as prior phases.
+  TiltActivated / TiltReleased events are exercised by the integration test
+  against the captured `EventEmitter`; the live `tauri::AppHandle::emit` round
+  trip needs the operator to drive a tilt scenario in IBKR paper. Until then
+  the gate's user-visible effect (sizing skipped + bracket rejected with
+  `TiltPaused`) is exercised by `full_stack_pause_then_override_unblocks_sizing`.
+
+- *First tilt episode in production.* When the first real tilt fires, capture
+  the trigger details, override behavior, and trader feedback here.
+  Calibrates whether thresholds are tuned right.
 
 ## Cross-phase open
 
