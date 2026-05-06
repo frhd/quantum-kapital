@@ -171,3 +171,24 @@ pub fn trading_days_after_close(now: DateTime<Utc>, n: u32) -> DateTime<Utc> {
     let target = trading_days_after(today_et, n);
     et_local_to_utc(target, RTH_CLOSE.0, RTH_CLOSE.1)
 }
+
+/// Last trading day of the given calendar month (skipping weekends +
+/// holidays). Used by the Phase 10 monthly refit scheduler to decide
+/// when to fire the next sweep. Pure: no IO; deterministic given the
+/// holiday list.
+pub fn last_trading_day_of_month(year: i32, month: u32) -> NaiveDate {
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
+    let first_of_next = NaiveDate::from_ymd_opt(next_year, next_month, 1)
+        .expect("year/month combo is valid");
+    let mut d = first_of_next
+        .pred_opt()
+        .expect("date arithmetic does not overflow");
+    while !is_business_day(d) {
+        d = d.pred_opt().expect("date arithmetic does not overflow");
+    }
+    d
+}

@@ -26,6 +26,7 @@ pub mod news_interpreter;
 pub mod news_provider;
 pub mod order_ticket;
 pub mod outcome_extractor;
+pub mod param_refit;
 pub mod playbooks;
 pub mod portfolio_risk;
 pub mod predictions;
