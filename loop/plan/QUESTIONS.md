@@ -445,6 +445,97 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   exercised by construction (it's the same `place_order(id, ...)`
   call the bracket placer uses, just at the existing stop's id).
 
+## Phase 8 (2026-05-06)
+
+- *60-second snapshot scheduler not wired.* Master decision: "recompute
+  on `executions` event AND every 60 seconds". P8 ships the
+  `PortfolioRiskService::snapshot()` recompute path, the single-flight
+  `Mutex` that collapses concurrent triggers, and the
+  `PortfolioRiskChanged` emit. What it does NOT yet ship: an
+  `executions`/`bracket-revised` event subscriber that calls
+  `snapshot()` automatically, nor a `tokio::time::interval`-driven
+  60s tick. Today the dashboard refreshes only when something else
+  calls the Tauri `portfolio_risk_snapshot` command (e.g. the
+  RiskSnapshot card mounts, the user re-opens the tab). Wire a small
+  scheduler when the Portfolio tab refactor lands, OR have the
+  TrackerRunner kick a recompute after every `update_setup_sizing`
+  via an `Arc<PortfolioRiskService>`. The single-flight guard means
+  duplicate triggers are cheap.
+
+- *Sector lookup is the static SP500-ish table, not the fundamentals
+  provider.* Master committed: "Reuses fundamentals provider's sector
+  field; falls back to a small static SP500-sector JSON for missing
+  symbols". Today's `FundamentalData` struct doesn't carry a sector
+  field — see `ibkr/types/fundamentals.rs::CurrentMetrics`. P8 ships
+  the static fallback (`services/portfolio_risk/sector_map.rs`,
+  ~70 symbols across 13 sector buckets) as the only source. When the
+  fundamentals provider grows a sector field, swap the lookup order
+  in `SectorMap::lookup` so the live cache wins over the static
+  fallback. The `set_override` path on `SectorMap` is already wired
+  for per-symbol manual overrides; expose it via a Tauri command
+  when the override UI lands.
+
+- *Factor inputs are placeholders.* The `FactorInputs` struct
+  (12-1m return percentile, P/E percentile, market cap) compiles + is
+  cached, but the snapshot path passes `FactorInputs::default()` so
+  every position lands in the `unknown` factor bucket. Two follow-ups:
+  (a) thread daily-bar history through `PortfolioRiskService::snapshot`
+  to compute the 12-1m return percentile, and (b) thread fundamentals
+  shares-outstanding × current price for market cap. Until then the
+  factor-concurrent gate ladder fires only when the *candidate* in
+  `concentration_check` carries an explicit `momentum_bucket` (the
+  TakeSetupModal can compute it from the runner's already-computed
+  ATR/return for the candidate's symbol).
+
+- *`bracket_attach_after_fact` command not implemented.* Master
+  decision for legacy positions: "Trader can manually attach stop via
+  `bracket_attach_after_fact` (small new command)". P8 honors the
+  intent of the decision via the 5%-fallback stop estimation — the
+  snapshot still computes a meaningful dollar-risk for un-bracketed
+  positions and surfaces the `stop_estimated: true` flag in the
+  `OpenPosition` payload (RiskSnapshot card renders the warning).
+  The explicit `bracket_attach_after_fact` Tauri command is deferred
+  because the `bracket_groups` schema requires a `setup_id` FK + an
+  `intent_id` FK that legacy fills don't carry. Two paths to unblock:
+  (a) make those FKs nullable in V24 (rejected — would weaken the
+  audit invariant), or (b) synthesize a synthetic `setups` row when
+  the trader attaches. Picked (b) as the right shape; deferred until
+  a real legacy position needs it.
+
+- *RiskSnapshot + ExposureMap + GateWarningBanner not wired into a
+  parent tab.* Same flag P1/P3/P5/P6/P7 logged. The three new
+  components ship under `src/features/portfolio/components/` and
+  `src/features/tracker/components/`, but no parent screen imports
+  them. The Portfolio tab (`src/features/portfolio/`) currently
+  renders the existing AccountSummary + StockPositions; pulling in
+  RiskSnapshot at the top + ExposureMap below is a small refactor
+  that should land alongside the next Portfolio-tab pass.
+  GateWarningBanner needs a `concentrationCheck` call inside
+  `TakeSetupModal` to populate it; the API wrapper is ready
+  (`src/shared/api/portfolioRisk.ts::concentrationCheck`).
+
+- *Override path uses unified `gate_overrides` table; blackout
+  overrides still write to `setup_blackout_overrides`.* P8 introduces
+  the `gate_overrides` table per the master cross-phase verification.
+  The Phase-5 `setup_blackout_overrides` table from V21 stays
+  immutable — blackout-override audit reads now query *both* tables
+  (or, a future maintainer pass migrates the V21 rows into
+  `gate_overrides` and drops the old table). Trader-profile rollup
+  needs to UNION the two tables until then.
+
+- *MockIbkrClient `get_positions` returns the canned set; the new
+  `OpenPositionsSource` blanket impl filters zero-qty rows out at the
+  service edge so the integration test's `position: 0.0` row collapses
+  cleanly. If a future test wants to inspect the unfiltered list, it
+  should hit the mock directly rather than going through the source
+  trait.
+
+- *Pre-existing `decay_watcher` flake still failing.* P1/P2/P5/P6/P7
+  all logged this. P8 confirms the same panic on baseline against
+  `services::decay_watcher::tests::respects_budget_kill_switch`. 1034
+  of 1035 lib tests pass on baseline against P8 changes; not
+  introduced by P8.
+
 ## Phase 9 (TBD)
 
 - *Per-detector regime preference justifications.* For each detector, the on-regime vs all-regime backtest comparison that justifies the declared `preferred_regimes`. Linked to backtest run ids.
