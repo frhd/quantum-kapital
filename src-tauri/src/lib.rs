@@ -58,11 +58,9 @@ use services::news_provider::NewsProvider;
 use services::order_ticket::{
     AccountResolver, BracketGroupStore, BracketModifier, BracketPlacer, OrderTicket,
 };
+use services::param_refit::{MonthlyRefitScheduler, ParamRefitService, ProdBacktesterFactory};
 use services::portfolio_risk::{
     FactorBuckets, OpenPositionsSource, PortfolioRiskService, SectorMap,
-};
-use services::param_refit::{
-    MonthlyRefitScheduler, ParamRefitService, ProdBacktesterFactory,
 };
 use services::regime::RegimeService;
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};

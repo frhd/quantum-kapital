@@ -71,7 +71,9 @@ pub struct ObjectiveScore {
 pub struct Objective;
 
 impl Objective {
-    pub fn score(result: &BacktestResult) -> std::result::Result<ObjectiveScore, Vec<ConstraintFailure>> {
+    pub fn score(
+        result: &BacktestResult,
+    ) -> std::result::Result<ObjectiveScore, Vec<ConstraintFailure>> {
         let mut failures = Vec::new();
         let n_trades = result.headline.n_trades;
         let pf = result.headline.profit_factor;

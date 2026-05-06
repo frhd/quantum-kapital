@@ -646,9 +646,114 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   live walk needs SPY/VIX bars in cache + an off-regime detector
   candidate — operator validation when the workspace UI lands.
 
-## Phase 10 (TBD)
+## Phase 10 (2026-05-06)
 
-- *Settings.toml semantics migration.* When refit lands, settings.toml ceases to be active params and becomes bounds. Document the one-shot migration here.
+- *Settings.toml semantics shift — committed and live as of P10.* The
+  `config.detectors` block in `settings.json` is now interpreted as
+  the **bounds** (floor/ceiling for sweep sampling) rather than the
+  active params. Active params at runtime come from the most-recent
+  non-superseded `param_vintages` row per detector; detectors without
+  a vintage fall back to the bounds defaults. No data migration was
+  needed because the existing `settings.json` shape doubles as
+  bounds — operators who want narrower sampling ranges can hand-edit
+  `~/.config/quantum-kapital/settings.json`.
+
+- *Real OOS sweep with primed bars deferred.* P10 ships the full
+  refit machinery (sweep engine, vintage store, lock-on-improvement
+  guard, monthly cron at 17:00 ET on the last trading day, startup
+  backfill), but the actual evidence-gathering sweep waits on
+  `bars_cache` being primed for the regime universe over the full
+  18-month lookback (same operator blocker P6/P7/P9 logged). Until
+  that primer runs:
+    - `param_refit_run_now` returns `Skipped` outcomes for every
+      detector (no bars → 0 trades → constraints unmet).
+    - The startup backfill writes nothing (Skipped → no vintage row).
+    - `effective_detectors_config` returns the bounds defaults, so
+      the runner fires on settings.json values (same behavior as
+      pre-P10).
+  Once the operator primes bars + runs a real sweep, document the
+  resulting per-detector vintages here keyed by `vintage_id`. The
+  90-day data-recency CI invariant (master plan: "every detector
+  active in production must have an OOS backtest entry within last
+  30 days") is **declared**, not yet enforced — see follow-up below.
+
+- *30-day OOS-currency CI check is declared but not wired.* Master
+  plan committed to a CI grep that fails when any production
+  detector lacks an OOS entry within 30 days. P10 does not ship
+  the CI script. Decision shape: when the first real refit lands,
+  the script is a SQL query against `param_vintages` joined with
+  the active-detector list — easy to wire as a nightly job. Ships
+  with the operator's first cron-cycle backlog audit, not with
+  the P10 diff.
+
+- *Per-(detector × regime) vintages punted to P12+.* Master plan
+  decision to punt is honored. The `regime` field is NOT carried on
+  the `param_vintages` row today; if a future phase adds regime-
+  conditional vintages, the column lands as a NOT NULL DEFAULT
+  'any' migration so existing rows stay readable. The operator
+  tradeoff: per-regime vintages would let breakout run wider stops
+  in High-vol regimes, but the per-(detector × regime × month) cell
+  count would dilute statistical power below the 30-trade floor.
+  Re-open when regime evidence shows persistent regime-specific
+  edge that the current any-regime vintage misses.
+
+- *Sweep evaluates OOS-only, not train+OOS.* Master gotcha:
+  "validate the chosen vintage on full 18 months only after
+  selection." P10's `SweepEngine::build_spec` runs each candidate
+  on the OOS window only, not the train window. That keeps the
+  sweep cheap (200 candidates × 3 months × 50 symbols vs × 18
+  months) but means there's no "train + OOS" comparison surfaced
+  to the operator. The full-window post-selection re-validation
+  pass is a future enhancement; until then the audit array
+  (`attempted_configs_json`) shows N=200 OOS scores, and the lock
+  guard prevents marginal winners.
+
+- *Sweep's spec_hash collisions across candidates with same OOS
+  window.* Each per-candidate `BacktestSpec` differs only in the
+  detector registry (which doesn't enter `spec_hash`). All
+  candidates therefore share a `spec_hash` (and `run_id`s differ
+  only via the `RUN_COUNTER` increment). The `backtest_runs` table
+  ends up with N rows for the same `spec_hash`, distinct `run_id`s,
+  and identical `result_json` IFF the registry produced identical
+  trades — but it doesn't, because the candidate's detector params
+  vary. So `spec_hash` is no longer a unique fingerprint of "what
+  was actually evaluated" once the sweep is in flight. Logged so a
+  future maintainer doesn't read `backtest_runs.spec_hash` as
+  candidate-identifying. The audit trail of *which params* the run
+  evaluated lives in `param_vintages.attempted_configs_json`, NOT
+  in `backtest_runs`.
+
+- *Backtest contention with user-triggered runs.* Master gotcha:
+  "use a semaphore with bounded concurrency". P10 ships without a
+  semaphore — the sweep's per-candidate backtester construction
+  serializes through async/await sequentially, but if the operator
+  hits the BacktestRunner UI mid-sweep, both compete for the same
+  SQLite DB pool. Acceptable for now (DB pool serializes writes
+  internally), but if a future operator complains of UI lag during
+  refit, the semaphore lands here. The cron runs at 17:00 ET so
+  off-hours contention is rare.
+
+- *Pre-existing `decay_watcher` flake still failing.* Same panic
+  P1/P2/P5/P6/P7/P8/P9 logged
+  (`services::decay_watcher::tests::respects_budget_kill_switch`,
+  "MockHttp queue exhausted"). 1090 of 1091 lib tests pass on
+  baseline against P10 changes (24 of them new param_refit tests).
+  Not introduced by P10.
+
+- *Frontend ParamVintageHistory not yet wired into the eval tab.*
+  Same pattern P1, P3, P5, P6, P7, P8, P9 logged. The new
+  `ParamVintageHistory.tsx` ships under `src/features/eval/components/`
+  but `EvalTab.tsx` doesn't import it yet. The natural home is
+  alongside the existing `Calibration & Cost` card; a small
+  refactor that should land with the next eval tab pass.
+
+- *Paper-account E2E not run by Claude.* Same shape as prior
+  phases: a real walk-through of the live cron firing on the last
+  trading day, producing a report row, and the runner picking up
+  the new vintage on the next session needs the operator's
+  primed bars + a real cron-tick. Until that happens the unit +
+  integration tests cover the determinism, constraint, lock, and
+  empty-bars paths.
 
 ## Phase 11 (TBD)
 

@@ -14,9 +14,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use tauri::State;
 
-use crate::services::param_refit::{
-    LockSource, ParamRefitService, ParamVintage, RefitReport,
-};
+use crate::services::param_refit::{LockSource, ParamRefitService, ParamVintage, RefitReport};
 
 #[derive(Debug, Deserialize)]
 pub struct RunNowInput {

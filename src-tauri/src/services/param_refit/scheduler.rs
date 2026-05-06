@@ -154,7 +154,9 @@ mod tests {
         let next = next_refit_at(now);
         // Should be the last trading day of June 2026.
         let last_jun = last_trading_day_of_month(2026, 6);
-        let expected_date_et = next.with_timezone(&market_calendar::et_offset()).date_naive();
+        let expected_date_et = next
+            .with_timezone(&market_calendar::et_offset())
+            .date_naive();
         assert_eq!(expected_date_et, last_jun);
     }
 
@@ -168,7 +170,9 @@ mod tests {
             .unwrap();
         let now = now_et.with_timezone(&Utc);
         let next = next_refit_at(now);
-        let next_date_et = next.with_timezone(&market_calendar::et_offset()).date_naive();
+        let next_date_et = next
+            .with_timezone(&market_calendar::et_offset())
+            .date_naive();
         let last_aug = last_trading_day_of_month(2026, 8);
         assert_eq!(next_date_et, last_aug);
     }

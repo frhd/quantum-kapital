@@ -182,8 +182,8 @@ pub fn last_trading_day_of_month(year: i32, month: u32) -> NaiveDate {
     } else {
         (year, month + 1)
     };
-    let first_of_next = NaiveDate::from_ymd_opt(next_year, next_month, 1)
-        .expect("year/month combo is valid");
+    let first_of_next =
+        NaiveDate::from_ymd_opt(next_year, next_month, 1).expect("year/month combo is valid");
     let mut d = first_of_next
         .pred_opt()
         .expect("date arithmetic does not overflow");

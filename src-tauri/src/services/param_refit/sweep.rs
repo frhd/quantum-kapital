@@ -461,7 +461,11 @@ struct XorShift64 {
 impl XorShift64 {
     fn new(seed: u64) -> Self {
         // xorshift64 doesn't accept 0; substitute a constant seed.
-        let s = if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed };
+        let s = if seed == 0 {
+            0x9E37_79B9_7F4A_7C15
+        } else {
+            seed
+        };
         Self { state: s }
     }
 

@@ -253,9 +253,9 @@ impl VintageStore {
                 Ok(())
             })
             .await?;
-        self.get(&vintage_id)
-            .await?
-            .ok_or_else(|| StorageError::Migration(format!("vintage {vintage_id} disappeared after insert")).into())
+        self.get(&vintage_id).await?.ok_or_else(|| {
+            StorageError::Migration(format!("vintage {vintage_id} disappeared after insert")).into()
+        })
     }
 }
 
@@ -329,7 +329,11 @@ impl AttemptedConfigRecord {
     fn from_sweep_candidate(c: &SweepCandidate) -> Self {
         let n_trades = c.score.as_ref().map(|s| s.n_trades).unwrap_or(0);
         let value = c.score.as_ref().map(|s| s.value);
-        let constraint_failures = c.constraint_failures.iter().map(|f| f.as_str().to_string()).collect();
+        let constraint_failures = c
+            .constraint_failures
+            .iter()
+            .map(|f| f.as_str().to_string())
+            .collect();
         Self {
             params: c.params_json.clone(),
             score: value,

@@ -54,8 +54,7 @@ pub use objective::{ConstraintFailure, Objective, ObjectiveScore};
 pub use scheduler::MonthlyRefitScheduler;
 pub use sweep::{
     detector_seed, BacktesterFactory, ParamSpace, ProdBacktesterFactory, SweepCandidate,
-    SweepEngine, SweepReport, BREAKOUT_DETECTOR, EPISODIC_PIVOT_DETECTOR,
-    PARABOLIC_SHORT_DETECTOR,
+    SweepEngine, SweepReport, BREAKOUT_DETECTOR, EPISODIC_PIVOT_DETECTOR, PARABOLIC_SHORT_DETECTOR,
 };
 pub use vintage_store::{LockSource, ParamVintage, VintageStore};
 
@@ -354,11 +353,7 @@ impl ParamRefitService {
         ]
     }
 
-    async fn run_subset(
-        &self,
-        detectors: Vec<String>,
-        source: LockSource,
-    ) -> Result<RefitReport> {
+    async fn run_subset(&self, detectors: Vec<String>, source: LockSource) -> Result<RefitReport> {
         let refit_at = Utc::now();
         let inputs = SweepInputs::from_refit_anchor(refit_at, (*self.default_symbols).clone());
         if inputs.symbols.is_empty() {
@@ -423,7 +418,11 @@ impl ParamRefitService {
             .candidates
             .iter()
             .filter_map(|c| c.score.as_ref().map(|s| (c, s)))
-            .max_by(|a, b| a.1.value.partial_cmp(&b.1.value).unwrap_or(std::cmp::Ordering::Equal));
+            .max_by(|a, b| {
+                a.1.value
+                    .partial_cmp(&b.1.value)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         let best_objective = best.as_ref().map(|(_c, s)| s.value);
 
         match best {
