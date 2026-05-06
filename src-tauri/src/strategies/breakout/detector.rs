@@ -11,6 +11,7 @@ use chrono::Utc;
 use serde_json::json;
 
 use crate::ibkr::types::{BarSize, StrategyTag};
+use crate::services::regime::{RegimeFilter, TrendAxis, VolAxis};
 use crate::strategies::config::BreakoutCfg;
 use crate::strategies::indicators::{atr, rsi, swing_low};
 use crate::strategies::{
@@ -63,6 +64,18 @@ impl StrategyDetector for BreakoutDetector {
     }
     fn min_lookback_days(&self) -> u32 {
         self.min_bars()
+    }
+    fn preferred_regimes(&self) -> RegimeFilter {
+        // Phase 9 default: trend in {Up, Sideways} AND vol in {Low,
+        // Normal}. Skip in Down + High vol where breakouts have
+        // historically failed (per master plan's Phase-9 table).
+        // Operator-overridable via `RegimeConfig.per_detector`.
+        RegimeFilter {
+            trend: vec![TrendAxis::Up, TrendAxis::Sideways],
+            vol: vec![VolAxis::Low, VolAxis::Normal],
+            breadth: vec![],
+            corr: vec![],
+        }
     }
 
     async fn evaluate(

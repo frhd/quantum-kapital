@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use thiserror::Error;
 
 use crate::ibkr::types::{BarSize, StrategyTag};
+use crate::services::regime::RegimeFilter;
 
 use super::candidate::SetupCandidate;
 use super::context::MarketContext;
@@ -24,6 +25,14 @@ pub trait StrategyDetector: Send + Sync {
     fn tag(&self) -> StrategyTag;
     fn timeframe(&self) -> BarSize;
     fn min_lookback_days(&self) -> u32;
+    /// Phase 9 — declared regime preferences. Default returns
+    /// [`RegimeFilter::default`] (no constraints), so detectors that
+    /// don't override stay regime-agnostic. The runtime gate reads
+    /// from `RegimeConfig.per_detector` first; this trait method is
+    /// the operator-overridable fallback.
+    fn preferred_regimes(&self) -> RegimeFilter {
+        RegimeFilter::default()
+    }
     async fn evaluate(
         &self,
         ctx: &MarketContext<'_>,

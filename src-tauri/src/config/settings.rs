@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use tokio::fs;
 
 use crate::services::portfolio_risk::ConcentrationConfig;
+use crate::services::regime::RegimeConfig;
 use crate::services::risk_engine::RiskConfig;
 use crate::strategies::DetectorsConfig;
 
@@ -35,6 +36,13 @@ pub struct AppConfig {
     /// parseable; `ConcentrationConfig::default()` matches master.
     #[serde(default)]
     pub concentration: ConcentrationConfig,
+    /// Quant-decisions Phase 9 — regime gating. Per-detector
+    /// preferred regimes + global enable/min-trade-floor knobs.
+    /// `#[serde(default)]` keeps pre-P9 settings.json files
+    /// parseable; `RegimeConfig::default()` matches the master
+    /// plan's per-detector defaults table.
+    #[serde(default)]
+    pub regime: RegimeConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

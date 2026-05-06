@@ -34,6 +34,13 @@ pub enum SkipReason {
     /// `skip_window_json` carries the breach descriptor (`kind`,
     /// `limit`, `current`, `delta`).
     ConcentrationBlocked,
+    /// Phase 9 — regime gate refused the candidate. The
+    /// `skip_window_json` carries the active regime + the
+    /// detector's declared preferred-regime filter, so the panel can
+    /// render "skipped: trend=Down vol=High; preferred trend in
+    /// [Up,Sideways] && vol in [Low,Normal]" without re-deriving the
+    /// gate decision.
+    OffRegime,
 }
 
 impl SkipReason {
@@ -42,6 +49,7 @@ impl SkipReason {
             SkipReason::EarningsBlackout => "earnings_blackout",
             SkipReason::FomcBlackout => "fomc_blackout",
             SkipReason::ConcentrationBlocked => "concentration_blocked",
+            SkipReason::OffRegime => "off_regime",
         }
     }
 
@@ -50,6 +58,7 @@ impl SkipReason {
             "earnings_blackout" => Some(SkipReason::EarningsBlackout),
             "fomc_blackout" => Some(SkipReason::FomcBlackout),
             "concentration_blocked" => Some(SkipReason::ConcentrationBlocked),
+            "off_regime" => Some(SkipReason::OffRegime),
             _ => None,
         }
     }

@@ -12,6 +12,7 @@ use chrono::Utc;
 use serde_json::json;
 
 use crate::ibkr::types::{BarSize, StrategyTag};
+use crate::services::regime::{RegimeFilter, TrendAxis, VolAxis};
 use crate::strategies::config::ParabolicShortCfg;
 use crate::strategies::indicators::{atr, rsi};
 use crate::strategies::{
@@ -80,6 +81,17 @@ impl StrategyDetector for ParabolicShortDetector {
     }
     fn min_lookback_days(&self) -> u32 {
         MIN_LOOKBACK_DAYS
+    }
+    fn preferred_regimes(&self) -> RegimeFilter {
+        // Phase 9 default: vol in {Normal, High} AND trend NOT Up.
+        // Skip in clean melt-ups (Up + Low vol) where parabolas
+        // tend to keep going. Operator-overridable.
+        RegimeFilter {
+            trend: vec![TrendAxis::Sideways, TrendAxis::Down],
+            vol: vec![VolAxis::Normal, VolAxis::High],
+            breadth: vec![],
+            corr: vec![],
+        }
     }
 
     async fn evaluate(
