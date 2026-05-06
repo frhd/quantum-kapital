@@ -238,6 +238,21 @@ pub enum AppEvent {
         outcome: TickerPrimingOutcome,
     },
 
+    /// Phase 8 (quant-decisions) — emitted whenever the
+    /// `PortfolioRiskService` recomputes its snapshot (executions tick,
+    /// bracket revision, 60s scheduled refresh). The frontend's
+    /// RiskSnapshot card subscribes to this so the dollar-risk header
+    /// stays live without polling. The payload is a compact summary;
+    /// full exposures live in the `portfolio_snapshots` row identified
+    /// by `snapshot_id`.
+    PortfolioRiskChanged {
+        snapshot_id: i64,
+        account: String,
+        nlv_cents: i64,
+        total_dollar_risk_cents: i64,
+        open_position_count: usize,
+    },
+
     // System events
     RateLimitWarning {
         remaining: u32,
@@ -283,6 +298,7 @@ impl AppEvent {
             AppEvent::AlertDiveSkipped { .. } => "alert-dive-skipped",
             AppEvent::FundamentalsManualWritten { .. } => "fundamentals-manual-written",
             AppEvent::TickerPrimingDone { .. } => "ticker-priming-done",
+            AppEvent::PortfolioRiskChanged { .. } => "portfolio-risk-changed",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }
