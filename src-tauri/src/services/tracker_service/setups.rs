@@ -44,6 +44,24 @@ impl TrackerService {
         candidate: &SetupCandidate,
         gate_warning: Option<String>,
     ) -> Result<Setup> {
+        self.insert_setup_with_extras(symbol, candidate, gate_warning, None)
+            .await
+    }
+
+    /// Phase 10 — insert a setup with both a `gate_warning` annotation
+    /// and an optional `param_vintage_id`. The vintage id points at
+    /// the `param_vintages` row that was active when the detector
+    /// fired; `None` for pre-P10 rows + fresh-install paths where no
+    /// vintage exists yet. Threaded into the row at insert time so
+    /// the eval panel can attribute realized R per vintage without a
+    /// follow-up `UPDATE`.
+    pub async fn insert_setup_with_extras(
+        &self,
+        symbol: &str,
+        candidate: &SetupCandidate,
+        gate_warning: Option<String>,
+        param_vintage_id: Option<String>,
+    ) -> Result<Setup> {
         let symbol_norm = symbol.to_uppercase();
         let strategy = candidate.strategy.to_string();
         let direction = candidate.direction;
@@ -57,6 +75,7 @@ impl TrackerService {
         let raw_signals = candidate.raw_signals.clone();
         let raw_signals_json = serde_json::to_string(&raw_signals)?;
         let warning_for_db = gate_warning.clone();
+        let vintage_for_db = param_vintage_id.clone();
 
         let symbol_for_db = symbol_norm.clone();
         let strategy_for_db = strategy.clone();
@@ -68,8 +87,8 @@ impl TrackerService {
                     "INSERT INTO setups \
                      (symbol, strategy, direction, detected_at, trigger_price, stop_price, \
                       targets, raw_signals, thesis, thesis_json, status, invalidated_at, \
-                      invalidation_reason, gate_warning) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, 'active', NULL, NULL, ?9)",
+                      invalidation_reason, gate_warning, param_vintage_id) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, 'active', NULL, NULL, ?9, ?10)",
                     rusqlite::params![
                         symbol_for_db,
                         strategy_for_db,
@@ -80,6 +99,7 @@ impl TrackerService {
                         targets_json,
                         raw_signals_json,
                         warning_for_db,
+                        vintage_for_db,
                     ],
                 )?;
                 Ok(conn.last_insert_rowid())
@@ -106,6 +126,7 @@ impl TrackerService {
             skipped_reason: None,
             skip_window_json: None,
             gate_warning,
+            param_vintage_id,
         })
     }
 
@@ -188,6 +209,7 @@ impl TrackerService {
             skipped_reason: Some(skipped_reason),
             skip_window_json: Some(skip_window_json),
             gate_warning: None,
+            param_vintage_id: None,
         })
     }
 
@@ -207,7 +229,7 @@ impl TrackerService {
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
                             conviction_multiplier_bps, sizing_cap_applied, \
-                            skipped_reason, skip_window_json, gate_warning \
+                            skipped_reason, skip_window_json, gate_warning, param_vintage_id \
                      FROM setups \
                      WHERE archived_at IS NULL AND skipped_reason IS NOT NULL",
                 );
@@ -420,7 +442,7 @@ impl TrackerService {
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
                             conviction_multiplier_bps, sizing_cap_applied, \
-                            skipped_reason, skip_window_json, gate_warning \
+                            skipped_reason, skip_window_json, gate_warning, param_vintage_id \
                      FROM setups WHERE archived_at IS NULL",
                 );
                 if symbol.is_some() {
@@ -469,7 +491,7 @@ impl TrackerService {
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
                             conviction_multiplier_bps, sizing_cap_applied, \
-                            skipped_reason, skip_window_json, gate_warning \
+                            skipped_reason, skip_window_json, gate_warning, param_vintage_id \
                      FROM setups WHERE id = ?1 AND archived_at IS NULL",
                     rusqlite::params![id],
                     setup_row_to_raw,
@@ -577,10 +599,11 @@ impl TrackerService {
 
 // ---------------- setup row helpers ----------------
 
-// allow-large-tuple: 26 fields parallel the `setups` SELECT order 1:1
+// allow-large-tuple: 28 fields parallel the `setups` SELECT order 1:1
 // so the row reader stays a single positional decode. Splitting would
 // require a struct shim that adds nothing the comment doesn't. Phase 5
-// appends `skipped_reason` + `skip_window_json` at the tail.
+// appended `skipped_reason` + `skip_window_json`; Phase 8 appended
+// `gate_warning`; Phase 10 appends `param_vintage_id` at the tail.
 #[allow(clippy::type_complexity)]
 type SetupRawRow = (
     i64,            // id
@@ -610,6 +633,7 @@ type SetupRawRow = (
     Option<String>, // skipped_reason (Phase 5)
     Option<String>, // skip_window_json (Phase 5)
     Option<String>, // gate_warning (Phase 8)
+    Option<String>, // param_vintage_id (Phase 10)
 );
 
 fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
@@ -641,6 +665,7 @@ fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
         row.get(24)?,
         row.get(25)?,
         row.get(26)?,
+        row.get(27)?,
     ))
 }
 
@@ -673,6 +698,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         skipped_reason_s,
         skip_window_json_s,
         gate_warning,
+        param_vintage_id,
     ) = r;
     let direction = parse_direction(&direction_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -734,6 +760,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         skipped_reason,
         skip_window_json,
         gate_warning,
+        param_vintage_id,
     })
 }
 

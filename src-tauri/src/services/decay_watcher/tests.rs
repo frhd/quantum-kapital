@@ -166,6 +166,7 @@ fn sample_setup() -> Setup {
         skipped_reason: None,
         skip_window_json: None,
         gate_warning: None,
+        param_vintage_id: None,
     }
 }
 

@@ -193,6 +193,12 @@ pub struct TrackerRunner {
     /// bypass sizing / state-machine / thesis. When `None`, the
     /// runner is regime-blind (back-compat).
     regime: Option<Arc<RegimeService>>,
+    /// Phase 10 — optional param-refit service. When wired, every
+    /// persisted setup row carries `param_vintage_id` of the
+    /// detector's active vintage at fire time. When `None`, the
+    /// column stays NULL and attribution falls back to per-detector
+    /// rollups.
+    param_refit: Option<Arc<crate::services::param_refit::ParamRefitService>>,
 }
 
 impl TrackerRunner {
@@ -221,7 +227,19 @@ impl TrackerRunner {
             exit_policies: None,
             portfolio_risk: None,
             regime: None,
+            param_refit: None,
         }
+    }
+
+    /// Phase 10 — attach the param-refit service. When wired, every
+    /// fired setup row carries `param_vintage_id` of the detector's
+    /// active vintage. When `None`, the column stays NULL.
+    pub fn with_param_refit(
+        mut self,
+        svc: Arc<crate::services::param_refit::ParamRefitService>,
+    ) -> Self {
+        self.param_refit = Some(svc);
+        self
     }
 
     /// Phase 9 — attach the regime gate. Off-regime hits divert to
@@ -868,9 +886,26 @@ impl TrackerRunner {
         if existing.is_some() {
             return Ok(None);
         }
+        // Phase 10 — look up the active vintage for the candidate's
+        // detector so the row carries `param_vintage_id` for
+        // attribution. Best-effort: a refit-service error here
+        // shouldn't block the runner, so we log and fall back to NULL.
+        let vintage_id = match self.param_refit.as_ref() {
+            None => None,
+            Some(svc) => match svc.active_for(candidate.strategy).await {
+                Ok(opt) => opt.map(|v| v.vintage_id),
+                Err(e) => {
+                    tracing::warn!(
+                        "tracker_runner: param_refit lookup for {} failed: {e}",
+                        candidate.strategy
+                    );
+                    None
+                }
+            },
+        };
         let row = self
             .tracker
-            .insert_setup_with_warning(symbol, candidate, gate_warning)
+            .insert_setup_with_extras(symbol, candidate, gate_warning, vintage_id)
             .await?;
         Ok(Some(row))
     }

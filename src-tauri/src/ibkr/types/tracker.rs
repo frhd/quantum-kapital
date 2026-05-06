@@ -309,6 +309,14 @@ pub struct Setup {
     /// — the SetupCard renders an inline banner instead of a modal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gate_warning: Option<String>,
+    /// Phase 10 — `param_vintages.vintage_id` of the locked param
+    /// vintage that was active when this setup fired. `None` for
+    /// pre-P10 rows AND for runs where the detector has no active
+    /// vintage (e.g. fresh install before backfill). The eval panel
+    /// joins on this column to attribute realized R back to the
+    /// vintage that produced the setup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub param_vintage_id: Option<String>,
 }
 
 #[cfg(test)]

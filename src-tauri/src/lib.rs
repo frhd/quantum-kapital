@@ -61,6 +61,9 @@ use services::order_ticket::{
 use services::portfolio_risk::{
     FactorBuckets, OpenPositionsSource, PortfolioRiskService, SectorMap,
 };
+use services::param_refit::{
+    MonthlyRefitScheduler, ParamRefitService, ProdBacktesterFactory,
+};
 use services::regime::RegimeService;
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
 use services::social_sentiment::apewisdom::ApewisdomProvider;
@@ -378,6 +381,46 @@ pub fn run() {
                 config.regime.clone(),
             ));
 
+            // Quant-decisions Phase 10 — param refit. settings.toml
+            // becomes the bounds for the sweep; the active params at
+            // runtime come from the most-recent locked vintage per
+            // detector (falling back to bounds when no vintage exists).
+            // The factory mirrors what `Backtester::new` is wired with
+            // below — but ParamRefitService needs to construct its
+            // own per-candidate backtesters with detector-specific
+            // registries, so it owns the factory directly.
+            let refit_factory = Arc::new(ProdBacktesterFactory::new(
+                Arc::clone(&db),
+                Arc::new(DbBarsReader::new(Arc::clone(&db))),
+                Some(Arc::clone(&event_calendar)),
+            ));
+            let refit_universe = services::regime::UNIVERSE
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
+            let param_refit_service = Arc::new(ParamRefitService::new(
+                Arc::clone(&db),
+                refit_factory,
+                config.detectors.clone(),
+                refit_universe,
+            ));
+            // Effective detectors config = bounds with active vintages
+            // overlaid. Falls back to bounds for detectors without a
+            // vintage (fresh install / first run). The setup closure
+            // is sync; block_on is the established escape hatch
+            // (mirrors the regime backfill pattern below).
+            let effective_detectors_cfg = tauri::async_runtime::block_on(async {
+                param_refit_service
+                    .effective_detectors_config()
+                    .await
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            "param_refit: effective_detectors_config failed ({e}); using bounds defaults"
+                        );
+                        config.detectors.clone()
+                    })
+            });
+
             let tracker_runner = Arc::new(
                 TrackerRunner::new(
                     Arc::clone(&db),
@@ -386,12 +429,12 @@ pub fn run() {
                     Arc::clone(&ibkr_state.event_emitter),
                     bars,
                     Arc::clone(&news_provider),
-                    Arc::new(registry_from_config(&config.detectors)),
+                    Arc::new(registry_from_config(&effective_detectors_cfg)),
                 )
                 .with_thesis_generator(Arc::clone(&thesis_generator))
                 .with_data_tier(Arc::clone(&ibkr_state.data_tier))
                 .with_risk_engine(Arc::clone(&risk_engine))
-                .with_event_calendar(Arc::clone(&event_calendar), config.detectors.clone())
+                .with_event_calendar(Arc::clone(&event_calendar), effective_detectors_cfg.clone())
                 // Quant-decisions Phase 7 — per-detector exit policies.
                 // The default registry maps breakout/episodic/parabolic
                 // to ATR-scaled with the master-committed time-stop
@@ -400,8 +443,49 @@ pub fn run() {
                     crate::strategies::exits::ExitPolicyRegistry::default_for_phase_7(),
                 )
                 .with_portfolio_risk(Arc::clone(&portfolio_risk))
-                .with_regime(Arc::clone(&regime_service)),
+                .with_regime(Arc::clone(&regime_service))
+                .with_param_refit(Arc::clone(&param_refit_service)),
             );
+
+            // Phase 10 — monthly refit scheduler. Spawned dark; the
+            // operator's `param_refit_run_now` Tauri command stays the
+            // primary trigger until the cron has run a few real cycles.
+            // The `tokio::spawn` wrapper means a missing scheduler
+            // doesn't block app boot.
+            {
+                let scheduler = Arc::new(MonthlyRefitScheduler::new(Arc::clone(
+                    &param_refit_service,
+                )));
+                tauri::async_runtime::spawn(async move {
+                    let _handle = scheduler.spawn();
+                });
+            }
+            // Phase 10 — backfill any detector that has no active
+            // vintage. Runs in the background so app boot stays fast;
+            // the runner uses bounds defaults until the backfill
+            // writes the first vintage and the next session picks it
+            // up via `effective_detectors_config`.
+            {
+                let svc = Arc::clone(&param_refit_service);
+                tauri::async_runtime::spawn(async move {
+                    match svc.backfill_missing().await {
+                        Ok(Some(report)) => {
+                            tracing::info!(
+                                "param_refit: backfill complete — {} detector(s) processed",
+                                report.outcomes.len()
+                            );
+                        }
+                        Ok(None) => {
+                            tracing::debug!(
+                                "param_refit: backfill skipped — every detector has an active vintage"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!("param_refit: backfill failed: {e}");
+                        }
+                    }
+                });
+            }
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
             // today's setups after the EOD sweep, persists to
@@ -758,6 +842,7 @@ pub fn run() {
             app.manage(backtester);
             app.manage(portfolio_risk);
             app.manage(regime_service);
+            app.manage(param_refit_service);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -862,6 +947,10 @@ pub fn run() {
             ibkr::commands::regime_get_config,
             ibkr::commands::regime_set_config,
             ibkr::commands::regime_record_override,
+            ibkr::commands::param_refit_run_now,
+            ibkr::commands::param_refit_history,
+            ibkr::commands::param_refit_get_active,
+            ibkr::commands::param_refit_lock_manual,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,
