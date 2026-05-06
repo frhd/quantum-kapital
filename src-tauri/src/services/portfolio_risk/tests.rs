@@ -118,7 +118,7 @@ async fn gate_against_empty_portfolio_passes_small_candidate() {
     let r = gate.check_with_sector(
         &GateInput {
             symbol: "NVDA",
-            projected_dollar_risk_cents: 50_00,
+            projected_dollar_risk_cents: 5_000,
             strategy: "breakout",
             momentum_bucket: None,
         },

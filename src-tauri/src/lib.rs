@@ -58,6 +58,9 @@ use services::news_provider::NewsProvider;
 use services::order_ticket::{
     AccountResolver, BracketGroupStore, BracketModifier, BracketPlacer, OrderTicket,
 };
+use services::portfolio_risk::{
+    FactorBuckets, OpenPositionsSource, PortfolioRiskService, SectorMap,
+};
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -336,6 +339,27 @@ pub fn run() {
                     .with_cache(Arc::clone(&earnings_cache)),
             );
 
+            // Quant-decisions Phase 8 — portfolio concentration gate.
+            // Threaded into the tracker runner so every sized
+            // candidate is evaluated against the live snapshot before
+            // persistence (block → skipped row, warn → annotated
+            // row, pass → typical case). Snapshot recompute also
+            // serves the dashboard via Tauri commands.
+            let positions_source: Arc<dyn OpenPositionsSource> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn OpenPositionsSource>;
+            let portfolio_account_source: Arc<dyn services::risk_engine::AccountSource> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn services::risk_engine::AccountSource>;
+            let portfolio_risk = Arc::new(PortfolioRiskService::new(
+                Arc::clone(&db),
+                positions_source,
+                portfolio_account_source,
+                Arc::clone(&equity_snapshot_svc),
+                Arc::clone(&ibkr_state.event_emitter),
+                SectorMap::arc(),
+                FactorBuckets::arc(),
+                config.concentration.clone(),
+            ));
+
             let tracker_runner = Arc::new(
                 TrackerRunner::new(
                     Arc::clone(&db),
@@ -356,7 +380,8 @@ pub fn run() {
                 // horizons; everything else falls through to v1_static.
                 .with_exit_policies(
                     crate::strategies::exits::ExitPolicyRegistry::default_for_phase_7(),
-                ),
+                )
+                .with_portfolio_risk(Arc::clone(&portfolio_risk)),
             );
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
@@ -712,6 +737,7 @@ pub fn run() {
             app.manage(earnings_overrides);
             app.manage(earnings_cache);
             app.manage(backtester);
+            app.manage(portfolio_risk);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -804,6 +830,12 @@ pub fn run() {
             ibkr::commands::event_calendar_force_refresh,
             ibkr::commands::setup_override_blackout,
             ibkr::commands::tracker_get_skipped_setups,
+            ibkr::commands::portfolio_risk_snapshot,
+            ibkr::commands::portfolio_risk_history,
+            ibkr::commands::concentration_get_config,
+            ibkr::commands::concentration_set_config,
+            ibkr::commands::concentration_check,
+            ibkr::commands::concentration_record_override,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

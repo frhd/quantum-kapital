@@ -286,7 +286,7 @@ mod tests {
     fn empty_portfolio_zero_risk() {
         let map = SectorMap::new();
         let factors = FactorBuckets::new();
-        let r = compute("DU1", now(), 100_000_00, &[], &HashMap::new(), &map, &factors);
+        let r = compute("DU1", now(), 10_000_000, &[], &HashMap::new(), &map, &factors);
         assert_eq!(r.total_dollar_risk_cents, 0);
         assert!(r.open_positions.is_empty());
         assert!(r.by_sector.is_empty());
@@ -302,7 +302,7 @@ mod tests {
         let r = compute(
             "DU1",
             now(),
-            1_000_000_00,
+            100_000_000,
             &positions,
             &stops,
             &map,
@@ -332,7 +332,7 @@ mod tests {
         let r = compute(
             "DU1",
             now(),
-            1_000_000_00,
+            100_000_000,
             &positions,
             &HashMap::new(),
             &map,
@@ -354,7 +354,7 @@ mod tests {
         let r = compute(
             "DU1",
             now(),
-            1_000_000_00,
+            100_000_000,
             &positions,
             &HashMap::new(),
             &map,
@@ -383,7 +383,7 @@ mod tests {
         let r = compute(
             "DU1",
             now(),
-            1_000_000_00,
+            100_000_000,
             &positions,
             &stops,
             &map,
@@ -408,7 +408,7 @@ mod tests {
         let r = compute(
             "DU1",
             now(),
-            1_000_000_00,
+            100_000_000,
             &positions,
             &HashMap::new(),
             &map,
@@ -427,7 +427,7 @@ mod tests {
         let r = compute(
             "DU1",
             now(),
-            1_000_000_00,
+            100_000_000,
             &positions,
             &HashMap::new(),
             &map,
@@ -442,8 +442,8 @@ mod tests {
             snapshot_id: 0,
             account: "DU1".to_string(),
             at: now(),
-            nlv_cents: 100_000_00, // $100k
-            total_dollar_risk_cents: 5_000_00, // $5k
+            nlv_cents: 10_000_000, // $100k
+            total_dollar_risk_cents: 500_000, // $5k
             open_positions: vec![],
             by_sector: vec![],
             by_factor: vec![],

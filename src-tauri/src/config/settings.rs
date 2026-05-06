@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs;
 
+use crate::services::portfolio_risk::ConcentrationConfig;
 use crate::services::risk_engine::RiskConfig;
 use crate::strategies::DetectorsConfig;
 
@@ -27,6 +28,13 @@ pub struct AppConfig {
     /// plan's `Defaults committed` table.
     #[serde(default)]
     pub risk_engine: RiskConfig,
+    /// Quant-decisions Phase 8 — portfolio concentration gate.
+    /// Limits per the master plan: 5% NLV per sector / 1.5% per name
+    /// / 10% total open / 4 concurrent positions per factor bucket.
+    /// `#[serde(default)]` keeps pre-P8 settings.json files
+    /// parseable; `ConcentrationConfig::default()` matches master.
+    #[serde(default)]
+    pub concentration: ConcentrationConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

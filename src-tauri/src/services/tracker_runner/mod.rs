@@ -733,6 +733,13 @@ impl TrackerRunner {
         Ok(results)
     }
 
+    /// Pre-P8 entry point — kept as a thin wrapper over
+    /// [`Self::persist_with_dedup_warned`] for callers that don't have
+    /// a gate annotation. Unused by the runner today (the gate path
+    /// always supplies `Option<String>`); retained as the documented
+    /// stable API for tests and future call sites that side-step the
+    /// gate.
+    #[allow(dead_code)]
     async fn persist_with_dedup(
         &self,
         symbol: &str,

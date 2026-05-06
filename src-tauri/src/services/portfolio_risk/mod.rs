@@ -1,3 +1,9 @@
+// Phase 8 — public-surface helpers (Tauri commands, future MCP rails,
+// frontend serde) that the lib doesn't yet call internally. Kept on
+// the API rather than gated behind feature flags so external consumers
+// land cleanly when wired.
+#![allow(dead_code)]
+
 //! Phase 8 (quant-decisions) — `PortfolioRiskService`: portfolio-level
 //! state computed from open IBKR positions joined against
 //! `bracket_groups` stop prices. The same exposure math drives both
@@ -32,7 +38,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use thiserror::Error;
 use tokio::sync::{Mutex, RwLock};
 
@@ -58,10 +64,12 @@ mod tests;
 pub use concentration_gate::{
     ConcentrationConfig, ConcentrationGate, GateInput, GateResult, GateSeverity,
 };
+#[allow(unused_imports)]
 pub use exposure::{ExposureSlice, FactorBucket, OpenPosition, PortfolioRisk, SectorBucket};
 pub use factors::FactorBuckets;
 pub use sector_map::SectorMap;
 pub use snapshot_store::{PortfolioSnapshotRow, SnapshotStore};
+#[allow(unused_imports)]
 pub use types::{ConcentrationKind, GateLimitBreach};
 
 /// Trait seam for "give me the current open positions for `account`".
@@ -122,6 +130,7 @@ pub struct PortfolioRiskService {
 }
 
 impl PortfolioRiskService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         db: Arc<Db>,
         positions: Arc<dyn OpenPositionsSource>,
@@ -171,7 +180,7 @@ impl PortfolioRiskService {
             .account_source
             .current_account()
             .await
-            .map_err(|e| RiskEngineError::Ibkr(e))?;
+            .map_err(RiskEngineError::Ibkr)?;
         let equity = self.equity.current(&account).await?;
 
         let raw_positions = self.positions.list_open(&account).await?;
@@ -236,9 +245,9 @@ impl PortfolioRiskService {
             .account_source
             .current_account()
             .await
-            .map_err(|e| RiskEngineError::Ibkr(e))?;
+            .map_err(RiskEngineError::Ibkr)?;
         self.snapshot_store
-            .list(&account, limit.max(1).min(1000))
+            .list(&account, limit.clamp(1, 1000))
             .await
     }
 
@@ -292,6 +301,3 @@ impl std::fmt::Debug for PortfolioRiskService {
     }
 }
 
-/// Convenience map: extract just the snapshot ID + at-time for
-/// "is this snapshot stale?" checks without re-reading the row.
-pub type SnapshotMeta = (i64, DateTime<Utc>);

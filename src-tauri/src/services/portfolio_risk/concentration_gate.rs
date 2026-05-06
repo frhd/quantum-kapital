@@ -332,9 +332,9 @@ mod tests {
 
     #[test]
     fn empty_portfolio_passes_under_limits() {
-        let snap = snap_with_total(100_000_00, 0);
+        let snap = snap_with_total(10_000_000, 0);
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let r = gate.check_with_sector(&input("NVDA", 50_00), Some("semis"));
+        let r = gate.check_with_sector(&input("NVDA", 5_000), Some("semis"));
         // $50 risk on $100k NLV — well under all limits.
         assert_eq!(r.severity, GateSeverity::Pass);
     }
@@ -343,9 +343,9 @@ mod tests {
     fn total_risk_block_at_100pct() {
         // NLV $100k, max_total 10% = $10k limit. Current $9.5k +
         // candidate $600 = $10.1k → block.
-        let snap = snap_with_total(100_000_00, 9_500_00);
+        let snap = snap_with_total(10_000_000, 950_000);
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let r = gate.check_with_sector(&input("NVDA", 600_00), Some("semis"));
+        let r = gate.check_with_sector(&input("NVDA", 60_000), Some("semis"));
         assert_eq!(r.severity, GateSeverity::Block);
         assert!(r
             .breaches
@@ -357,9 +357,9 @@ mod tests {
     fn total_risk_warn_at_80pct() {
         // NLV $100k, limit $10k. Current $7k + $1.2k = $8.2k → 82%
         // → warn.
-        let snap = snap_with_total(100_000_00, 7_000_00);
+        let snap = snap_with_total(10_000_000, 700_000);
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let r = gate.check_with_sector(&input("NVDA", 1_200_00), Some("semis"));
+        let r = gate.check_with_sector(&input("NVDA", 120_000), Some("semis"));
         assert_eq!(r.severity, GateSeverity::Warn);
     }
 
@@ -367,7 +367,7 @@ mod tests {
     fn single_name_block_when_existing_position_already_at_limit() {
         // NLV $100k, name limit 1.5% = $1.5k. Existing NVDA = $1.4k.
         // Adding $200 lands at $1.6k → over 100% → block.
-        let mut snap = snap_with_total(100_000_00, 1_400_00);
+        let mut snap = snap_with_total(10_000_000, 140_000);
         snap.open_positions.push(OpenPosition {
             symbol: "NVDA".to_string(),
             qty: 100,
@@ -375,7 +375,7 @@ mod tests {
             avg_cost_cents: 10_000,
             stop_cents: 9_860,
             stop_estimated: false,
-            dollar_risk_cents: 1_400_00,
+            dollar_risk_cents: 140_000,
             sector: "semis".to_string(),
             factors: PositionFactors {
                 momentum: "momentum_high".to_string(),
@@ -384,7 +384,7 @@ mod tests {
             },
         });
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let r = gate.check_with_sector(&input("NVDA", 200_00), Some("semis"));
+        let r = gate.check_with_sector(&input("NVDA", 20_000), Some("semis"));
         assert_eq!(r.severity, GateSeverity::Block);
     }
 
@@ -393,24 +393,24 @@ mod tests {
         // Sector limit $5k. Existing unknown = $4.9k. Adding $200 →
         // $5.1k → would be block, but unknown is leniency-bucketed →
         // warn.
-        let mut snap = snap_with_total(100_000_00, 4_900_00);
+        let mut snap = snap_with_total(10_000_000, 490_000);
         snap.by_sector.push(SectorBucket {
             label: "unknown".to_string(),
-            dollar_risk_cents: 4_900_00,
+            dollar_risk_cents: 490_000,
             position_count: 1,
         });
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let r = gate.check_with_sector(&input("ZZZ", 200_00), Some("unknown"));
+        let r = gate.check_with_sector(&input("ZZZ", 20_000), Some("unknown"));
         assert_eq!(r.severity, GateSeverity::Warn);
     }
 
     #[test]
     fn sector_unknown_when_none_skips_sector_check() {
-        let snap = snap_with_total(100_000_00, 0);
+        let snap = snap_with_total(10_000_000, 0);
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
         // Even an absurdly large risk is allowed when sector lookup
         // returns None — only total / name fire.
-        let r = gate.check_with_sector(&input("ZZZ", 50_000_00), None);
+        let r = gate.check_with_sector(&input("ZZZ", 5_000_000), None);
         // $50k risk on $100k NLV: total = 500% of limit → block,
         // single-name = 33x limit → block. Sector unchecked.
         assert!(r
@@ -421,14 +421,14 @@ mod tests {
 
     #[test]
     fn factor_concurrent_block_at_5_high_momentum() {
-        let mut snap = snap_with_total(100_000_00, 0);
+        let mut snap = snap_with_total(10_000_000, 0);
         snap.by_factor
             .push(crate::services::portfolio_risk::exposure::FactorBucket {
                 label: "momentum_high".to_string(),
                 count: 4,
             });
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let mut i = input("NVDA", 50_00);
+        let mut i = input("NVDA", 5_000);
         i.momentum_bucket = Some("momentum_high");
         let r = gate.check_with_sector(&i, Some("semis"));
         assert_eq!(r.severity, GateSeverity::Block);
@@ -440,9 +440,9 @@ mod tests {
 
     #[test]
     fn warning_tag_picks_worst_breach() {
-        let snap = snap_with_total(100_000_00, 7_000_00);
+        let snap = snap_with_total(10_000_000, 700_000);
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
-        let r = gate.check_with_sector(&input("NVDA", 1_200_00), Some("semis"));
+        let r = gate.check_with_sector(&input("NVDA", 120_000), Some("semis"));
         assert_eq!(r.severity, GateSeverity::Warn);
         let tag = r.warning_tag().unwrap();
         assert!(tag.ends_with("_80pct"));
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn zero_dollar_risk_input_is_a_pass() {
-        let snap = snap_with_total(100_000_00, 9_900_00);
+        let snap = snap_with_total(10_000_000, 990_000);
         let gate = ConcentrationGate::new(snap, ConcentrationConfig::default(), SectorMap::arc());
         let r = gate.check_with_sector(&input("NVDA", 0), Some("semis"));
         assert_eq!(r.severity, GateSeverity::Pass);

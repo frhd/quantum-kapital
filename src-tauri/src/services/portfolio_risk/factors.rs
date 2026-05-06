@@ -277,7 +277,6 @@ mod tests {
             return_12m_percentile: Some(0.8),
             pe_percentile: Some(0.2),
             market_cap_usd: Some(50e9),
-            ..Default::default()
         };
         let m1 = cache.lookup_or_compute("AAPL", Some(&inputs)).await;
         // Second call without inputs should hit the cache and return the same.
