@@ -61,6 +61,7 @@ use services::order_ticket::{
 use services::portfolio_risk::{
     FactorBuckets, OpenPositionsSource, PortfolioRiskService, SectorMap,
 };
+use services::regime::RegimeService;
 use services::risk_engine::{EquityFetcher, EquitySnapshotService, RiskEngine};
 use services::social_sentiment::apewisdom::ApewisdomProvider;
 use services::social_sentiment::provider::{ReqwestHttpFetcher, SentimentProvider};
@@ -360,6 +361,23 @@ pub fn run() {
                 config.concentration.clone(),
             ));
 
+            // Quant-decisions Phase 9 — regime gate. Reads SPY / VIX /
+            // breadth / correlation from `bars_cache` via the same
+            // `BarsReader` seam the backtester uses, classifies into a
+            // 4-axis `Regime`, and exposes `evaluate(detector_name)`
+            // for the runner. Off-regime hits land as skipped rows
+            // alongside blackout / concentration skips. Snapshots
+            // persist to `regime_snapshots` for the dashboard
+            // timeline + the 3-day persistence rule.
+            let regime_bars: Arc<dyn services::backtester::BarsReader> =
+                Arc::new(DbBarsReader::new(Arc::clone(&db)));
+            let regime_service = Arc::new(RegimeService::new(
+                Arc::clone(&db),
+                Arc::clone(&ibkr_state.event_emitter),
+                regime_bars,
+                config.regime.clone(),
+            ));
+
             let tracker_runner = Arc::new(
                 TrackerRunner::new(
                     Arc::clone(&db),
@@ -381,7 +399,8 @@ pub fn run() {
                 .with_exit_policies(
                     crate::strategies::exits::ExitPolicyRegistry::default_for_phase_7(),
                 )
-                .with_portfolio_risk(Arc::clone(&portfolio_risk)),
+                .with_portfolio_risk(Arc::clone(&portfolio_risk))
+                .with_regime(Arc::clone(&regime_service)),
             );
 
             // Phase 20: daily ranker — picks the LLM-ranked top-5 from
@@ -738,6 +757,7 @@ pub fn run() {
             app.manage(earnings_cache);
             app.manage(backtester);
             app.manage(portfolio_risk);
+            app.manage(regime_service);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -836,6 +856,12 @@ pub fn run() {
             ibkr::commands::concentration_set_config,
             ibkr::commands::concentration_check,
             ibkr::commands::concentration_record_override,
+            ibkr::commands::regime_current,
+            ibkr::commands::regime_history,
+            ibkr::commands::regime_force_recompute,
+            ibkr::commands::regime_get_config,
+            ibkr::commands::regime_set_config,
+            ibkr::commands::regime_record_override,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,
