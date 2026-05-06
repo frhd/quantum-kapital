@@ -73,6 +73,9 @@ use services::social_sentiment_scheduler::SocialSentimentScheduler;
 use services::tca::TcaService;
 use services::thesis_generator::ThesisGenerator;
 use services::ticker_primer::TickerPrimerService;
+use services::tilt_guard::{
+    ClosedTradeSource, DbClosedTradeSource, TiltConfig, TiltEpisodeStore, TiltGuardService,
+};
 use services::tracker_runner::{BarsFetcher, TrackerRunner};
 use tauri::Manager;
 
@@ -306,11 +309,34 @@ pub fn run() {
                 Arc::new(EquitySnapshotService::new(Arc::clone(&db), equity_fetcher));
             let account_source: Arc<dyn services::risk_engine::AccountSource> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn services::risk_engine::AccountSource>;
-            let risk_engine = Arc::new(RiskEngine::new(
-                Arc::clone(&equity_snapshot_svc),
-                account_source,
-                config.risk_engine.clone(),
+            // Quant-decisions Phase 11 — tilt circuit breaker. Wired
+            // alongside the risk engine so sizing decisions consult
+            // the tilt state lazily on every detector hit. The
+            // service owns its own `account_source` clone (mirrors
+            // PortfolioRiskService) so commands can call into it
+            // without threading the account through the API surface.
+            let tilt_account_source: Arc<dyn services::risk_engine::AccountSource> =
+                Arc::clone(&ibkr_state.client) as Arc<dyn services::risk_engine::AccountSource>;
+            let tilt_store = Arc::new(TiltEpisodeStore::new(Arc::clone(&db)));
+            let tilt_closed_trades: Arc<dyn ClosedTradeSource> =
+                Arc::new(DbClosedTradeSource::new(Arc::clone(&db)));
+            let tilt_guard = Arc::new(TiltGuardService::new(
+                Arc::clone(&db),
+                tilt_store,
+                tilt_closed_trades,
+                tilt_account_source,
+                Arc::clone(&ibkr_state.event_emitter),
+                TiltConfig::default(),
             ));
+
+            let risk_engine = Arc::new(
+                RiskEngine::new(
+                    Arc::clone(&equity_snapshot_svc),
+                    account_source,
+                    config.risk_engine.clone(),
+                )
+                .with_tilt_guard(Arc::clone(&tilt_guard)),
+            );
 
             // Quant-decisions Phase 5 — event-blackout gate. Composite
             // earnings calendar = manual overrides > cache > upstream
@@ -742,15 +768,18 @@ pub fn run() {
             let bracket_account_resolver: Arc<dyn AccountResolver> =
                 Arc::clone(&ibkr_state.client) as Arc<dyn AccountResolver>;
             let bracket_store = Arc::new(BracketGroupStore::new(Arc::clone(&db)));
-            let order_ticket = Arc::new(OrderTicket::new(
-                Arc::clone(&ibkr_state.tracker),
-                Arc::clone(&tca_service),
-                Arc::clone(&equity_snapshot_svc),
-                bracket_placer,
-                Arc::clone(&bracket_store),
-                Arc::clone(&ibkr_state.event_emitter),
-                bracket_account_resolver,
-            ));
+            let order_ticket = Arc::new(
+                OrderTicket::new(
+                    Arc::clone(&ibkr_state.tracker),
+                    Arc::clone(&tca_service),
+                    Arc::clone(&equity_snapshot_svc),
+                    bracket_placer,
+                    Arc::clone(&bracket_store),
+                    Arc::clone(&ibkr_state.event_emitter),
+                    bracket_account_resolver,
+                )
+                .with_tilt_guard(Arc::clone(&tilt_guard)),
+            );
 
             // Quant-decisions Phase 7 — BracketReviser. Polls every
             // open / partial bracket once a minute during RTH, steps
@@ -841,6 +870,7 @@ pub fn run() {
             app.manage(portfolio_risk);
             app.manage(regime_service);
             app.manage(param_refit_service);
+            app.manage(tilt_guard);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -949,6 +979,9 @@ pub fn run() {
             ibkr::commands::param_refit_history,
             ibkr::commands::param_refit_get_active,
             ibkr::commands::param_refit_lock_manual,
+            ibkr::commands::tilt_guard_status,
+            ibkr::commands::tilt_guard_override,
+            ibkr::commands::tilt_guard_history,
             #[cfg(debug_assertions)]
             ibkr::commands::tracker_llm_smoke_test,
             config::commands::get_settings,

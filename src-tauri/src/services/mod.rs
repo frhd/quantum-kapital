@@ -41,6 +41,7 @@ pub mod social_sentiment_scheduler;
 pub mod tca;
 pub mod thesis_generator;
 pub mod ticker_primer;
+pub mod tilt_guard;
 pub mod tracker_runner;
 pub mod tracker_service;
 pub mod tracker_state_machine;

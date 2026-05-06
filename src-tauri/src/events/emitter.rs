@@ -266,6 +266,29 @@ pub enum AppEvent {
         source: String,
     },
 
+    /// Phase 11 (quant-decisions) — emitted when the tilt guard
+    /// activates a new pause (cumulative-R floor or two-consecutive
+    /// closed losses). UI banner subscribes so it can render the red
+    /// state without polling. `auto_reset_at` is the next session
+    /// open in UTC; the banner formats it for ET.
+    TiltActivated {
+        episode_id: i64,
+        account: String,
+        trigger_kind: String,
+        cumulative_r: f64,
+        auto_reset_at: chrono::DateTime<chrono::Utc>,
+    },
+    /// Phase 11 — emitted when the tilt guard releases a pause. Two
+    /// release flavors carry through: `auto` (next-session-open
+    /// reset) and `manual_override` (trader dismissed with a reason).
+    /// `session_end` flips don't emit — they're audit-only.
+    TiltReleased {
+        episode_id: i64,
+        account: String,
+        /// One of `auto` | `manual_override`.
+        release_kind: String,
+    },
+
     // System events
     RateLimitWarning {
         remaining: u32,
@@ -313,6 +336,8 @@ impl AppEvent {
             AppEvent::TickerPrimingDone { .. } => "ticker-priming-done",
             AppEvent::PortfolioRiskChanged { .. } => "portfolio-risk-changed",
             AppEvent::RegimeChanged { .. } => "regime-changed",
+            AppEvent::TiltActivated { .. } => "tilt-activated",
+            AppEvent::TiltReleased { .. } => "tilt-released",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }

@@ -20,6 +20,7 @@ use tracing::warn;
 
 use crate::ibkr::client::IbkrClient;
 use crate::ibkr::error::IbkrError;
+use crate::services::tilt_guard::{TiltError, TiltGuardService};
 use crate::strategies::SetupCandidate;
 
 mod equity_snapshot;
@@ -62,6 +63,8 @@ pub enum RiskEngineError {
     Ibkr(#[from] IbkrError),
     #[error("equity snapshot: {0}")]
     Snapshot(#[from] EquitySnapshotError),
+    #[error("tilt: {0}")]
+    Tilt(#[from] TiltError),
 }
 
 pub type Result<T> = std::result::Result<T, RiskEngineError>;
@@ -74,6 +77,12 @@ pub struct RiskEngine {
     snapshot_svc: Arc<EquitySnapshotService>,
     account_source: Arc<dyn AccountSource>,
     config: Arc<RwLock<RiskConfig>>,
+    /// Phase 11 — when set, every `size_for_candidate` call lazily
+    /// evaluates the tilt guard and returns
+    /// `Sizing::Skipped(TiltPaused, ...)` when the account is paused.
+    /// Optional so existing tests + the bootstrap path before the
+    /// service is wired keep working.
+    tilt_guard: Option<Arc<TiltGuardService>>,
 }
 
 impl RiskEngine {
@@ -86,7 +95,15 @@ impl RiskEngine {
             snapshot_svc,
             account_source,
             config: Arc::new(RwLock::new(config)),
+            tilt_guard: None,
         }
+    }
+
+    /// Builder — opt the engine into the tilt-guard gate. Wired in
+    /// `lib.rs::run` once the service is constructed.
+    pub fn with_tilt_guard(mut self, guard: Arc<TiltGuardService>) -> Self {
+        self.tilt_guard = Some(guard);
+        self
     }
 
     /// Read a clone of the live config. Hot-reload safe — the
@@ -116,6 +133,28 @@ impl RiskEngine {
         let account = self.account_source.current_account().await?;
         let snapshot = self.snapshot_svc.current(&account).await?;
         let cfg = self.config().await;
+
+        // Phase 11 — tilt-guard gate. Lazy: every sizing call
+        // re-evaluates triggers against today's R-stream and refuses
+        // to size when the account is paused. Calling `evaluate`
+        // (rather than just `is_paused`) is intentional — a fresh
+        // closed loss right before this candidate must be reflected
+        // immediately, otherwise the tracker's third-revenge-trade
+        // would slip through.
+        if let Some(guard) = &self.tilt_guard {
+            let status = guard.evaluate(&account).await?;
+            if status.paused {
+                let conv = types::ConvictionGrade::from_signal(candidate.conviction_signal);
+                let sizing =
+                    Sizing::skipped(SizingSkippedReason::TiltPaused, snapshot.nlv_cents, conv);
+                warn!(
+                    "risk_engine: skipped sizing for {} (TiltPaused) — equity={}c, grade={:?}",
+                    candidate.strategy, snapshot.nlv_cents, conv,
+                );
+                return Ok((sizing, snapshot));
+            }
+        }
+
         let sizing = compute_sizing(candidate, &snapshot, &cfg);
         if let Some(reason) = sizing.skipped_reason {
             warn!(

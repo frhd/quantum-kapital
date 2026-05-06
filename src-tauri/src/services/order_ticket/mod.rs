@@ -24,6 +24,7 @@ use crate::ibkr::error::IbkrError;
 use crate::ibkr::types::{BracketReceipt, BracketRequest, ModifyStopRequest, OrderAction};
 use crate::services::risk_engine::{EquitySnapshotError, EquitySnapshotService};
 use crate::services::tca::{IntendedPriceSource, IntentSide, NewOrderIntent, TcaError, TcaService};
+use crate::services::tilt_guard::{TiltError, TiltGuardService};
 use crate::services::tracker_service::{TrackerError, TrackerService};
 use crate::storage::error::StorageError;
 use crate::strategies::exits::ExitPlan;
@@ -99,6 +100,8 @@ pub enum OrderTicketError {
     OverrideMissingReason,
     #[error("invalid setup geometry: {0}")]
     InvalidGeometry(String),
+    #[error("tilt-paused — override required to send")]
+    TiltPaused,
     #[error("ibkr: {0}")]
     Ibkr(#[from] IbkrError),
     #[error("tca: {0}")]
@@ -109,6 +112,8 @@ pub enum OrderTicketError {
     Equity(#[from] EquitySnapshotError),
     #[error("storage: {0}")]
     Storage(#[from] StorageError),
+    #[error("tilt: {0}")]
+    Tilt(#[from] TiltError),
 }
 
 pub type Result<T> = std::result::Result<T, OrderTicketError>;
@@ -136,6 +141,12 @@ pub struct OrderTicket {
     /// IBKR account to attribute the bracket to. Pulled from
     /// `RiskEngine::AccountSource` upstream and set once at boot.
     account_resolver: Arc<dyn AccountResolver>,
+    /// Phase 11 — defense-in-depth: even if a setup carries a
+    /// previously-computed sizing without `skipped_reason`, the
+    /// bracket placer re-checks the live tilt status before sending.
+    /// Optional so existing tests + unit harness keep working without
+    /// the full service graph.
+    tilt_guard: Option<Arc<TiltGuardService>>,
 }
 
 /// Trait seam for "which account does this bracket post against?".
@@ -177,7 +188,14 @@ impl OrderTicket {
             store,
             emitter,
             account_resolver,
+            tilt_guard: None,
         }
+    }
+
+    /// Builder — opt the bracket placer into the tilt-guard gate.
+    pub fn with_tilt_guard(mut self, guard: Arc<TiltGuardService>) -> Self {
+        self.tilt_guard = Some(guard);
+        self
     }
 
     /// Single chokepoint for setup-linked order submission. Pre-flight
@@ -219,6 +237,19 @@ impl OrderTicket {
         // is older than 24h; the trader must `risk_refresh_equity`
         // before send.
         let account = self.account_resolver.account().await?;
+
+        // Phase 11 — tilt-guard defense-in-depth. The risk engine
+        // gates sizing already, but a setup row may have been sized
+        // earlier and the trader is sending after the tilt fired. We
+        // re-evaluate the trigger right at submit time. Override path
+        // (manual_override release) must be done *before* this — once
+        // released, evaluate is a no-op until a new trigger fires.
+        if let Some(guard) = &self.tilt_guard {
+            let status = guard.evaluate(&account).await?;
+            if status.paused {
+                return Err(OrderTicketError::TiltPaused);
+            }
+        }
         let snap = self
             .equity
             .read(&account, &today_et())
