@@ -26,6 +26,9 @@ use crate::services::alerts::record_alert;
 use crate::services::event_calendar::{Blackout, EventCalendarService};
 use crate::services::historical_data_service::{HistoricalDataService, Lookback};
 use crate::services::news_provider::NewsProvider;
+use crate::services::portfolio_risk::{
+    ConcentrationKind, GateInput, GateSeverity, PortfolioRiskService,
+};
 use crate::services::risk_engine::RiskEngine;
 use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
@@ -174,6 +177,14 @@ pub struct TrackerRunner {
     /// `exit_policy_version`. When `None`, those columns stay NULL
     /// and `OrderTicket` falls back to the legacy static ladder.
     exit_policies: Option<ExitPolicyRegistry>,
+    /// Phase 8 — optional portfolio-concentration gate. When wired,
+    /// every sized candidate is checked against the live portfolio
+    /// snapshot before final persistence. `block` outcomes land as
+    /// skipped rows (`skipped_reason = ConcentrationBlocked`); `warn`
+    /// outcomes are persisted normally with a `gate_warning`
+    /// annotation so the SetupCard renders an inline banner. When
+    /// `None`, the runner is concentration-blind (back-compat).
+    portfolio_risk: Option<Arc<PortfolioRiskService>>,
 }
 
 impl TrackerRunner {
@@ -200,7 +211,18 @@ impl TrackerRunner {
             event_calendar: None,
             detectors_config: None,
             exit_policies: None,
+            portfolio_risk: None,
         }
+    }
+
+    /// Phase 8 — attach the portfolio-concentration gate. When wired,
+    /// every sized candidate is checked against the live snapshot and
+    /// either persisted normally (pass), persisted with a
+    /// `gate_warning` annotation (warn), or diverted into a skipped
+    /// row (block). When `None`, the runner skips the check.
+    pub fn with_portfolio_risk(mut self, svc: Arc<PortfolioRiskService>) -> Self {
+        self.portfolio_risk = Some(svc);
+        self
     }
 
     /// Phase 7 — attach a per-detector exit-policy registry. When
@@ -377,7 +399,118 @@ impl TrackerRunner {
                             );
                         }
                     }
-                    match self.persist_with_dedup(&ctx_owned.symbol, &candidate).await {
+                    // Phase 8 — concentration gate. Pre-size the
+                    // candidate (pure call against the cached
+                    // equity snapshot) so the gate can evaluate
+                    // its dollar-risk against per-sector / per-name
+                    // / total limits. `block` diverts to a skipped
+                    // row; `warn` falls through with a tag to
+                    // annotate the persisted setup. `pass` is the
+                    // typical case — nothing extra to do.
+                    let mut gate_warning: Option<String> = None;
+                    if let (Some(engine), Some(prisk)) =
+                        (&self.risk_engine, &self.portfolio_risk)
+                    {
+                        match engine.size_for_candidate(&candidate).await {
+                            Ok((pre_sizing, _)) if pre_sizing.dollar_risk_cents > 0 => {
+                                match prisk.gate().await {
+                                    Ok(gate) => {
+                                        let input = GateInput {
+                                            symbol: &ctx_owned.symbol,
+                                            projected_dollar_risk_cents: pre_sizing
+                                                .dollar_risk_cents,
+                                            strategy: candidate.strategy,
+                                            momentum_bucket: None,
+                                        };
+                                        let result = gate.check(&input).await;
+                                        match result.severity {
+                                            GateSeverity::Block => {
+                                                let breaches_json = serde_json::to_value(
+                                                    &result.breaches,
+                                                )
+                                                .unwrap_or_else(|_| {
+                                                    serde_json::json!({
+                                                        "kind": "concentration_blocked"
+                                                    })
+                                                });
+                                                match self
+                                                    .persist_skipped_concentration_with_dedup(
+                                                        &ctx_owned.symbol,
+                                                        &candidate,
+                                                        breaches_json,
+                                                    )
+                                                    .await
+                                                {
+                                                    Ok(Some(skipped)) => {
+                                                        let kind = result
+                                                            .breaches
+                                                            .iter()
+                                                            .find(|b| {
+                                                                b.kind
+                                                                    != ConcentrationKind::TotalRisk
+                                                            })
+                                                            .map(|b| b.kind.as_str().to_string())
+                                                            .unwrap_or_else(|| {
+                                                                "concentration".to_string()
+                                                            });
+                                                        let _ = self
+                                                            .emitter
+                                                            .emit(AppEvent::SetupSkipped {
+                                                                setup_id: skipped.id,
+                                                                symbol: skipped.symbol.clone(),
+                                                                strategy: skipped
+                                                                    .strategy
+                                                                    .clone(),
+                                                                kind,
+                                                                reason: format!(
+                                                                    "concentration: {} breaches",
+                                                                    result.breaches.len()
+                                                                ),
+                                                            })
+                                                            .await;
+                                                    }
+                                                    Ok(None) => {}
+                                                    Err(e) => warn!(
+                                                        "failed to persist concentration-blocked setup for {} ({}): {e}",
+                                                        ctx_owned.symbol, outcome.detector
+                                                    ),
+                                                }
+                                                continue;
+                                            }
+                                            GateSeverity::Warn => {
+                                                gate_warning = result.warning_tag();
+                                            }
+                                            GateSeverity::Pass => {}
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "concentration_gate snapshot failed for {} ({}): {e} — \
+                                             proceeding without gate (fail-open)",
+                                            ctx_owned.symbol, outcome.detector
+                                        );
+                                    }
+                                }
+                            }
+                            Ok(_) => {
+                                // Skipped sizing or zero risk — gate
+                                // passes by construction (no risk to
+                                // concentrate).
+                            }
+                            Err(e) => warn!(
+                                "risk_engine pre-size for gate check failed for {} ({}): {e}",
+                                ctx_owned.symbol, outcome.detector
+                            ),
+                        }
+                    }
+                    match self
+                        .persist_with_dedup_warned(
+                            &ctx_owned.symbol,
+                            &candidate,
+                            gate_warning,
+                        )
+                        .await
+                    {
                         Ok(Some(mut setup)) => {
                             // Quant-decisions Phase 1 — size the setup
                             // immediately. Failures don't kill the row;
@@ -605,6 +738,21 @@ impl TrackerRunner {
         symbol: &str,
         candidate: &crate::strategies::SetupCandidate,
     ) -> TrackerResult<Option<Setup>> {
+        self.persist_with_dedup_warned(symbol, candidate, None).await
+    }
+
+    /// Phase 8 — `persist_with_dedup` plus an optional `gate_warning`
+    /// tag persisted to `setups.gate_warning`. When the
+    /// concentration gate fires `warn`, the runner threads the tag
+    /// through here so the SetupCard renders the inline banner; a
+    /// clean pass passes `None` and the persistence is identical to
+    /// pre-P8.
+    async fn persist_with_dedup_warned(
+        &self,
+        symbol: &str,
+        candidate: &crate::strategies::SetupCandidate,
+        gate_warning: Option<String>,
+    ) -> TrackerResult<Option<Setup>> {
         let existing = self
             .tracker
             .recent_duplicate(
@@ -617,7 +765,45 @@ impl TrackerRunner {
         if existing.is_some() {
             return Ok(None);
         }
-        let row = self.tracker.insert_setup(symbol, candidate).await?;
+        let row = self
+            .tracker
+            .insert_setup_with_warning(symbol, candidate, gate_warning)
+            .await?;
+        Ok(Some(row))
+    }
+
+    /// Phase 8 — analog of `persist_skipped_with_dedup` for the
+    /// concentration gate's `block` outcome. `breaches_json` carries
+    /// the structured payload (worst breach + ratio) so the
+    /// SkippedSetupsPanel can render "blocked: sector_risk +28%
+    /// over limit" without re-running the gate.
+    async fn persist_skipped_concentration_with_dedup(
+        &self,
+        symbol: &str,
+        candidate: &crate::strategies::SetupCandidate,
+        breaches_json: serde_json::Value,
+    ) -> TrackerResult<Option<Setup>> {
+        let existing = self
+            .tracker
+            .recent_duplicate(
+                symbol,
+                candidate.strategy,
+                candidate.direction,
+                DUPLICATE_WINDOW,
+            )
+            .await?;
+        if existing.is_some() {
+            return Ok(None);
+        }
+        let row = self
+            .tracker
+            .insert_skipped_setup(
+                symbol,
+                candidate,
+                SkipReason::ConcentrationBlocked,
+                breaches_json,
+            )
+            .await?;
         Ok(Some(row))
     }
 

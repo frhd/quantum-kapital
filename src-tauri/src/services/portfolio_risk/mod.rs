@@ -55,7 +55,9 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use concentration_gate::{ConcentrationConfig, ConcentrationGate, GateResult, GateSeverity};
+pub use concentration_gate::{
+    ConcentrationConfig, ConcentrationGate, GateInput, GateResult, GateSeverity,
+};
 pub use exposure::{ExposureSlice, FactorBucket, OpenPosition, PortfolioRisk, SectorBucket};
 pub use factors::FactorBuckets;
 pub use sector_map::SectorMap;
