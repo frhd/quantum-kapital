@@ -29,7 +29,8 @@ impl TrackerService {
     /// surrounding `MarketContext`). Returns the persisted row with its
     /// generated `id` populated.
     pub async fn insert_setup(&self, symbol: &str, candidate: &SetupCandidate) -> Result<Setup> {
-        self.insert_setup_with_warning(symbol, candidate, None).await
+        self.insert_setup_with_warning(symbol, candidate, None)
+            .await
     }
 
     /// Phase 8 — insert a setup carrying a `gate_warning` annotation.

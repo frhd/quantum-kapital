@@ -191,16 +191,19 @@ pub fn compute(
         let dollar_risk_cents = per_share_risk_cents.saturating_mul(qty);
         total_dollar_risk_cents = total_dollar_risk_cents.saturating_add(dollar_risk_cents);
 
-        let sector = SectorMap::lookup_static(&upper).unwrap_or("unknown").to_string();
-        let factor_membership =
-            FactorBuckets::compute_from(&FactorInputs::default()); // pure path defaults to unknown
-        // If the caller threaded inputs into `factors`'s cache via
-        // `lookup_or_compute` ahead of this call, that won't be
-        // reflected here. The async snapshot path below queries the
-        // cache; pure callers (tests + small unit reproductions) get
-        // the unknown fallback. Keeps `compute` deterministic.
-        let _ = factors; // keep the param so the signature stays stable
-        let _ = sector_map; // sector resolution uses static path here
+        let sector = SectorMap::lookup_static(&upper)
+            .unwrap_or("unknown")
+            .to_string();
+        // Pure path defaults factor membership to `unknown`. The async
+        // snapshot route can pre-warm the factors cache via
+        // `lookup_or_compute` so future passes get richer buckets, but
+        // `compute` itself stays deterministic and IO-free. The
+        // `factors` and `sector_map` params are kept on the signature
+        // so the wiring point doesn't change when the cache lookup is
+        // inlined here in a future pass.
+        let factor_membership = FactorBuckets::compute_from(&FactorInputs::default());
+        let _ = factors;
+        let _ = sector_map;
 
         let pf: PositionFactors = factor_membership.into();
         *by_sector_acc.entry(sector.clone()).or_insert((0, 0)) =
@@ -234,11 +237,13 @@ pub fn compute(
 
     let by_sector = by_sector_acc
         .into_iter()
-        .map(|(label, (dollar_risk_cents, position_count))| SectorBucket {
-            label,
-            dollar_risk_cents,
-            position_count,
-        })
+        .map(
+            |(label, (dollar_risk_cents, position_count))| SectorBucket {
+                label,
+                dollar_risk_cents,
+                position_count,
+            },
+        )
         .collect();
     let by_factor = by_factor_acc
         .into_iter()
@@ -286,7 +291,15 @@ mod tests {
     fn empty_portfolio_zero_risk() {
         let map = SectorMap::new();
         let factors = FactorBuckets::new();
-        let r = compute("DU1", now(), 10_000_000, &[], &HashMap::new(), &map, &factors);
+        let r = compute(
+            "DU1",
+            now(),
+            10_000_000,
+            &[],
+            &HashMap::new(),
+            &map,
+            &factors,
+        );
         assert_eq!(r.total_dollar_risk_cents, 0);
         assert!(r.open_positions.is_empty());
         assert!(r.by_sector.is_empty());
@@ -394,7 +407,11 @@ mod tests {
         let semis = r.by_sector.iter().find(|s| s.label == "semis").unwrap();
         assert_eq!(semis.position_count, 2);
         assert_eq!(semis.dollar_risk_cents, 100_000);
-        let fins = r.by_sector.iter().find(|s| s.label == "financials").unwrap();
+        let fins = r
+            .by_sector
+            .iter()
+            .find(|s| s.label == "financials")
+            .unwrap();
         assert_eq!(fins.position_count, 1);
         assert_eq!(fins.dollar_risk_cents, 25_000);
         assert_eq!(r.total_dollar_risk_cents, 125_000);
@@ -442,7 +459,7 @@ mod tests {
             snapshot_id: 0,
             account: "DU1".to_string(),
             at: now(),
-            nlv_cents: 10_000_000, // $100k
+            nlv_cents: 10_000_000,            // $100k
             total_dollar_risk_cents: 500_000, // $5k
             open_positions: vec![],
             by_sector: vec![],

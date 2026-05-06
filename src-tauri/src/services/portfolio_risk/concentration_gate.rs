@@ -156,11 +156,7 @@ impl ConcentrationGate {
     /// sector (or `None` to skip the sector check). Used by the
     /// snapshot path that already has the answer cached and by
     /// tests.
-    pub fn check_with_sector(
-        &self,
-        input: &GateInput<'_>,
-        sector: Option<&str>,
-    ) -> GateResult {
+    pub fn check_with_sector(&self, input: &GateInput<'_>, sector: Option<&str>) -> GateResult {
         if input.projected_dollar_risk_cents <= 0 {
             return GateResult::pass();
         }

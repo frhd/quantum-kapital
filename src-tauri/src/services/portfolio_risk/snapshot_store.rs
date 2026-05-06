@@ -61,10 +61,7 @@ impl SnapshotStore {
                 )?;
                 let rows = stmt
                     .query_map(rusqlite::params![account], |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, i64>(1)?,
-                        ))
+                        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
                     })?
                     .collect::<rusqlite::Result<Vec<_>>>()
                     .map_err(StorageError::from)?;

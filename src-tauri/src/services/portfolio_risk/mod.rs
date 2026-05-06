@@ -184,10 +184,7 @@ impl PortfolioRiskService {
         let equity = self.equity.current(&account).await?;
 
         let raw_positions = self.positions.list_open(&account).await?;
-        let bracket_stops = self
-            .snapshot_store
-            .open_bracket_stops(&account)
-            .await?;
+        let bracket_stops = self.snapshot_store.open_bracket_stops(&account).await?;
 
         let now = Utc::now();
         let exposures = exposure::compute(
@@ -257,7 +254,11 @@ impl PortfolioRiskService {
     pub async fn gate(&self) -> Result<ConcentrationGate> {
         let snapshot = self.snapshot_or_cached().await?;
         let config = self.config().await;
-        Ok(ConcentrationGate::new(snapshot, config, Arc::clone(&self.sector_map)))
+        Ok(ConcentrationGate::new(
+            snapshot,
+            config,
+            Arc::clone(&self.sector_map),
+        ))
     }
 
     /// Audit a gate override. Called by the frontend confirm-flow
@@ -297,7 +298,7 @@ impl PortfolioRiskService {
 /// fields without dumping the trait objects.
 impl std::fmt::Debug for PortfolioRiskService {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PortfolioRiskService").finish_non_exhaustive()
+        f.debug_struct("PortfolioRiskService")
+            .finish_non_exhaustive()
     }
 }
-

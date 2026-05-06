@@ -19,8 +19,8 @@ use tauri::State;
 
 use crate::config::SettingsState;
 use crate::services::portfolio_risk::{
-    ConcentrationConfig, GateInput, GateResult, PortfolioRiskService, PortfolioSnapshotRow,
-    PortfolioRisk,
+    ConcentrationConfig, GateInput, GateResult, PortfolioRisk, PortfolioRiskService,
+    PortfolioSnapshotRow,
 };
 
 #[tauri::command]
@@ -86,8 +86,8 @@ pub async fn concentration_check(
     let momentum = input.momentum_bucket.as_deref();
     let strategy_static: &'static str = Box::leak(input.strategy.into_boxed_str());
     let symbol_static: &'static str = Box::leak(input.symbol.into_boxed_str());
-    let momentum_static: Option<&'static str> = momentum
-        .map(|s| -> &'static str { Box::leak(s.to_string().into_boxed_str()) });
+    let momentum_static: Option<&'static str> =
+        momentum.map(|s| -> &'static str { Box::leak(s.to_string().into_boxed_str()) });
     let gi = GateInput {
         symbol: symbol_static,
         projected_dollar_risk_cents: input.projected_dollar_risk_cents,

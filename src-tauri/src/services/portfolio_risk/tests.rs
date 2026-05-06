@@ -14,9 +14,7 @@ use tokio::sync::Mutex;
 use crate::events::EventEmitter;
 use crate::ibkr::error::IbkrError;
 use crate::ibkr::types::positions::Position;
-use crate::services::risk_engine::{
-    AccountSource, EquityFetcher, EquitySnapshotService,
-};
+use crate::services::risk_engine::{AccountSource, EquityFetcher, EquitySnapshotService};
 use crate::storage::Db;
 
 use super::concentration_gate::{ConcentrationConfig, GateInput, GateSeverity};
@@ -92,8 +90,7 @@ async fn build_service(
 
 #[tokio::test]
 async fn snapshot_persists_and_emits() {
-    let (_tmp, svc) =
-        build_service(100_000.0, vec![pos("NVDA", 100.0, 100.0)]).await;
+    let (_tmp, svc) = build_service(100_000.0, vec![pos("NVDA", 100.0, 100.0)]).await;
     let s = svc.snapshot().await.unwrap();
     assert_eq!(s.account, "DU1");
     assert_eq!(s.nlv_cents, 10_000_000);
@@ -132,10 +129,7 @@ async fn override_audit_writes_gate_override_row() {
     let (_tmp, svc) = build_service(100_000.0, vec![]).await;
     let _ = svc.snapshot().await.unwrap();
     // Insert a setup so the FK is satisfiable.
-    let setup_id = svc
-        .config()
-        .await
-        .clone(); // touch the config to avoid unused-warn
+    let setup_id = svc.config().await.clone(); // touch the config to avoid unused-warn
     let _ = setup_id;
 
     // Create a setups row directly so the override FK satisfies.
@@ -185,8 +179,7 @@ async fn insert_dummy_setup(svc: &PortfolioRiskService) -> i64 {
 /// corrupt the cache (single-flight via the recompute_guard mutex).
 #[tokio::test]
 async fn concurrent_recompute_burst_yields_consistent_cache() {
-    let (_tmp, svc) =
-        build_service(100_000.0, vec![pos("NVDA", 100.0, 100.0)]).await;
+    let (_tmp, svc) = build_service(100_000.0, vec![pos("NVDA", 100.0, 100.0)]).await;
 
     let mut joinset = tokio::task::JoinSet::new();
     for _ in 0..50 {

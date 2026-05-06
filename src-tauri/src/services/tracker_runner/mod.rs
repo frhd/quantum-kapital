@@ -408,9 +408,7 @@ impl TrackerRunner {
                     // annotate the persisted setup. `pass` is the
                     // typical case — nothing extra to do.
                     let mut gate_warning: Option<String> = None;
-                    if let (Some(engine), Some(prisk)) =
-                        (&self.risk_engine, &self.portfolio_risk)
-                    {
+                    if let (Some(engine), Some(prisk)) = (&self.risk_engine, &self.portfolio_risk) {
                         match engine.size_for_candidate(&candidate).await {
                             Ok((pre_sizing, _)) if pre_sizing.dollar_risk_cents > 0 => {
                                 match prisk.gate().await {
@@ -425,14 +423,13 @@ impl TrackerRunner {
                                         let result = gate.check(&input).await;
                                         match result.severity {
                                             GateSeverity::Block => {
-                                                let breaches_json = serde_json::to_value(
-                                                    &result.breaches,
-                                                )
-                                                .unwrap_or_else(|_| {
-                                                    serde_json::json!({
-                                                        "kind": "concentration_blocked"
-                                                    })
-                                                });
+                                                let breaches_json =
+                                                    serde_json::to_value(&result.breaches)
+                                                        .unwrap_or_else(|_| {
+                                                            serde_json::json!({
+                                                                "kind": "concentration_blocked"
+                                                            })
+                                                        });
                                                 match self
                                                     .persist_skipped_concentration_with_dedup(
                                                         &ctx_owned.symbol,
@@ -504,11 +501,7 @@ impl TrackerRunner {
                         }
                     }
                     match self
-                        .persist_with_dedup_warned(
-                            &ctx_owned.symbol,
-                            &candidate,
-                            gate_warning,
-                        )
+                        .persist_with_dedup_warned(&ctx_owned.symbol, &candidate, gate_warning)
                         .await
                     {
                         Ok(Some(mut setup)) => {
@@ -745,7 +738,8 @@ impl TrackerRunner {
         symbol: &str,
         candidate: &crate::strategies::SetupCandidate,
     ) -> TrackerResult<Option<Setup>> {
-        self.persist_with_dedup_warned(symbol, candidate, None).await
+        self.persist_with_dedup_warned(symbol, candidate, None)
+            .await
     }
 
     /// Phase 8 — `persist_with_dedup` plus an optional `gate_warning`
