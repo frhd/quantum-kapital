@@ -76,9 +76,7 @@ mod tests {
         // `today_et` resolves to the requested calendar date — passing
         // 00:00 UTC would push ET back a day. Then `trading_days_after_close(., 0)`
         // returns the requested date's RTH close.
-        let anchor = Utc
-            .with_ymd_and_hms(year, month, day, 17, 0, 0)
-            .unwrap();
+        let anchor = Utc.with_ymd_and_hms(year, month, day, 17, 0, 0).unwrap();
         market_calendar::trading_days_after_close(anchor, 0)
     }
 
@@ -118,8 +116,16 @@ mod tests {
         };
         let deadline = deadline_for(mon, &spec);
         assert!(has_elapsed(deadline, mon, &spec));
-        assert!(has_elapsed(deadline + chrono::Duration::seconds(1), mon, &spec));
-        assert!(!has_elapsed(deadline - chrono::Duration::seconds(1), mon, &spec));
+        assert!(has_elapsed(
+            deadline + chrono::Duration::seconds(1),
+            mon,
+            &spec
+        ));
+        assert!(!has_elapsed(
+            deadline - chrono::Duration::seconds(1),
+            mon,
+            &spec
+        ));
     }
 
     #[test]

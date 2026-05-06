@@ -23,9 +23,7 @@ use crate::services::order_ticket::{
 };
 use crate::services::tracker_service::TrackerService;
 use crate::storage::Db;
-use crate::strategies::exits::{
-    AtrScaled, ChandelierState, ExitPolicy, ExitPolicyContext,
-};
+use crate::strategies::exits::{AtrScaled, ChandelierState, ExitPolicy, ExitPolicyContext};
 use crate::strategies::Direction;
 
 use super::{BracketReviser, PriceObservation, QuoteSource, ReviseDecision};
@@ -257,7 +255,12 @@ async fn revise_activates_and_raises_stop_after_1x_atr_rung_reached() {
     assert_eq!(calls[0].stop_order_id, 1002);
     assert_eq!(calls[0].oca_group, "br-1001");
     // State persisted.
-    let st = h.bracket_store.get_trail_state(1001).await.unwrap().unwrap();
+    let st = h
+        .bracket_store
+        .get_trail_state(1001)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(st.activated);
     assert!(st.be_moved);
 }
@@ -427,7 +430,8 @@ async fn revise_signals_time_stop_elapsed_after_horizon() {
 #[tokio::test]
 async fn revise_persists_extreme_state_even_when_no_modify() {
     let h = Harness::new().await;
-    let _state_before: Option<ChandelierState> = h.bracket_store.get_trail_state(1001).await.unwrap();
+    let _state_before: Option<ChandelierState> =
+        h.bracket_store.get_trail_state(1001).await.unwrap();
     h.seed_v2_plan(1.5).await;
     h.seed_bracket(1.5).await;
     let modifier = Arc::new(MockModifier::new());
@@ -444,7 +448,12 @@ async fn revise_persists_extreme_state_even_when_no_modify() {
     let decision = reviser.revise_one_bracket(&bracket).await.unwrap();
     assert_eq!(decision, ReviseDecision::NoChange);
     // State seeded — extreme tracks the observation.
-    let st = h.bracket_store.get_trail_state(1001).await.unwrap().unwrap();
+    let st = h
+        .bracket_store
+        .get_trail_state(1001)
+        .await
+        .unwrap()
+        .unwrap();
     assert!((st.extreme_price - 100.5).abs() < 1e-9);
     assert!(!st.activated);
     assert!(modifier.calls().await.is_empty());

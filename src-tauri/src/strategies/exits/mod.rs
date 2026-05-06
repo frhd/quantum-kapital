@@ -78,9 +78,9 @@ pub struct ExitTargetSpec {
 }
 
 /// Frozen-at-signal-time exit plan. Written to
-/// `setups.exit_plan_json` and re-read at confirm time. Ladder + trail
-/// + time-stop together fully describe the policy; the bracket
-/// placer + reviser are pure functions of this plan.
+/// `setups.exit_plan_json` and re-read at confirm time. The ladder,
+/// trail and time-stop together fully describe the policy; the
+/// bracket placer and reviser are pure functions of this plan.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExitPlan {
     pub policy_version: String,

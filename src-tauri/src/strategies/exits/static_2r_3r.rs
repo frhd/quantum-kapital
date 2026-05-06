@@ -8,8 +8,8 @@
 //! pre-P7 wire-shape is preserved exactly under `v1_static`.
 
 use super::{
-    signed_multiplier, validate_geometry, ExitPlan, ExitPolicy, ExitPolicyContext,
-    ExitPolicyError, ExitTargetSpec, Result, V1_STATIC,
+    signed_multiplier, validate_geometry, ExitPlan, ExitPolicy, ExitPolicyContext, ExitPolicyError,
+    ExitTargetSpec, Result, V1_STATIC,
 };
 
 /// 50/30/20 of parent qty at 1R, 2R, 3R. No trail, no time stop.
@@ -29,7 +29,11 @@ impl ExitPolicy for StaticTwoRThreeR {
         let signed = signed_multiplier(ctx.direction);
 
         let mut targets = Vec::with_capacity(STATIC_PCTS.len());
-        for (idx, (&pct, &mult)) in STATIC_PCTS.iter().zip(STATIC_R_MULTIPLES.iter()).enumerate() {
+        for (idx, (&pct, &mult)) in STATIC_PCTS
+            .iter()
+            .zip(STATIC_R_MULTIPLES.iter())
+            .enumerate()
+        {
             targets.push(ExitTargetSpec {
                 label: format!("{:.0}R", mult),
                 price: ctx.trigger_price + signed * mult * r,

@@ -38,7 +38,10 @@ fn static_long_produces_1r_2r_3r_ladder() {
         .unwrap();
     assert_eq!(plan.policy_version, V1_STATIC);
     assert_eq!(plan.targets.len(), 3);
-    assert_eq!(plan.targets.iter().map(|t| t.qty_pct as u32).sum::<u32>(), 100);
+    assert_eq!(
+        plan.targets.iter().map(|t| t.qty_pct as u32).sum::<u32>(),
+        100
+    );
     // R = 2.0; 1R/2R/3R targets at 102/104/106.
     assert!((plan.targets[0].price - 102.0).abs() < 1e-9);
     assert!((plan.targets[1].price - 104.0).abs() < 1e-9);
@@ -81,7 +84,10 @@ fn atr_scaled_long_produces_atr_ladder() {
     assert!((plan.targets[0].price - 101.5).abs() < 1e-9);
     assert!((plan.targets[1].price - 103.0).abs() < 1e-9);
     assert!((plan.targets[2].price - 106.0).abs() < 1e-9);
-    assert_eq!(plan.targets.iter().map(|t| t.qty_pct as u32).sum::<u32>(), 100);
+    assert_eq!(
+        plan.targets.iter().map(|t| t.qty_pct as u32).sum::<u32>(),
+        100
+    );
     assert!(plan.trail.is_some());
     let trail = plan.trail.unwrap();
     assert!((trail.atr_multiple - 3.0).abs() < 1e-9);
@@ -146,14 +152,20 @@ fn registry_all_static_returns_v1_for_all() {
 #[test]
 fn time_stop_horizon_per_detector_matches_master() {
     let reg = ExitPolicyRegistry::default_for_phase_7();
-    let cases = [("breakout", 10), ("episodic_pivot", 5), ("parabolic_short", 3)];
+    let cases = [
+        ("breakout", 10),
+        ("episodic_pivot", 5),
+        ("parabolic_short", 3),
+    ];
     for (strat, days) in cases {
         let plan = reg
             .for_strategy(strat)
             .build_plan(&long_ctx_with_atr(strat))
             .unwrap();
         assert_eq!(
-            plan.time_stop.expect("atr_scaled emits time_stop").max_trading_days,
+            plan.time_stop
+                .expect("atr_scaled emits time_stop")
+                .max_trading_days,
             days,
             "{strat} expected {days} BD time-stop horizon"
         );

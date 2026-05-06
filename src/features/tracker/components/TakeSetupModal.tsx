@@ -8,8 +8,10 @@ import {
   orderTicketTakeSetup,
   type TicketReceipt,
 } from "../../../shared/api/orderTicket"
+import { exitsGetPolicy, type ExitPlan } from "../../../shared/api/exits"
 import type { Setup } from "../types"
 import { BracketSummary, GateAlerts, OverrideSection, computeRungs } from "./TakeSetupModalParts"
+import { ExitPlanCard } from "./ExitPlanCard"
 
 interface TakeSetupModalProps {
   open: boolean
@@ -40,6 +42,8 @@ export function TakeSetupModal({
   const [overrideReason, setOverrideReason] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exitPlan, setExitPlan] = useState<ExitPlan | null>(null)
+  const [exitPlanLoading, setExitPlanLoading] = useState(false)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const cancelBtnRef = useRef<HTMLButtonElement>(null)
 
@@ -52,8 +56,44 @@ export function TakeSetupModal({
     setOverrideReason("")
     setError(null)
     setSubmitting(false)
+    setExitPlan(null)
     requestAnimationFrame(() => cancelBtnRef.current?.focus())
   }, [open])
+
+  // Phase 7 — pull the policy preview when the modal opens. The
+  // backend computes the same plan the runner persisted at signal
+  // time, so the trader sees the bracket they're about to confirm.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setExitPlanLoading(true)
+    exitsGetPolicy({
+      strategy: setup.strategy,
+      direction: setup.direction,
+      triggerPrice: setup.trigger_price,
+      stopPrice: setup.stop_price,
+      // The runner-side ATR(20) isn't carried on the Setup yet; pass
+      // null so the policy refuses with AtrUnavailable for v2 and we
+      // render the static fallback. A future Setup-shape extension
+      // can plumb the value through.
+      atr: null,
+    })
+      .then((preview) => {
+        if (cancelled) return
+        setExitPlan(preview.plan)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setExitPlan(null)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setExitPlanLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, setup.strategy, setup.direction, setup.trigger_price, setup.stop_price])
 
   const handleClose = useCallback(() => {
     onClose()
@@ -149,6 +189,8 @@ export function TakeSetupModal({
         <GateAlerts ungated={ungated} skipped={skipped} stale={stale} />
 
         {!blocked && sizing && <BracketSummary setup={setup} sizing={sizing} rungs={rungs} />}
+
+        {!blocked && <ExitPlanCard plan={exitPlan} loading={exitPlanLoading} />}
 
         {!blocked && (
           <OverrideSection

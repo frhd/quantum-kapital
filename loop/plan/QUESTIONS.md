@@ -360,9 +360,90 @@ Group entries under `## Phase N (YYYY-MM-DD)` headings. Don't backfill — write
   (Workspace tab refactor) should pull these onto a "Research →
   Backtest" tab when it lands.
 
-## Phase 7 (TBD)
+## Phase 7 (2026-05-06)
 
-- *Vol-adjusted exit shadow result.* After 4-week shadow, document OOS Sharpe / profit-factor for `atr_scaled` vs `static_2r_3r`. Cutover decision recorded here.
+- *Shadow-mode 4-week comparison deferred.* The harness (P6) is in
+  place but real bar data hasn't been primed yet (operator task —
+  same blocker P6 flagged). Phase 7 ships the policy library
+  (`v1_static` / `v2_atr_scaled`), the runner-side persistence
+  (`setups.exit_plan_json`), the bracket-side fallback inside
+  `OrderTicket::with_brackets`, and the `BracketReviser` poll loop
+  with `modify_stop` calls. The per-detector shadow-mode evidence
+  hasn't been gathered. When the operator runs the first real OOS
+  sweep, document OOS Sharpe and profit-factor for `atr_scaled` vs
+  `static_2r_3r` here. The default registry already routes the three
+  live detectors to ATR-scaled, so all NEW setups land under v2 — but
+  cutover-vs-keep-static is the open decision until the comparison
+  exists.
+
+- *`exits_set_policy` is a stub.* Master phase doc reserved a
+  per-detector override path; P7 ships the Tauri command but it
+  rejects every call with an explanatory error. Real settings-driven
+  override lands when the comparator surfaces a knob; until then the
+  registry is hardcoded to `default_for_phase_7`.
+
+- *Frontend setup not yet wired into a parent tab.* Same flag P1, P3,
+  P5, P6 logged. The new `ExitPlanCard.tsx` ships under
+  `src/features/tracker/components/`, but no parent component imports
+  it directly — it gets pulled in by `TakeSetupModal.tsx`, which is
+  itself rendered inside `SetupCard.tsx` (still not on a visible
+  tab). The watchlist-row refactor remains the unblocker.
+
+- *ATR not plumbed into the modal preview.* `TakeSetupModal` calls
+  `exits_get_policy` with `atr: null` because the production `Setup`
+  type doesn't carry the runner-computed ATR. The v2 policy refuses
+  the preview (returns `error: "AtrUnavailable"`) and the modal falls
+  back to the static-policy card. The actual bracket placer reads
+  the persisted `exit_plan_json` (which DOES carry ATR), so the live
+  ladder is correct — only the modal preview is degraded. Plumbing
+  ATR through the `Setup` shape is a follow-up; logged so a future
+  pass doesn't read the modal's static-fallback as "v2 isn't
+  active" (it is, the preview just doesn't show it).
+
+- *`BracketReviser` has no live IBKR fill-status reconciler.* The
+  reviser correctly aborts a modify when `bracket_groups.last_status`
+  has flipped, but `last_status` is only flipped by the Cancel
+  command — never to `partial`/`filled`/`stopped`. So a stop child
+  the trader has already filled in TWS will keep getting modify
+  attempts until the operator hits Cancel in the app UI. The
+  fill-status reconciler is logged in P3's questions; until it
+  lands, the reviser's no-modify race-protection is a soft guard.
+
+- *Time-stop fires "operator action needed" — the reviser does NOT
+  programmatically close the position.* Per master gotcha "time-stop
+  closing a small winner that was about to run is the painful kind
+  of false stop", the auto-close path was deferred. The decision
+  shape: when `has_elapsed` returns true, the reviser logs a
+  `warn!` so the operator can see it in `/tmp/qk-tauri.log` and
+  decide to flatten. A later phase (post-shadow) can promote this to
+  an automated MKT-on-remaining-qty close once shadow-mode evidence
+  shows the time-stops are saving more R than they cost.
+
+- *Quote source is `last_price` only — high-water-mark accuracy is
+  poll-cadence-bounded.* The chandelier high-water-mark accumulates
+  across polls of `Quote.last_price`. Between polls, the reviser
+  doesn't see intra-poll highs. Master gotcha covers the gap-down
+  case ("the modify won't fire on a gap through trail"). The same
+  logic applies between polls: a fast spike up and back down can
+  be missed if both moves happen inside one 60s window. Acceptable
+  for swing-hold horizons; revisit if a future detector trades
+  intraday.
+
+- *Pre-existing `decay_watcher` flake still failing.* Same panic
+  P1/P2/P5/P6 logged
+  (`services::decay_watcher::tests::respects_budget_kill_switch`,
+  "MockHttp queue exhausted"). 1005 of 1006 lib tests pass on
+  baseline against P7 changes; not introduced by P7. Left for the
+  decay-watcher owner.
+
+- *Paper-account E2E not run by Claude.* Same as P3: a real paper
+  account walk through the chandelier loop (parent fill → trail
+  step from the reviser → modify visible in TWS → fill on
+  trail-target) is the operator's first-deploy validation. Claude
+  ran the unit tests + the bracket-reviser integration tests
+  against `MockBracketModifier`; the live IBKR modify path is
+  exercised by construction (it's the same `place_order(id, ...)`
+  call the bracket placer uses, just at the existing stop's id).
 
 ## Phase 9 (TBD)
 

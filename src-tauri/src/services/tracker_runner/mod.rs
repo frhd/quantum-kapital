@@ -450,8 +450,8 @@ impl TrackerRunner {
                                     }
                                 };
                                 if let Some(plan) = plan {
-                                    let plan_json =
-                                        serde_json::to_value(&plan).unwrap_or(serde_json::Value::Null);
+                                    let plan_json = serde_json::to_value(&plan)
+                                        .unwrap_or(serde_json::Value::Null);
                                     let version = plan.policy_version.clone();
                                     if let Err(e) = self
                                         .tracker

@@ -114,8 +114,10 @@ impl BracketGroupStore {
         if statuses.is_empty() {
             return Ok(Vec::new());
         }
-        let status_strs: Vec<String> =
-            statuses.into_iter().map(|s| s.as_str().to_string()).collect();
+        let status_strs: Vec<String> = statuses
+            .into_iter()
+            .map(|s| s.as_str().to_string())
+            .collect();
         self.db
             .with_conn(move |conn| {
                 let placeholders = (0..status_strs.len())

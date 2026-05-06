@@ -85,12 +85,7 @@ impl ExitPolicy for AtrScaled {
         debug_assert_eq!(self.qty_pcts.iter().map(|p| *p as u32).sum::<u32>(), 100);
 
         let mut targets = Vec::with_capacity(self.multiples.len());
-        for (idx, (&mult, &pct)) in self
-            .multiples
-            .iter()
-            .zip(self.qty_pcts.iter())
-            .enumerate()
-        {
+        for (idx, (&mult, &pct)) in self.multiples.iter().zip(self.qty_pcts.iter()).enumerate() {
             // R-multiple metadata is derived for the UI: at signal
             // time r and atr are both fixed scalars, so converting
             // is a static ratio.

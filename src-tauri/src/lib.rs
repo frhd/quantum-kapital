@@ -34,6 +34,7 @@ use config::{settings::LlmBackendKind, AppConfig, SettingsState};
 use ibkr::IbkrState;
 use middleware::{AlphaVantageRateLimiter, HistoricalRateLimiter, IbkrNewsRateLimiter};
 use services::auto_scanner::{AutoScannerScheduler, AutoScannerService, MarketScanner};
+use services::bracket_reviser::{BracketReviser, QuoteSource as ReviserQuoteSource};
 use services::daily_ranker::DailyRanker;
 use services::decay_watcher::{DecayWatcher, LlmDecayWatcher};
 use services::eod_scheduler::EodScheduler;
@@ -54,7 +55,6 @@ use services::news_interpreter::NewsInterpreter;
 use services::news_provider::ibkr::client::IbkrNewsClient;
 use services::news_provider::ibkr::IbkrNewsProvider;
 use services::news_provider::NewsProvider;
-use services::bracket_reviser::{BracketReviser, QuoteSource as ReviserQuoteSource};
 use services::order_ticket::{
     AccountResolver, BracketGroupStore, BracketModifier, BracketPlacer, OrderTicket,
 };

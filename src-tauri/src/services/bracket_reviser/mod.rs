@@ -33,6 +33,7 @@ use crate::ibkr::types::{ModifyStopRequest, OrderAction};
 use crate::services::order_ticket::{
     BracketGroupRecord, BracketGroupStore, BracketModifier, BracketStatus,
 };
+use crate::services::quote_service::QuoteService;
 use crate::services::tracker_service::TrackerService;
 use crate::storage::error::StorageError;
 use crate::strategies::exits::{
@@ -40,7 +41,6 @@ use crate::strategies::exits::{
     TrailKind,
 };
 use crate::strategies::Direction;
-use crate::services::quote_service::QuoteService;
 use crate::utils::market_calendar;
 
 #[cfg(test)]
@@ -77,17 +77,12 @@ pub enum ReviseDecision {
     /// No trail spec on the plan, or trail not yet activated.
     Skipped,
     /// Computed a new chandelier stop and submitted a modify call.
-    StopRaised {
-        old_stop: f64,
-        new_stop: f64,
-    },
+    StopRaised { old_stop: f64, new_stop: f64 },
     /// Computed stop matches existing stop (within 1 cent) — modify
     /// short-circuited.
     NoChange,
     /// BE-move fired: stop pulled up to entry.
-    BreakEvenMove {
-        new_stop: f64,
-    },
+    BreakEvenMove { new_stop: f64 },
     /// Time-stop deadline elapsed; reviser flagged the bracket for
     /// closure (the actual market-close is deferred to the operator
     /// for now — logged as warn so the trader can act).
@@ -226,10 +221,7 @@ impl BracketReviser {
     /// Per-bracket decision logic. Pure-ish: the only side-effects
     /// are persisting the trail state and submitting the IBKR
     /// modify. Returns the decision so tests can pin behavior.
-    pub async fn revise_one_bracket(
-        &self,
-        bracket: &BracketGroupRecord,
-    ) -> Result<ReviseDecision> {
+    pub async fn revise_one_bracket(&self, bracket: &BracketGroupRecord) -> Result<ReviseDecision> {
         // Pull the persisted exit plan. NULL plan column → pre-P7
         // bracket → no trail logic to apply. Returns Skipped so the
         // sweep keeps moving.
@@ -287,7 +279,11 @@ impl BracketReviser {
             .await?
             .unwrap_or_else(|| ChandelierState::new(original_stop));
 
-        let new_extreme = updated_extreme(direction, prev_state.extreme_price, observation.extreme_price);
+        let new_extreme = updated_extreme(
+            direction,
+            prev_state.extreme_price,
+            observation.extreme_price,
+        );
 
         // BE-move fires once at 1R profit, independent of trail
         // activation. Only moves UP the stop (long) / DOWN (short).
@@ -325,7 +321,14 @@ impl BracketReviser {
         // price has traded through. The activation flag persists
         // once true.
         let mut activated = prev_state.activated;
-        if !activated && trail_should_activate(trail.activate_after_label.as_deref(), &plan, direction, observation.current_price) {
+        if !activated
+            && trail_should_activate(
+                trail.activate_after_label.as_deref(),
+                &plan,
+                direction,
+                observation.current_price,
+            )
+        {
             activated = true;
         }
 
@@ -366,7 +369,11 @@ impl BracketReviser {
             current_stop_price: new_stop,
             activated,
             be_moved,
-            last_modify_at: if stop_changed { Some(Utc::now()) } else { prev_state.last_modify_at },
+            last_modify_at: if stop_changed {
+                Some(Utc::now())
+            } else {
+                prev_state.last_modify_at
+            },
         };
         self.bracket_store
             .update_trail_state(bracket.parent_order_id, new_stop, &new_state)
@@ -383,7 +390,10 @@ impl BracketReviser {
                 .ok()
                 .flatten()
             {
-                if !matches!(latest.last_status, BracketStatus::Open | BracketStatus::Partial) {
+                if !matches!(
+                    latest.last_status,
+                    BracketStatus::Open | BracketStatus::Partial
+                ) {
                     info!(
                         "bracket_reviser: aborted modify for #{} — status flipped to {:?}",
                         bracket.parent_order_id, latest.last_status
@@ -437,9 +447,10 @@ impl BracketReviser {
                 .await
                 .ok()
                 .flatten();
-            let time_stop_remaining = plan.as_ref().and_then(|p| p.time_stop.as_ref()).map(|spec| {
-                time_stop::days_remaining(now, bracket.placed_at, spec)
-            });
+            let time_stop_remaining = plan
+                .as_ref()
+                .and_then(|p| p.time_stop.as_ref())
+                .map(|spec| time_stop::days_remaining(now, bracket.placed_at, spec));
             out.push(BracketReviserSnapshot {
                 parent_order_id: bracket.parent_order_id,
                 setup_id: bracket.setup_id,

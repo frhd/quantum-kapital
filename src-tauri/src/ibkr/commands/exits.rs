@@ -25,8 +25,8 @@ use crate::strategies::exits::{ExitPlan, ExitPolicyContext, ExitPolicyRegistry, 
 use crate::strategies::Direction;
 
 /// Shape returned by `exits_get_policy`. Mirrors what the modal
-/// renders in `ExitPlanCard`: policy version + targets + trail spec
-/// + time-stop horizon, all derived from a sample (trigger, stop,
+/// renders in `ExitPlanCard` — policy version, targets, trail spec
+/// and time-stop horizon, all derived from a sample (trigger, stop,
 /// ATR) tuple the caller picks.
 #[derive(Debug, Serialize)]
 pub struct ExitPolicyPreview {
@@ -105,10 +105,7 @@ pub async fn bracket_revert_to_static(
 /// this command returns an error so callers know the path is not
 /// load-bearing yet.
 #[tauri::command]
-pub async fn exits_set_policy(
-    strategy: String,
-    version: String,
-) -> Result<(), String> {
+pub async fn exits_set_policy(strategy: String, version: String) -> Result<(), String> {
     if version != crate::strategies::exits::V1_STATIC && version != V2_ATR_SCALED {
         return Err(format!(
             "unknown policy version '{version}' (expected v1_static or v2_atr_scaled)"
