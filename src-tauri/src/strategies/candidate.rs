@@ -30,6 +30,10 @@ pub enum SkipReason {
     EarningsBlackout,
     /// Detector hit fell inside the FOMC day-of blackout window.
     FomcBlackout,
+    /// Phase 8 — concentration gate refused the candidate. The
+    /// `skip_window_json` carries the breach descriptor (`kind`,
+    /// `limit`, `current`, `delta`).
+    ConcentrationBlocked,
 }
 
 impl SkipReason {
@@ -37,6 +41,7 @@ impl SkipReason {
         match self {
             SkipReason::EarningsBlackout => "earnings_blackout",
             SkipReason::FomcBlackout => "fomc_blackout",
+            SkipReason::ConcentrationBlocked => "concentration_blocked",
         }
     }
 
@@ -44,6 +49,7 @@ impl SkipReason {
         match s {
             "earnings_blackout" => Some(SkipReason::EarningsBlackout),
             "fomc_blackout" => Some(SkipReason::FomcBlackout),
+            "concentration_blocked" => Some(SkipReason::ConcentrationBlocked),
             _ => None,
         }
     }

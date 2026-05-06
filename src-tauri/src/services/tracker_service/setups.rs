@@ -29,6 +29,20 @@ impl TrackerService {
     /// surrounding `MarketContext`). Returns the persisted row with its
     /// generated `id` populated.
     pub async fn insert_setup(&self, symbol: &str, candidate: &SetupCandidate) -> Result<Setup> {
+        self.insert_setup_with_warning(symbol, candidate, None).await
+    }
+
+    /// Phase 8 — insert a setup carrying a `gate_warning` annotation.
+    /// `gate_warning = None` is identical to `insert_setup`; passing
+    /// `Some("sector_80pct")` lands the row with the column set so the
+    /// SetupCard can render an inline banner. `block` outcomes still
+    /// route through `insert_skipped_setup`, not this method.
+    pub async fn insert_setup_with_warning(
+        &self,
+        symbol: &str,
+        candidate: &SetupCandidate,
+        gate_warning: Option<String>,
+    ) -> Result<Setup> {
         let symbol_norm = symbol.to_uppercase();
         let strategy = candidate.strategy.to_string();
         let direction = candidate.direction;
@@ -41,6 +55,7 @@ impl TrackerService {
         let targets_json = serde_json::to_string(&targets)?;
         let raw_signals = candidate.raw_signals.clone();
         let raw_signals_json = serde_json::to_string(&raw_signals)?;
+        let warning_for_db = gate_warning.clone();
 
         let symbol_for_db = symbol_norm.clone();
         let strategy_for_db = strategy.clone();
@@ -51,8 +66,9 @@ impl TrackerService {
                 conn.execute(
                     "INSERT INTO setups \
                      (symbol, strategy, direction, detected_at, trigger_price, stop_price, \
-                      targets, raw_signals, thesis, thesis_json, status, invalidated_at, invalidation_reason) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, 'active', NULL, NULL)",
+                      targets, raw_signals, thesis, thesis_json, status, invalidated_at, \
+                      invalidation_reason, gate_warning) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, 'active', NULL, NULL, ?9)",
                     rusqlite::params![
                         symbol_for_db,
                         strategy_for_db,
@@ -62,6 +78,7 @@ impl TrackerService {
                         stop_price,
                         targets_json,
                         raw_signals_json,
+                        warning_for_db,
                     ],
                 )?;
                 Ok(conn.last_insert_rowid())
@@ -87,6 +104,7 @@ impl TrackerService {
             sizing: None,
             skipped_reason: None,
             skip_window_json: None,
+            gate_warning,
         })
     }
 
@@ -168,6 +186,7 @@ impl TrackerService {
             sizing: None,
             skipped_reason: Some(skipped_reason),
             skip_window_json: Some(skip_window_json),
+            gate_warning: None,
         })
     }
 
@@ -187,7 +206,7 @@ impl TrackerService {
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
                             conviction_multiplier_bps, sizing_cap_applied, \
-                            skipped_reason, skip_window_json \
+                            skipped_reason, skip_window_json, gate_warning \
                      FROM setups \
                      WHERE archived_at IS NULL AND skipped_reason IS NOT NULL",
                 );
@@ -373,7 +392,7 @@ impl TrackerService {
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
                             conviction_multiplier_bps, sizing_cap_applied, \
-                            skipped_reason, skip_window_json \
+                            skipped_reason, skip_window_json, gate_warning \
                      FROM setups WHERE archived_at IS NULL",
                 );
                 if symbol.is_some() {
@@ -422,7 +441,7 @@ impl TrackerService {
                             qty, dollar_risk_cents, r_per_share_cents, equity_at_decision_cents, \
                             sizing_version, sizing_skipped_reason, conviction_grade, \
                             conviction_multiplier_bps, sizing_cap_applied, \
-                            skipped_reason, skip_window_json \
+                            skipped_reason, skip_window_json, gate_warning \
                      FROM setups WHERE id = ?1 AND archived_at IS NULL",
                     rusqlite::params![id],
                     setup_row_to_raw,
@@ -562,6 +581,7 @@ type SetupRawRow = (
     Option<i64>,    // sizing_cap_applied
     Option<String>, // skipped_reason (Phase 5)
     Option<String>, // skip_window_json (Phase 5)
+    Option<String>, // gate_warning (Phase 8)
 );
 
 fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
@@ -592,6 +612,7 @@ fn setup_row_to_raw(row: &rusqlite::Row<'_>) -> rusqlite::Result<SetupRawRow> {
         row.get(23)?,
         row.get(24)?,
         row.get(25)?,
+        row.get(26)?,
     ))
 }
 
@@ -623,6 +644,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         sizing_cap_applied,
         skipped_reason_s,
         skip_window_json_s,
+        gate_warning,
     ) = r;
     let direction = parse_direction(&direction_s).ok_or_else(|| {
         TrackerError::Storage(StorageError::Migration(format!(
@@ -683,6 +705,7 @@ fn decode_setup_raw(r: SetupRawRow) -> Result<Setup> {
         sizing,
         skipped_reason,
         skip_window_json,
+        gate_warning,
     })
 }
 

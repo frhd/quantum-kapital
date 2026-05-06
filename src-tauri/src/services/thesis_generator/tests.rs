@@ -113,6 +113,7 @@ fn sample_setup() -> Setup {
         sizing: None,
         skipped_reason: None,
         skip_window_json: None,
+        gate_warning: None,
     }
 }
 

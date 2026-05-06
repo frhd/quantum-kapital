@@ -302,6 +302,13 @@ pub struct Setup {
     /// as `serde_json::Value` so the UI can read it without re-parsing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_window_json: Option<serde_json::Value>,
+    /// Phase 8 — concentration-gate `warn` annotation. Short tag like
+    /// `"sector_80pct"`. `None` when the setup passed cleanly. `block`
+    /// outcomes land as skipped rows (not warnings), so a value here
+    /// always means the trader can proceed without an explicit override
+    /// — the SetupCard renders an inline banner instead of a modal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate_warning: Option<String>,
 }
 
 #[cfg(test)]
