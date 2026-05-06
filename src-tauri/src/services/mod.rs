@@ -31,6 +31,7 @@ pub mod portfolio_risk;
 pub mod predictions;
 pub mod projection_service;
 pub mod quote_service;
+pub mod regime;
 pub mod research_notes;
 pub mod risk_engine;
 pub mod sentiment_surge_scanner;
