@@ -7,6 +7,7 @@ use tokio::sync::RwLock;
 use crate::ibkr::types::tracker::{Setup, TickerPrimingOutcome, TrackerStatus};
 use crate::ibkr::types::{DataTier, ScannerData};
 use crate::services::order_ticket::BracketStatus;
+use crate::services::regime::Regime;
 use crate::services::risk_engine::Sizing;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -253,6 +254,18 @@ pub enum AppEvent {
         open_position_count: usize,
     },
 
+    /// Phase 9 (quant-decisions) — emitted whenever the
+    /// `RegimeService` recomputes its snapshot AND the stable view
+    /// flips on at least one axis. The first snapshot of a session
+    /// also emits (None → Some). Frontend's RegimeIndicator
+    /// subscribes so the pill stays live without polling.
+    RegimeChanged {
+        snapshot_id: i64,
+        regime: Regime,
+        /// One of `daily_close` | `intraday` | `force_recompute`.
+        source: String,
+    },
+
     // System events
     RateLimitWarning {
         remaining: u32,
@@ -299,6 +312,7 @@ impl AppEvent {
             AppEvent::FundamentalsManualWritten { .. } => "fundamentals-manual-written",
             AppEvent::TickerPrimingDone { .. } => "ticker-priming-done",
             AppEvent::PortfolioRiskChanged { .. } => "portfolio-risk-changed",
+            AppEvent::RegimeChanged { .. } => "regime-changed",
             AppEvent::RateLimitWarning { .. } => "rate-limit-warning",
             AppEvent::SystemError { .. } => "system-error",
         }

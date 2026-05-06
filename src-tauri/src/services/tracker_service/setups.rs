@@ -314,6 +314,33 @@ impl TrackerService {
         Ok(())
     }
 
+    /// Phase 9 — persist the regime classification that was active
+    /// when the gate evaluated this setup. Set on both fired rows
+    /// (after on-regime pass) and skipped rows (off-regime). Pre-P9
+    /// rows have NULL; the UI suppresses the badge in that case.
+    pub async fn update_setup_regime(
+        &self,
+        id: i64,
+        regime_at_decision_json: serde_json::Value,
+    ) -> Result<()> {
+        let payload = serde_json::to_string(&regime_at_decision_json)?;
+        let updated = self
+            .db
+            .with_conn(move |conn| {
+                let n = conn.execute(
+                    "UPDATE setups SET regime_at_decision_json = ?1 \
+                     WHERE id = ?2 AND archived_at IS NULL",
+                    rusqlite::params![payload, id],
+                )?;
+                Ok(n)
+            })
+            .await?;
+        if updated == 0 {
+            return Err(TrackerError::NotFound(format!("setup#{id}")));
+        }
+        Ok(())
+    }
+
     /// Phase 7 — read back the exit plan written by
     /// `update_setup_exit_plan`. Returns `None` for pre-P7 rows (the
     /// legacy static ladder applies); errors only on JSON-decode

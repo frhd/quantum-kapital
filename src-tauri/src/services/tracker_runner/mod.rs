@@ -29,6 +29,7 @@ use crate::services::news_provider::NewsProvider;
 use crate::services::portfolio_risk::{
     ConcentrationKind, GateInput, GateSeverity, PortfolioRiskService,
 };
+use crate::services::regime::RegimeService;
 use crate::services::risk_engine::RiskEngine;
 use crate::services::thesis_generator::{ThesisContext, ThesisGenerator};
 use crate::services::tracker_service::{Result as TrackerResult, TrackerService};
@@ -185,6 +186,13 @@ pub struct TrackerRunner {
     /// annotation so the SetupCard renders an inline banner. When
     /// `None`, the runner is concentration-blind (back-compat).
     portfolio_risk: Option<Arc<PortfolioRiskService>>,
+    /// Phase 9 — optional regime gate. When wired, every detector
+    /// hit is evaluated against the active stable regime + the
+    /// detector's declared preferred-regime filter; off-regime hits
+    /// land as skipped rows (`skipped_reason = OffRegime`) and
+    /// bypass sizing / state-machine / thesis. When `None`, the
+    /// runner is regime-blind (back-compat).
+    regime: Option<Arc<RegimeService>>,
 }
 
 impl TrackerRunner {
@@ -212,7 +220,16 @@ impl TrackerRunner {
             detectors_config: None,
             exit_policies: None,
             portfolio_risk: None,
+            regime: None,
         }
+    }
+
+    /// Phase 9 — attach the regime gate. Off-regime hits divert to
+    /// skipped rows; on-regime hits proceed to the concentration
+    /// check + sizing path. When `None`, the runner skips the gate.
+    pub fn with_regime(mut self, regime: Arc<RegimeService>) -> Self {
+        self.regime = Some(regime);
+        self
     }
 
     /// Phase 8 — attach the portfolio-concentration gate. When wired,
@@ -399,6 +416,70 @@ impl TrackerRunner {
                             );
                         }
                     }
+                    // Phase 9 — regime gate. Active stable regime
+                    // joined against the detector's declared
+                    // preferred-regime filter. Off-regime hits
+                    // divert to skipped rows; on-regime hits fall
+                    // through to the concentration gate.
+                    let mut regime_decision = None;
+                    if let Some(regime_svc) = &self.regime {
+                        match regime_svc.evaluate(candidate.strategy).await {
+                            Ok(decision) => {
+                                if !decision.matches {
+                                    let window_json = serde_json::json!({
+                                        "kind": "off_regime",
+                                        "regime": decision.regime,
+                                        "preferred": decision.preferred,
+                                        "preferred_describe": decision.preferred.describe(),
+                                        "stale_inputs": decision.stale,
+                                    });
+                                    match self
+                                        .persist_skipped_off_regime_with_dedup(
+                                            &ctx_owned.symbol,
+                                            &candidate,
+                                            window_json,
+                                        )
+                                        .await
+                                    {
+                                        Ok(Some(skipped)) => {
+                                            let reason = format!(
+                                                "off-regime: trend={} vol={} (preferred {})",
+                                                decision.regime.trend.as_str(),
+                                                decision.regime.vol.as_str(),
+                                                decision.preferred.describe(),
+                                            );
+                                            let _ = self
+                                                .emitter
+                                                .emit(AppEvent::SetupSkipped {
+                                                    setup_id: skipped.id,
+                                                    symbol: skipped.symbol.clone(),
+                                                    strategy: skipped.strategy.clone(),
+                                                    kind: "off_regime".to_string(),
+                                                    reason,
+                                                })
+                                                .await;
+                                        }
+                                        Ok(None) => {
+                                            // Recent duplicate — silent.
+                                        }
+                                        Err(e) => warn!(
+                                            "failed to persist off-regime setup for {} ({}): {e}",
+                                            ctx_owned.symbol, outcome.detector
+                                        ),
+                                    }
+                                    continue;
+                                }
+                                regime_decision = Some(decision);
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "regime gate evaluation failed for {} ({}): {e} — \
+                                     proceeding without gate (fail-open)",
+                                    ctx_owned.symbol, outcome.detector
+                                );
+                            }
+                        }
+                    }
                     // Phase 8 — concentration gate. Pre-size the
                     // candidate (pure call against the cached
                     // equity snapshot) so the gate can evaluate
@@ -505,6 +586,27 @@ impl TrackerRunner {
                         .await
                     {
                         Ok(Some(mut setup)) => {
+                            // Phase 9 — stamp the on-regime decision
+                            // onto the fired row so the post-hoc audit
+                            // can replay (regime, preferred) for any
+                            // setup, not just the off-regime skips.
+                            if let Some(decision) = &regime_decision {
+                                let payload = serde_json::json!({
+                                    "regime": decision.regime,
+                                    "preferred": decision.preferred,
+                                    "matched": true,
+                                    "stale_inputs": decision.stale,
+                                    "source": decision.source.as_str(),
+                                });
+                                if let Err(e) =
+                                    self.tracker.update_setup_regime(setup.id, payload).await
+                                {
+                                    warn!(
+                                        "update_setup_regime on fired row failed for {} setup#{}: {e}",
+                                        ctx_owned.symbol, setup.id
+                                    );
+                                }
+                            }
                             // Quant-decisions Phase 1 — size the setup
                             // immediately. Failures don't kill the row;
                             // the UI surfaces an "ungated" warning when
@@ -827,6 +929,49 @@ impl TrackerRunner {
         };
         let policy = cfg.blackout_policy_for(candidate.strategy);
         gate.is_blackout(symbol, now, &policy).await
+    }
+
+    /// Phase 9 — `persist_skipped_with_dedup` analogue for the
+    /// regime gate. `window_json` carries the active regime + the
+    /// detector's preferred filter so the SkippedSetupsPanel renders
+    /// "off-regime: trend=Down vol=High; preferred trend in
+    /// [Up,Sideways] && vol in [Low,Normal]" without re-evaluating
+    /// the gate. Sets `regime_at_decision_json` from the same payload
+    /// in a single transaction.
+    async fn persist_skipped_off_regime_with_dedup(
+        &self,
+        symbol: &str,
+        candidate: &crate::strategies::SetupCandidate,
+        window_json: serde_json::Value,
+    ) -> TrackerResult<Option<Setup>> {
+        let existing = self
+            .tracker
+            .recent_duplicate(
+                symbol,
+                candidate.strategy,
+                candidate.direction,
+                DUPLICATE_WINDOW,
+            )
+            .await?;
+        if existing.is_some() {
+            return Ok(None);
+        }
+        let row = self
+            .tracker
+            .insert_skipped_setup(
+                symbol,
+                candidate,
+                SkipReason::OffRegime,
+                window_json.clone(),
+            )
+            .await?;
+        if let Err(e) = self.tracker.update_setup_regime(row.id, window_json).await {
+            warn!(
+                "update_setup_regime on skipped off-regime row failed for {} setup#{}: {e}",
+                symbol, row.id
+            );
+        }
+        Ok(Some(row))
     }
 
     /// Phase 5 — write a skipped setup row. Same dedup window as
